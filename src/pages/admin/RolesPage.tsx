@@ -401,6 +401,70 @@ export function RolesPage() {
                             );
                           })}
 
+                          {/* Critères d'évaluation - TOP LEVEL */}
+                          {(() => {
+                            const mod = SIDEBAR_MODULE_DEFS.find(m => m.key === 'evaluation_criteria');
+                            const row = formData.permissions['evaluation_criteria'] ?? { read: false, write: false, delete: false };
+                            return mod ? (
+                              <tr className="border-b">
+                                <td className="py-2 px-1"><span className="inline-block w-4" /></td>
+                                <td className="py-2 px-3"><span>{mod.label}</span></td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'read', v === true)}
+                                  />
+                                </td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.write}
+                                    disabled={!row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'write', v === true)}
+                                  />
+                                </td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.delete}
+                                    disabled={!row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'delete', v === true)}
+                                  />
+                                </td>
+                              </tr>
+                            ) : null;
+                          })()}
+
+                          {/* Système de calcul - TOP LEVEL */}
+                          {(() => {
+                            const mod = SIDEBAR_MODULE_DEFS.find(m => m.key === 'calculation_system');
+                            const row = formData.permissions['calculation_system'] ?? { read: false, write: false, delete: false };
+                            return mod ? (
+                              <tr className="border-b">
+                                <td className="py-2 px-1"><span className="inline-block w-4" /></td>
+                                <td className="py-2 px-3"><span>{mod.label}</span></td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'read', v === true)}
+                                  />
+                                </td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.write}
+                                    disabled={!row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'write', v === true)}
+                                  />
+                                </td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.delete}
+                                    disabled={!row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'delete', v === true)}
+                                  />
+                                </td>
+                              </tr>
+                            ) : null;
+                          })()}
+
                           {/* EVALUATION GROUP - Expandable parent with children */}
                           <Fragment>
                             <tr className="border-b">
@@ -444,70 +508,6 @@ export function RolesPage() {
                             {/* Evaluation children */}
                             {expandEvaluationAccess && (
                               <>
-                                {/* Critères d'évaluation */}
-                                {(() => {
-                                  const mod = SIDEBAR_MODULE_DEFS.find(m => m.key === 'evaluation_criteria');
-                                  const row = formData.permissions['evaluation_criteria'] ?? { read: false, write: false, delete: false };
-                                  return mod ? (
-                                    <tr className="border-b bg-muted/20">
-                                      <td className="py-2 px-1"><span className="inline-block w-6" /></td>
-                                      <td className="py-2 px-3 text-sm text-muted-foreground">{mod.label}</td>
-                                      <td className="text-center py-2 px-2">
-                                        <Checkbox
-                                          checked={row.read}
-                                          onCheckedChange={(v) => setModulePerm(mod.key, 'read', v === true)}
-                                        />
-                                      </td>
-                                      <td className="text-center py-2 px-2">
-                                        <Checkbox
-                                          checked={row.write}
-                                          disabled={!row.read}
-                                          onCheckedChange={(v) => setModulePerm(mod.key, 'write', v === true)}
-                                        />
-                                      </td>
-                                      <td className="text-center py-2 px-2">
-                                        <Checkbox
-                                          checked={row.delete}
-                                          disabled={!row.read}
-                                          onCheckedChange={(v) => setModulePerm(mod.key, 'delete', v === true)}
-                                        />
-                                      </td>
-                                    </tr>
-                                  ) : null;
-                                })()}
-
-                                {/* Système de calcul */}
-                                {(() => {
-                                  const mod = SIDEBAR_MODULE_DEFS.find(m => m.key === 'calculation_system');
-                                  const row = formData.permissions['calculation_system'] ?? { read: false, write: false, delete: false };
-                                  return mod ? (
-                                    <tr className="border-b bg-muted/20">
-                                      <td className="py-2 px-1"><span className="inline-block w-6" /></td>
-                                      <td className="py-2 px-3 text-sm text-muted-foreground">{mod.label}</td>
-                                      <td className="text-center py-2 px-2">
-                                        <Checkbox
-                                          checked={row.read}
-                                          onCheckedChange={(v) => setModulePerm(mod.key, 'read', v === true)}
-                                        />
-                                      </td>
-                                      <td className="text-center py-2 px-2">
-                                        <Checkbox
-                                          checked={row.write}
-                                          disabled={!row.read}
-                                          onCheckedChange={(v) => setModulePerm(mod.key, 'write', v === true)}
-                                        />
-                                      </td>
-                                      <td className="text-center py-2 px-2">
-                                        <Checkbox
-                                          checked={row.delete}
-                                          disabled={!row.read}
-                                          onCheckedChange={(v) => setModulePerm(mod.key, 'delete', v === true)}
-                                        />
-                                      </td>
-                                    </tr>
-                                  ) : null;
-                                })()}
-
                                 {/* Gestion des évaluations */}
                                 {(() => {
                                   const mod = SIDEBAR_MODULE_DEFS.find(m => m.key === 'evaluations_management');
