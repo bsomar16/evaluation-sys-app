@@ -70,7 +70,12 @@ export function RolesPage() {
         .from('roles')
         .select('id, name, code, level, parent_role_id, color, child_roles, permissions, is_active, created_at, updated_at');
       if (error) throw error;
-      setRoles(data || []);
+      // Normalize child_roles to always be an array
+      const normalizedData = (data || []).map(role => ({
+        ...role,
+        child_roles: Array.isArray(role.child_roles) ? role.child_roles : (role.child_roles ? [role.child_roles] : [])
+      }));
+      setRoles(normalizedData);
     } catch (error: any) {
       console.error('Erreur:', error);
       toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les rôles' });
@@ -227,10 +232,12 @@ export function RolesPage() {
   const openEdit = (role: any) => {
     setEditingRole(role);
     const parsed = parseRolePermissions(role.permissions);
+    // Ensure child_roles is always an array
+    const childRoles = Array.isArray(role.child_roles) ? role.child_roles : (role.child_roles ? [role.child_roles] : []);
     setFormData({
       name: role.name,
       level: role.level,
-      child_roles: role.child_roles || [],
+      child_roles: childRoles,
       color: role.color || '#3b82f6',
       permissions: parsed.sidebar,
       evaluations_actions: parsed.evaluations_actions,
