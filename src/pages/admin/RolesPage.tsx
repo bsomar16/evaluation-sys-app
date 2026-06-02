@@ -388,20 +388,17 @@ export function RolesPage() {
                           {/* Grouped modules (Evaluation, Training) */}
                           {Object.entries(groupedModules.grouped).map(([groupKey, mods]) => {
                             const isEvaluationGroup = groupKey === 'evaluation';
-                            const isTrainingGroup = groupKey === 'training';
                             const isExpanded = isEvaluationGroup ? expandEvaluationAccess : expandTrainingAccess;
                             const toggleExpand = isEvaluationGroup
                               ? () => setExpandEvaluationAccess(p => !p)
                               : () => setExpandTrainingAccess(p => !p);
                             
                             const groupLabel = isEvaluationGroup ? 'Évaluation' : 'Formation';
-                            const mainMod = mods.find(m => m.key === (isEvaluationGroup ? 'evaluations' : 'training'));
-                            const mainRow = mainMod && (formData.permissions[mainMod.key] ?? { read: false, write: false, delete: false });
                             
                             return (
                               <Fragment key={groupKey}>
-                                {/* Group header */}
-                                <tr className="border-b bg-blue-50/30 dark:bg-blue-950/20">
+                                {/* Group header - just chevron and label, no checkboxes */}
+                                <tr className="border-b">
                                   <td className="py-2 px-1 text-center">
                                     <button
                                       type="button"
@@ -415,8 +412,8 @@ export function RolesPage() {
                                       )}
                                     </button>
                                   </td>
-                                  <td className="py-2 px-3 font-semibold text-blue-700 dark:text-blue-300">{groupLabel}</td>
-                                  <td colSpan={3} className="py-2 px-2 text-right text-xs text-muted-foreground" />
+                                  <td className="py-2 px-3 font-semibold">{groupLabel}</td>
+                                  <td colSpan={3} />
                                 </tr>
                                 
                                 {/* Group content when expanded */}
@@ -427,127 +424,79 @@ export function RolesPage() {
                                     delete: false,
                                   };
                                   
-                                  return (
-                                    <Fragment key={mod.key}>
-                                      <tr className="border-b">
-                                        <td className="py-2 px-1 text-center">
+                                  // Handle action items differently
+                                  if (mod.isAction) {
+                                    return (
+                                      <tr key={mod.key} className="border-b bg-muted/20">
+                                        <td className="py-2 px-1">
                                           <span className="inline-block w-4" />
                                         </td>
                                         <td className="py-2 px-3 pl-8">
-                                          <span className="text-sm">{mod.label}</span>
+                                          <span className="text-sm text-muted-foreground">{mod.label}</span>
                                         </td>
+                                        <td className="text-center py-2 px-2 text-muted-foreground">—</td>
                                         <td className="text-center py-2 px-2">
-                                          <Checkbox
-                                            checked={row.read}
-                                            onCheckedChange={(v) => setModulePerm(mod.key, 'read', v === true)}
-                                          />
+                                          {mod.key === 'evaluations_review' && (
+                                            <Checkbox
+                                              checked={formData.evaluations_actions.review}
+                                              onCheckedChange={(v) =>
+                                                setFormData((prev) => ({
+                                                  ...prev,
+                                                  evaluations_actions: {
+                                                    ...prev.evaluations_actions,
+                                                    review: v === true,
+                                                  },
+                                                }))
+                                              }
+                                            />
+                                          )}
+                                          {mod.key === 'training_review' && (
+                                            <Checkbox
+                                              checked={formData.training_actions.review}
+                                              onCheckedChange={(v) =>
+                                                setFormData((prev) => ({
+                                                  ...prev,
+                                                  training_actions: { ...prev.training_actions, review: v === true },
+                                                }))
+                                              }
+                                            />
+                                          )}
                                         </td>
-                                        <td className="text-center py-2 px-2">
-                                          <Checkbox
-                                            checked={row.write}
-                                            disabled={!row.read}
-                                            onCheckedChange={(v) => setModulePerm(mod.key, 'write', v === true)}
-                                          />
-                                        </td>
-                                        <td className="text-center py-2 px-2">
-                                          <Checkbox
-                                            checked={row.delete}
-                                            disabled={!row.read}
-                                            onCheckedChange={(v) => setModulePerm(mod.key, 'delete', v === true)}
-                                          />
-                                        </td>
+                                        <td className="text-center py-2 px-2 text-muted-foreground">—</td>
                                       </tr>
-                                      
-                                      {/* Sub-items for Evaluations */}
-                                      {isEvaluationGroup && mod.key === 'evaluations' && (
-                                        <>
-                                          <tr className="border-b bg-muted/20">
-                                            <td className="py-2 px-1" />
-                                            <td className="py-2 px-3 pl-12 text-sm text-muted-foreground">Soumission</td>
-                                            <td className="text-center py-2 px-2 text-muted-foreground">—</td>
-                                            <td className="text-center py-2 px-2">
-                                              <Checkbox
-                                                checked={formData.evaluations_actions.submit}
-                                                disabled={!row.read}
-                                                onCheckedChange={(v) =>
-                                                  setFormData((prev) => ({
-                                                    ...prev,
-                                                    evaluations_actions: {
-                                                      ...prev.evaluations_actions,
-                                                      submit: v === true,
-                                                    },
-                                                  }))
-                                                }
-                                              />
-                                            </td>
-                                            <td className="text-center py-2 px-2 text-muted-foreground">—</td>
-                                          </tr>
-                                          <tr className="border-b bg-muted/20">
-                                            <td className="py-2 px-1" />
-                                            <td className="py-2 px-3 pl-12 text-sm text-muted-foreground">Refus & Acceptation</td>
-                                            <td className="text-center py-2 px-2 text-muted-foreground">—</td>
-                                            <td className="text-center py-2 px-2">
-                                              <Checkbox
-                                                checked={formData.evaluations_actions.review}
-                                                disabled={!row.read}
-                                                onCheckedChange={(v) =>
-                                                  setFormData((prev) => ({
-                                                    ...prev,
-                                                    evaluations_actions: {
-                                                      ...prev.evaluations_actions,
-                                                      review: v === true,
-                                                    },
-                                                  }))
-                                                }
-                                              />
-                                            </td>
-                                            <td className="text-center py-2 px-2 text-muted-foreground">—</td>
-                                          </tr>
-                                        </>
-                                      )}
-                                      
-                                      {/* Sub-items for Training */}
-                                      {isTrainingGroup && mod.key === 'training' && (
-                                        <>
-                                          <tr className="border-b bg-muted/20">
-                                            <td className="py-2 px-1" />
-                                            <td className="py-2 px-3 pl-12 text-sm text-muted-foreground">Demande de formation</td>
-                                            <td className="text-center py-2 px-2 text-muted-foreground">—</td>
-                                            <td className="text-center py-2 px-2">
-                                              <Checkbox
-                                                checked={formData.training_actions.request}
-                                                disabled={!row.read}
-                                                onCheckedChange={(v) =>
-                                                  setFormData((prev) => ({
-                                                    ...prev,
-                                                    training_actions: { ...prev.training_actions, request: v === true },
-                                                  }))
-                                                }
-                                              />
-                                            </td>
-                                            <td className="text-center py-2 px-2 text-muted-foreground">—</td>
-                                          </tr>
-                                          <tr className="border-b bg-muted/20">
-                                            <td className="py-2 px-1" />
-                                            <td className="py-2 px-3 pl-12 text-sm text-muted-foreground">Refus & Acceptation</td>
-                                            <td className="text-center py-2 px-2 text-muted-foreground">—</td>
-                                            <td className="text-center py-2 px-2">
-                                              <Checkbox
-                                                checked={formData.training_actions.review}
-                                                disabled={!row.read}
-                                                onCheckedChange={(v) =>
-                                                  setFormData((prev) => ({
-                                                    ...prev,
-                                                    training_actions: { ...prev.training_actions, review: v === true },
-                                                  }))
-                                                }
-                                              />
-                                            </td>
-                                            <td className="text-center py-2 px-2 text-muted-foreground">—</td>
-                                          </tr>
-                                        </>
-                                      )}
-                                    </Fragment>
+                                    );
+                                  }
+                                  
+                                  // Regular module item
+                                  return (
+                                    <tr key={mod.key} className="border-b">
+                                      <td className="py-2 px-1 text-center">
+                                        <span className="inline-block w-4" />
+                                      </td>
+                                      <td className="py-2 px-3 pl-8">
+                                        <span className="text-sm">{mod.label}</span>
+                                      </td>
+                                      <td className="text-center py-2 px-2">
+                                        <Checkbox
+                                          checked={row.read}
+                                          onCheckedChange={(v) => setModulePerm(mod.key, 'read', v === true)}
+                                        />
+                                      </td>
+                                      <td className="text-center py-2 px-2">
+                                        <Checkbox
+                                          checked={row.write}
+                                          disabled={!row.read}
+                                          onCheckedChange={(v) => setModulePerm(mod.key, 'write', v === true)}
+                                        />
+                                      </td>
+                                      <td className="text-center py-2 px-2">
+                                        <Checkbox
+                                          checked={row.delete}
+                                          disabled={!row.read}
+                                          onCheckedChange={(v) => setModulePerm(mod.key, 'delete', v === true)}
+                                        />
+                                      </td>
+                                    </tr>
                                   );
                                 })}
                               </Fragment>

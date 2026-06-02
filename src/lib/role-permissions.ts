@@ -12,8 +12,10 @@ export type SidebarModuleKey =
   | 'evaluation_criteria'
   | 'calculation_system'
   | 'evaluations'
+  | 'evaluations_review'
   | 'evaluations_management'
   | 'training'
+  | 'training_review'
   | 'training_management';
 
 export interface ModulePermission {
@@ -41,7 +43,7 @@ export interface RolePermissionsPayload {
   training_actions?: Partial<TrainingActionsPermission>;
 }
 
-export const SIDEBAR_MODULE_DEFS: { key: SidebarModuleKey; label: string; paths: string[]; group?: string }[] = [
+export const SIDEBAR_MODULE_DEFS: { key: SidebarModuleKey; label: string; paths: string[]; group?: string; isAction?: boolean }[] = [
   { key: 'dashboard', label: 'Tdb (Tableau de bord)', paths: ['/'] },
   { key: 'employees', label: 'Employé', paths: ['/equipe'] },
   { key: 'roles', label: 'Rôles', paths: ['/admin/roles'] },
@@ -49,14 +51,38 @@ export const SIDEBAR_MODULE_DEFS: { key: SidebarModuleKey; label: string; paths:
   { key: 'departments', label: 'Départements', paths: ['/admin/departments'] },
   { key: 'evaluation_criteria', label: "Critères d'évaluation", paths: ['/admin/evaluation-criteria'] },
   { key: 'calculation_system', label: 'Système de calcul', paths: ['/admin/calculation-system'] },
-  { key: 'evaluations', label: 'Évaluation', paths: ['/evaluation'], group: 'evaluation' },
+  {
+    key: 'evaluations',
+    label: 'Soumission',
+    paths: ['/evaluation'],
+    group: 'evaluation',
+  },
+  {
+    key: 'evaluations_review',
+    label: 'Refus & Acceptation',
+    paths: [],
+    group: 'evaluation',
+    isAction: true,
+  },
   {
     key: 'evaluations_management',
     label: 'Gestion des évaluations',
     paths: ['/admin/evaluations'],
     group: 'evaluation',
   },
-  { key: 'training', label: 'Formation', paths: ['/training'], group: 'training' },
+  {
+    key: 'training',
+    label: 'Demande de formation',
+    paths: ['/training'],
+    group: 'training',
+  },
+  {
+    key: 'training_review',
+    label: 'Refus & Acceptation',
+    paths: [],
+    group: 'training',
+    isAction: true,
+  },
   {
     key: 'training_management',
     label: 'Planification des formations',
@@ -74,8 +100,10 @@ const MODULE_KEYS: SidebarModuleKey[] = [
   'evaluation_criteria',
   'calculation_system',
   'evaluations',
+  'evaluations_review',
   'evaluations_management',
   'training',
+  'training_review',
   'training_management',
 ];
 
