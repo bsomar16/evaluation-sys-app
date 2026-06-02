@@ -68,7 +68,7 @@ export function RolesPage() {
     try {
       const { data, error } = await supabase
         .from('roles')
-        .select('id, name, code, level, parent_role_id, color, child_roles, permissions, is_active, created_at, updated_at, description');
+        .select('id, name, code, level, parent_role_id, color, child_roles, permissions, is_active, created_at, updated_at');
       if (error) throw error;
       setRoles(data || []);
     } catch (error: any) {
