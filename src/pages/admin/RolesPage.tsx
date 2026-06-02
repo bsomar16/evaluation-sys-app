@@ -66,7 +66,9 @@ export function RolesPage() {
 
   const loadRoles = async () => {
     try {
-      const { data, error } = await supabase.from('roles').select('*');
+      const { data, error } = await supabase
+        .from('roles')
+        .select('id, name, code, level, parent_role_id, color, child_roles, permissions, is_active, created_at, updated_at, description');
       if (error) throw error;
       setRoles(data || []);
     } catch (error: any) {
@@ -455,7 +457,7 @@ export function RolesPage() {
                   </div>
                   
                   <div className="border-t pt-4">
-                    <p className="font-semibold text-sm mb-2">Rôles Enfants (Niveau &lt; {formData.level})</p>
+                    <p className="font-semibold text-sm mb-2">Rôles Enfants (Niveau &gt; {formData.level})</p>
                     <div className="flex gap-2 mb-2">
                       <Select value={childRoleInput} onValueChange={setChildRoleInput}>
                         <SelectTrigger className="flex-1"><SelectValue placeholder="Ajouter un rôle enfant" /></SelectTrigger>
