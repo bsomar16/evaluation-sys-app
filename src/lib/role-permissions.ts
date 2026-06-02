@@ -41,7 +41,7 @@ export interface RolePermissionsPayload {
   training_actions?: Partial<TrainingActionsPermission>;
 }
 
-export const SIDEBAR_MODULE_DEFS: { key: SidebarModuleKey; label: string; paths: string[] }[] = [
+export const SIDEBAR_MODULE_DEFS: { key: SidebarModuleKey; label: string; paths: string[]; group?: string }[] = [
   { key: 'dashboard', label: 'Tdb (Tableau de bord)', paths: ['/'] },
   { key: 'employees', label: 'Employé', paths: ['/equipe'] },
   { key: 'roles', label: 'Rôles', paths: ['/admin/roles'] },
@@ -49,17 +49,19 @@ export const SIDEBAR_MODULE_DEFS: { key: SidebarModuleKey; label: string; paths:
   { key: 'departments', label: 'Départements', paths: ['/admin/departments'] },
   { key: 'evaluation_criteria', label: "Critères d'évaluation", paths: ['/admin/evaluation-criteria'] },
   { key: 'calculation_system', label: 'Système de calcul', paths: ['/admin/calculation-system'] },
-  { key: 'evaluations', label: 'Évaluation', paths: ['/evaluation'] },
+  { key: 'evaluations', label: 'Évaluation', paths: ['/evaluation'], group: 'evaluation' },
   {
     key: 'evaluations_management',
     label: 'Gestion des évaluations',
     paths: ['/admin/evaluations'],
+    group: 'evaluation',
   },
-  { key: 'training', label: 'Formation', paths: ['/training'] },
+  { key: 'training', label: 'Formation', paths: ['/training'], group: 'training' },
   {
     key: 'training_management',
     label: 'Planification des formations',
     paths: ['/admin/training-planning', '/admin/training-analytics'],
+    group: 'training',
   },
 ];
 
