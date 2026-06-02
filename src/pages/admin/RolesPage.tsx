@@ -594,7 +594,6 @@ export function RolesPage() {
                             );
                           })}
                         </tbody>
-                        </tbody>
                       </table>
                     </div>
                   </div>
