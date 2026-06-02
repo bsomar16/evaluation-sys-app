@@ -64,6 +64,32 @@ export function RolesPage() {
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
+  const normalizeChildRoles = (value: any): string[] => {
+    if (!value) return [];
+    
+    // Si c'est déjà un array
+    if (Array.isArray(value)) return value.filter(v => v);
+    
+    // Si c'est une string
+    if (typeof value === 'string') {
+      // Essayer de parser comme JSON (cas: "[\"id1\", \"id2\", \"id3\"]")
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) return parsed.filter(v => v);
+      } catch {}
+      
+      // Essayer de splitter par virgule (cas: "id1,id2,id3")
+      if (value.includes(',')) {
+        return value.split(',').map(v => v.trim()).filter(v => v);
+      }
+      
+      // Sinon, c'est un seul ID
+      return value.trim() ? [value.trim()] : [];
+    }
+    
+    return [];
+  };
+
   const loadRoles = async () => {
     try {
       const { data, error } = await supabase
@@ -73,7 +99,7 @@ export function RolesPage() {
       // Normalize child_roles to always be an array
       const normalizedData = (data || []).map(role => ({
         ...role,
-        child_roles: Array.isArray(role.child_roles) ? role.child_roles : (role.child_roles ? [role.child_roles] : [])
+        child_roles: normalizeChildRoles(role.child_roles)
       }));
       setRoles(normalizedData);
     } catch (error: any) {
@@ -115,7 +141,7 @@ export function RolesPage() {
       const payload = {
         name: formData.name,
         level: formData.level,
-        child_roles: formData.child_roles,
+        child_roles: formData.child_roles.length > 0 ? JSON.stringify(formData.child_roles) : null,
         color: formData.color,
         permissions: serializeRolePermissions(
           formData.permissions,
@@ -232,12 +258,10 @@ export function RolesPage() {
   const openEdit = (role: any) => {
     setEditingRole(role);
     const parsed = parseRolePermissions(role.permissions);
-    // Ensure child_roles is always an array
-    const childRoles = Array.isArray(role.child_roles) ? role.child_roles : (role.child_roles ? [role.child_roles] : []);
     setFormData({
       name: role.name,
       level: role.level,
-      child_roles: childRoles,
+      child_roles: normalizeChildRoles(role.child_roles),
       color: role.color || '#3b82f6',
       permissions: parsed.sidebar,
       evaluations_actions: parsed.evaluations_actions,
