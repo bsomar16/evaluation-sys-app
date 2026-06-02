@@ -150,13 +150,24 @@ export function RolesPage() {
         ),
       };
 
+      console.log('Saving role:', {
+        id: editingRole?.id,
+        name: formData.name,
+        level: formData.level,
+        child_roles: formData.child_roles,
+        child_roles_json: payload.child_roles
+      });
+
       if (editingRole) {
         if (!canWrite('roles')) {
           toast({ variant: 'destructive', title: 'Erreur', description: 'Permission écriture requise' });
           return;
         }
         const { error } = await supabase.from('roles').update(payload).eq('id', editingRole.id);
-        if (error) throw error;
+        if (error) {
+          console.error('Update error:', error);
+          throw error;
+        }
         toast({ title: 'Succès', description: 'Rôle modifié' });
       } else {
         if (!canWrite('roles')) {
@@ -164,12 +175,16 @@ export function RolesPage() {
           return;
         }
         const { error } = await supabase.from('roles').insert([payload]);
-        if (error) throw error;
+        if (error) {
+          console.error('Insert error:', error);
+          throw error;
+        }
         toast({ title: 'Succès', description: 'Rôle créé' });
       }
       loadRoles();
       setOpenDialog(false);
     } catch (error: any) {
+      console.error('Full error:', error);
       toast({ variant: 'destructive', title: 'Erreur', description: error.message });
     }
   };
@@ -207,12 +222,38 @@ export function RolesPage() {
     }
   };
 
+  // Detect if adding childRoleId to editingRole would create a cycle
+  const wouldCreateCycle = (childRoleId: string): boolean => {
+    if (!editingRole) return false;
+    
+    // Check if childRole contains editingRole in its descendants
+    const hasAncestorInDescendants = (roleId: string, targetId: string): boolean => {
+      const role = roles.find(r => r.id === roleId);
+      if (!role || !role.child_roles || role.child_roles.length === 0) return false;
+      
+      for (const childId of role.child_roles) {
+        if (childId === targetId) return true; // Direct child is the target
+        if (hasAncestorInDescendants(childId, targetId)) return true; // Check descendants
+      }
+      return false;
+    };
+    
+    // If the role we want to add as child already contains editingRole as descendant, it's a cycle
+    return hasAncestorInDescendants(childRoleId, editingRole.id);
+  };
+
   const getAvailableChildRoles = () => {
-    return roles.filter(r => 
+    const available = roles.filter(r => 
       r.id !== editingRole?.id && 
       r.level !== undefined && 
-      r.level > formData.level
+      r.level > formData.level &&
+      !wouldCreateCycle(r.id)
     );
+    
+    console.log('Available child roles for', editingRole?.name, ':', available.map(r => `${r.name}(L${r.level})`));
+    console.log('Editing role level:', formData.level);
+    
+    return available;
   };
 
   const addChildRole = () => {
