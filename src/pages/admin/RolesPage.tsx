@@ -141,7 +141,7 @@ export function RolesPage() {
       const payload = {
         name: formData.name,
         level: formData.level,
-        child_roles: formData.child_roles.length > 0 ? JSON.stringify(formData.child_roles) : null,
+        child_roles: formData.child_roles.length > 0 ? formData.child_roles : null,
         color: formData.color,
         permissions: serializeRolePermissions(
           formData.permissions,
