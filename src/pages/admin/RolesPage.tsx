@@ -178,7 +178,7 @@ export function RolesPage() {
     return roles.filter(r => 
       r.id !== editingRole?.id && 
       r.level !== undefined && 
-      r.level < formData.level
+      r.level > formData.level
     );
   };
 

@@ -102,16 +102,49 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       setUser(session);
       setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
+
+      // Load appearance from DB for this user
+      try {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('appearance_mode')
+          .eq('id', session.id)
+          .single();
+        
+        if (userData?.appearance_mode) {
+          const mode = userData.appearance_mode as AppearanceMode;
+          setAppearanceMode(mode);
+        }
+      } catch (error) {
+        console.error('Failed to load appearance from DB:', error);
+        // Fallback to localStorage
+        const saved = localStorage.getItem('appearanceMode');
+        if (saved) setAppearanceMode(saved as AppearanceMode);
+      }
     };
 
     loadSessionAndNav();
 
     const paletteKey = appearanceMode === 'standard' ? 'corporate' : getSelectedPaletteKey();
     applyPaletteToDOM(paletteKey, appearanceMode);
-  }, [appearanceMode]);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('appearanceMode', appearanceMode);
+    
+    // Save appearance to DB if user is logged in
+    if (user) {
+      supabase
+        .from('users')
+        .update({ appearance_mode: appearanceMode })
+        .eq('id', user.id)
+        .then(() => {
+          console.log('Appearance saved to DB');
+        })
+        .catch((error) => {
+          console.error('Failed to save appearance to DB:', error);
+        });
+    }
     
     // Apply theme
     if (appearanceMode === 'dark') {
@@ -143,7 +176,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     // Dispatch event to notify other components of appearance change
     window.dispatchEvent(new CustomEvent('appearanceModeChange', { detail: appearanceMode }));
-  }, [appearanceMode]);
+  }, [appearanceMode, user]);
 
   // Listen for palette changes from UIStudio or other components
   // BUT: ignore palette changes in standard mode (standard is independent)
@@ -454,7 +487,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Header - Full Width */}
       <header 
-        className="flex items-center justify-between h-20 px-4 md:px-6 border-b border-border shrink-0"
+        className="flex items-center justify-between h-14 px-4 md:px-6 border-b border-border shrink-0"
         style={{
           backgroundColor: appearanceMode === 'standard' ? 'hsl(0 0% 94%)' : 'hsl(var(--card))'
         }}
@@ -649,7 +682,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <aside
           className={cn(
             "flex flex-col bg-sidebar text-sidebar-foreground transition-all duration-300 border-r-2 border-sidebar-border relative",
-            "fixed inset-y-16 left-0 z-50 md:relative md:inset-auto",
+            "fixed inset-y-14 left-0 z-50 md:relative md:inset-auto",
             collapsed ? "w-[72px]" : "w-64",
             mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           )}
