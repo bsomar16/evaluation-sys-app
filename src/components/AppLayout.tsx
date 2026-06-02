@@ -222,13 +222,64 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     try {
+      let totalCount = 0;
+
+      // Get current user's role with child_roles
+      if (user?.role_id) {
+        const { data: roleData } = await supabase
+          .from('roles')
+          .select('child_roles')
+          .eq('id', user.role_id)
+          .single();
+        
+        let childRoleIds: string[] = [];
+        if (roleData?.child_roles) {
+          // Parse child_roles (could be JSON array or comma-separated string)
+          if (Array.isArray(roleData.child_roles)) {
+            childRoleIds = roleData.child_roles;
+          } else if (typeof roleData.child_roles === 'string') {
+            try {
+              childRoleIds = JSON.parse(roleData.child_roles);
+            } catch {
+              childRoleIds = roleData.child_roles.split(',').map(id => id.trim()).filter(id => id);
+            }
+          }
+        }
+
+        // Get users with child roles
+        if (childRoleIds.length > 0) {
+          const { data: childUsers } = await supabase
+            .from('users')
+            .select('id')
+            .in('role_id', childRoleIds);
+
+          const childUserIds = childUsers?.map(u => u.id) ?? [];
+
+          // Count pending evaluations for child role users
+          if (childUserIds.length > 0) {
+            const { count: childCount, error: childError } = await supabase
+              .from('evaluations')
+              .select('id', { count: 'exact', head: true })
+              .in('status', ['submitted', 'pending'])
+              .in('evaluated_user_id', childUserIds);
+
+            if (!childError) {
+              totalCount = childCount ?? 0;
+            }
+          }
+        }
+      }
+
+      // Also get current user's pending evaluations
       const { count, error } = await supabase
         .from('evaluations')
         .select('id', { count: 'exact', head: true })
         .in('status', ['submitted', 'pending']);
 
       if (error) throw error;
-      setPendingEvaluationsCount(count ?? 0);
+      totalCount += (count ?? 0);
+      
+      setPendingEvaluationsCount(totalCount);
     } catch {
       // fallback local (mode compat table/colonne manquante)
       try {
@@ -240,7 +291,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         setPendingEvaluationsCount(0);
       }
     }
-  }, [isDeveloper, canReadEvaluations, canWriteEvaluations]);
+  }, [isDeveloper, canReadEvaluations, canWriteEvaluations, user?.role_id]);
 
   useEffect(() => {
     void loadPendingEvaluationsCount();
