@@ -3,7 +3,16 @@ import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, Plus, Edit2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
@@ -16,11 +25,12 @@ import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import { isUserArchived } from '@/lib/user-archive';
 import { EmployeeUserFormDialog } from '@/components/EmployeeUserFormDialog';
+import { UsersService } from '@/services/admin/users';
 
 export default function TeamPage() {
   const { roleId } = useParams<{ roleId?: string }>();
   const { toast } = useToast();
-  const { canRead, canWrite } = useRolePermissions();
+  const { canRead, canWrite, canDelete } = useRolePermissions();
   const session = getSessionUser();
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
@@ -30,6 +40,7 @@ export default function TeamPage() {
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
   useEffect(() => {
     loadData();
@@ -128,6 +139,20 @@ export default function TeamPage() {
   const extractPrenom = (name: string) => splitFullName(name).prenom;
 
   const canManageEmployees = canWrite('employees');
+  const canDeleteEmployees = canDelete('employees');
+
+  const handleDeleteUser = async () => {
+    if (!deleteTarget) return;
+    try {
+      await UsersService.delete(deleteTarget.id);
+      toast({ title: 'Succès', description: 'Employé supprimé' });
+      loadData();
+      setDeleteTarget(null);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    }
+  };
 
   if (isSiteDeveloper(session) || !canRead('employees')) {
     return <ModuleAccessDenied />;
@@ -180,6 +205,7 @@ export default function TeamPage() {
                     <th className="text-left py-3 px-4">Username</th>
                     <th className="text-left py-3 px-4">Filiale</th>
                     <th className="text-left py-3 px-4">Rôle</th>
+                    <th className="text-left py-3 px-4">Statut</th>
                     {canManageEmployees && <th className="text-right py-3 px-4">Actions</th>}
                   </tr>
                 </thead>
@@ -200,6 +226,11 @@ export default function TeamPage() {
                             {badge.label}
                           </span>
                         </td>
+                        <td className="py-3 px-4">
+                          <Badge variant={user.is_active !== false ? 'default' : 'secondary'}>
+                            {user.is_active !== false ? 'Actif' : 'Inactif'}
+                          </Badge>
+                        </td>
                         {canManageEmployees && (
                           <td className="py-3 px-4 text-right">
                             <Button
@@ -210,6 +241,17 @@ export default function TeamPage() {
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
+                            {canDeleteEmployees && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive"
+                                onClick={() => setDeleteTarget(user)}
+                                title="Supprimer"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </td>
                         )}
                       </tr>
@@ -245,6 +287,21 @@ export default function TeamPage() {
         departments={departments}
         onSaved={loadData}
       />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Supprimer l'employé</AlertDialogTitle>
+          <AlertDialogDescription>
+            Êtes-vous sûr de vouloir supprimer définitivement {deleteTarget?.name} ? Cette action est irréversible.
+          </AlertDialogDescription>
+          <div className="flex justify-end gap-3">
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
