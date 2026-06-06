@@ -72,8 +72,8 @@ export function BranchesPage() {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Permission écriture requise' });
       return;
     }
-    if (!formData.name || !formData.code) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Remplissez les champs obligatoires' });
+    if (!formData.name) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Le nom de la filiale est obligatoire' });
       return;
     }
 

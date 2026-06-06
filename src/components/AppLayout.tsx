@@ -538,7 +538,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Header - Full Width */}
       <header 
-        className="flex items-center justify-between h-14 px-4 md:px-6 border-b border-border shrink-0"
+        className="flex items-center justify-between h-16 px-4 md:px-6 border-b border-border shrink-0"
         style={{
           backgroundColor: appearanceMode === 'standard' ? 'hsl(0 0% 94%)' : 'hsl(var(--card))'
         }}
@@ -547,7 +547,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Menu size={22} />
         </button>
         
-        <CompanyLogo height={48} appearanceMode={appearanceMode} />
+        <CompanyLogo height={56} appearanceMode={appearanceMode} />
         
         <div className="flex-1" />
         
