@@ -1,16 +1,46 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+// CPH - Gestion des Évaluations des Ressources Humaines
+const CPHIndex = () => {
+  const navigate = useNavigate();
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="text-center space-y-8 px-4">
+        {/* CPH Logo */}
+        <div className="flex justify-center">
+          <img src="/cph-logo.svg" alt="CPH Logo" className="h-40 w-40" />
+        </div>
+
+        {/* Title */}
+        <div className="space-y-2">
+          <h1 className="text-5xl font-bold text-slate-900">CPH</h1>
+          <p className="text-xl text-slate-600">
+            Gestion des Évaluations
+          </p>
+        </div>
+
+        {/* Description */}
+        <p className="text-lg text-slate-500 max-w-md mx-auto">
+          Système intégré pour gérer les évaluations, les critères et les systèmes de calcul.
+        </p>
+
+        {/* CTA Buttons */}
+        <div className="flex gap-4 justify-center pt-4">
+          <Button 
+            size="lg" 
+            onClick={() => navigate('/admin')}
+            className="bg-teal-600 hover:bg-teal-700"
+          >
+            Accéder au Système
+          </Button>
+        </div>
+      </div>
     </div>
   );
 };
 
-const Index = PlaceholderIndex;
+const Index = CPHIndex;
 
 export default Index;

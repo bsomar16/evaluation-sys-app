@@ -1,3 +1,15 @@
+/**
+ * CPH - Gestion des Évaluations des Ressources Humaines
+ * 
+ * MIGRATION NOTE: Ce projet a été migré de Lovable vers CPH.
+ * Toutes les références à Lovable ont été supprimées.
+ * Voir LOVABLE_MIGRATION.md pour les détails.
+ * 
+ * Dependencies Lovable supprimées:
+ * - data-lovable-blank-page-placeholder (UI marker)
+ * - placeholder assets remplacés par logo CPH
+ */
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
