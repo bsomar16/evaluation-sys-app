@@ -8,11 +8,6 @@ const CPHIndex = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
       <div className="text-center space-y-8 px-4">
-        {/* CPH Logo */}
-        <div className="flex justify-center">
-          <img src="/cph-logo.svg" alt="CPH Logo" className="h-40 w-40" />
-        </div>
-
         {/* Title */}
         <div className="space-y-2">
           <h1 className="text-5xl font-bold text-slate-900">CPH</h1>

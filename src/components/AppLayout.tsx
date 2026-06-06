@@ -567,9 +567,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 User
               </div>
             )}
-            <p className="text-xs text-muted-foreground mt-1">
-              {user ? getSessionHeaderSubtitle(user) : '—'}
-            </p>
+            <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+              <p>{user ? getSessionHeaderSubtitle(user) : '—'}</p>
+              {user?.departmentName && (
+                <p className="text-muted-foreground/80">{user.departmentName}</p>
+              )}
+            </div>
           </div>
           
           {/* Notification Button */}
