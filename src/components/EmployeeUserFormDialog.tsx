@@ -139,6 +139,14 @@ export function EmployeeUserFormDialog({
     }
   }, [open, isCreate, editingUser, defaultRoleId]);
 
+  // Auto-sélectionner la filiale si elle est seule
+  useEffect(() => {
+    if (!isCreate || !open || formData.branch) return;
+    if (selectableBranches.length === 1) {
+      setFormData((prev) => ({ ...prev, branch: selectableBranches[0].id }));
+    }
+  }, [selectableBranches, isCreate, open, formData.branch]);
+
   useEffect(() => {
     if (!isCreate || !open || usernameTouched) return;
     if (!formData.last_name.trim() || !formData.first_name.trim()) return;

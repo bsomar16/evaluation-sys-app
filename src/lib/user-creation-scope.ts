@@ -32,15 +32,17 @@ export function getUserCreationScope(
       ? collectDescendantRoleIds(session.role_id, allRoles)
       : [];
 
+  // Pour les filiales : si l'utilisateur a une filiale, ses descendants ; sinon toutes les filiales
   const branchIds =
     session?.branch_id && allBranches.length > 0
       ? collectDescendantBranchIds(session.branch_id, allBranches)
-      : [];
+      : allBranches.map((b) => b.id);
 
+  // Pour les départements : si l'utilisateur a un département, ses descendants ; sinon TOUS les départements
   const departmentIds =
     session?.department_id && allDepartments.length > 0
       ? collectDescendantDepartmentIds(session.department_id, allDepartments)
-      : [];
+      : allDepartments.map((d) => d.id);
 
   return {
     unrestricted: false,
