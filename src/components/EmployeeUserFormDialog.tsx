@@ -147,6 +147,14 @@ export function EmployeeUserFormDialog({
     }
   }, [selectableBranches, isCreate, open, formData.branch]);
 
+  // Auto-sélectionner le département si c'est le seul disponible (département sans fils)
+  useEffect(() => {
+    if (!isCreate || !open || formData.department) return;
+    if (selectableDepartments.length === 1 && session?.department_id === selectableDepartments[0].id) {
+      setFormData((prev) => ({ ...prev, department: selectableDepartments[0].id }));
+    }
+  }, [selectableDepartments, isCreate, open, formData.department, session?.department_id]);
+
   useEffect(() => {
     if (!isCreate || !open || usernameTouched) return;
     if (!formData.last_name.trim() || !formData.first_name.trim()) return;
@@ -421,14 +429,15 @@ export function EmployeeUserFormDialog({
           <Select
             value={formData.branch}
             onValueChange={(value) => setFormData({ ...formData, branch: value })}
+            disabled={selectableBranches.length === 1}
           >
-            <SelectTrigger className="border-2 border-blue-300 bg-blue-50">
+            <SelectTrigger className={`border-2 ${selectableBranches.length === 1 ? 'bg-gray-100 border-gray-300 opacity-60' : 'border-blue-300 bg-blue-50'}`}>
               <SelectValue placeholder="Filiale" />
             </SelectTrigger>
             <SelectContent>
               {selectableBranches.length === 0 ? (
                 <SelectItem value="__none__" disabled>
-                  Aucune filiale fille disponible
+                  Aucune filiale disponible
                 </SelectItem>
               ) : (
                 selectableBranches.map((branch) => (
@@ -439,6 +448,11 @@ export function EmployeeUserFormDialog({
               )}
             </SelectContent>
           </Select>
+          {selectableBranches.length === 1 && (
+            <p className="text-xs text-muted-foreground">
+              Filiale fixée par défaut (lecture seule)
+            </p>
+          )}
           {!isDeveloper && session?.branch_id && selectableBranches.length === 0 && (
             <p className="text-xs text-muted-foreground">
               Aucune filiale fille sous votre filiale.
@@ -449,32 +463,25 @@ export function EmployeeUserFormDialog({
             onValueChange={(value) =>
               setFormData({ ...formData, department: value === '__none__' ? '' : value })
             }
+            disabled={selectableDepartments.length === 1 && session?.department_id && formData.department === session.department_id}
           >
-            <SelectTrigger className="border-2 border-blue-300 bg-blue-50">
+            <SelectTrigger className={`border-2 ${selectableDepartments.length === 1 && session?.department_id && formData.department === session.department_id ? 'bg-gray-100 border-gray-300 opacity-60' : 'border-blue-300 bg-blue-50'}`}>
               <SelectValue placeholder="Département (optionnel)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">— Aucun —</SelectItem>
+              {selectableDepartments.length > 1 && (
+                <SelectItem value="__none__">— Aucun —</SelectItem>
+              )}
               {selectableDepartments.map((dept) => (
                 <SelectItem key={dept.id} value={dept.id}>
                   {dept.name}
                 </SelectItem>
               ))}
-              {!isDeveloper && selectableDepartments.length === 0 && (
-                <SelectItem value="__no_dept__" disabled>
-                  Aucun département fils disponible
-                </SelectItem>
-              )}
             </SelectContent>
           </Select>
-          {!isDeveloper && session?.department_id && selectableDepartments.length === 0 && (
+          {selectableDepartments.length === 1 && session?.department_id && formData.department === session.department_id && (
             <p className="text-xs text-muted-foreground">
-              Aucun département fils sous votre département.
-            </p>
-          )}
-          {!isDeveloper && !session?.department_id && (
-            <p className="text-xs text-muted-foreground">
-              Votre compte n&apos;a pas de département : seul « Aucun » est disponible.
+              Département fixé par défaut (lecture seule)
             </p>
           )}
           <Select
