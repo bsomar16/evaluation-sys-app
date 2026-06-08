@@ -28,6 +28,7 @@ import type { DepartmentRecord } from '@/lib/department-tree';
 import type { RoleRecord } from '@/lib/role-tree';
 import { Eye, EyeOff } from 'lucide-react';
 import { splitFullName } from '@/lib/user-name';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export interface EmployeeUserFormDialogProps {
   open: boolean;
@@ -216,7 +217,11 @@ export function EmployeeUserFormDialog({
   };
 
   const handleSave = async () => {
-    if (!formData.first_name || !formData.last_name || !formData.username || !formData.branch || !formData.role) {
+    // Vérifier les champs obligatoires selon le type d'employé
+    const requiredFields = !formData.first_name || !formData.last_name || !formData.branch || !formData.role;
+    const needsUsername = !formData.is_agent_without_account;
+    
+    if (requiredFields || (needsUsername && !formData.username)) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Remplissez tous les champs obligatoires' });
       return;
     }
@@ -247,57 +252,66 @@ export function EmployeeUserFormDialog({
       return;
     }
 
-    const username = formData.username.trim();
-    const usernameValidation = passwordService.validateUsername(username);
-    if (!usernameValidation.valid) {
-      toast({
-        variant: 'destructive',
-        title: 'Username invalide',
-        description: usernameValidation.message,
-      });
-      return;
-    }
-
-    if (isCreate && !formData.password) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Le mot de passe est obligatoire' });
-      return;
-    }
-
-    if (formData.password) {
-      const validation = passwordService.validatePasswordStrength(formData.password);
-      if (!validation.valid) {
+    // Valider username et password seulement si c'est un utilisateur avec compte
+    if (!formData.is_agent_without_account) {
+      const username = formData.username.trim();
+      const usernameValidation = passwordService.validateUsername(username);
+      if (!usernameValidation.valid) {
         toast({
           variant: 'destructive',
-          title: 'Mot de passe faible',
-          description: validation.suggestions.join(', '),
+          title: 'Username invalide',
+          description: usernameValidation.message,
         });
         return;
+      }
+
+      if (isCreate && !formData.password) {
+        toast({ variant: 'destructive', title: 'Erreur', description: 'Le mot de passe est obligatoire' });
+        return;
+      }
+
+      if (formData.password) {
+        const validation = passwordService.validatePasswordStrength(formData.password);
+        if (!validation.valid) {
+          toast({
+            variant: 'destructive',
+            title: 'Mot de passe faible',
+            description: validation.suggestions.join(', '),
+          });
+          return;
+        }
       }
     }
 
     setSaving(true);
     try {
       const name = `${formatNom(formData.last_name)} ${formatPrenom(formData.first_name)}`;
+      const username = formData.is_agent_without_account 
+        ? `agent-${formData.code || Date.now()}@internal` 
+        : formData.username.trim();
 
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id, archived_at')
-        .eq('email', username)
-        .maybeSingle();
+      // Vérifier l'unicité du username seulement pour les utilisateurs avec compte
+      if (!formData.is_agent_without_account) {
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('id, archived_at')
+          .eq('email', username)
+          .maybeSingle();
 
-      if (existingUser && (!editingUser || existingUser.id !== editingUser.id)) {
-        const archivedConflict = isUserArchived(existingUser);
-        setUsernameError(
-          archivedConflict ? 'Username réservé par un compte archivé' : 'Username déjà utilisé'
-        );
-        toast({
-          variant: 'destructive',
-          title: archivedConflict ? 'Compte archivé' : 'Username déjà utilisé',
-          description: archivedConflict
-            ? 'Restaurez le compte ou modifiez son identifiant.'
-            : 'Choisissez un autre identifiant',
-        });
-        return;
+        if (existingUser && (!editingUser || existingUser.id !== editingUser.id)) {
+          const archivedConflict = isUserArchived(existingUser);
+          setUsernameError(
+            archivedConflict ? 'Username réservé par un compte archivé' : 'Username déjà utilisé'
+          );
+          toast({
+            variant: 'destructive',
+            title: archivedConflict ? 'Compte archivé' : 'Username déjà utilisé',
+            description: archivedConflict
+              ? 'Restaurez le compte ou modifiez son identifiant.'
+              : 'Choisissez un autre identifiant',
+          });
+          return;
+        }
       }
 
       const selectedRole = roles.find((r) => r.id === formData.role);
@@ -313,8 +327,9 @@ export function EmployeeUserFormDialog({
           department_id: deptId || null,
           role_id: formData.role,
           role: roleSlug,
+          is_agent_without_account: formData.is_agent_without_account,
         };
-        if (formData.password) {
+        if (!formData.is_agent_without_account && formData.password) {
           await passwordService.updateUserPassword(editingUser.id, formData.password);
         }
         let { error } = await supabase.from('users').update(dataToUpdate).eq('id', editingUser.id);
@@ -327,25 +342,48 @@ export function EmployeeUserFormDialog({
         toast({ title: 'Succès', description: 'Employé modifié' });
       } else {
         const roleSlug = roleSlugFromRoleCode(selectedRole?.code);
-        const result = await passwordService.createUserWithPassword(username, name, formData.password, {
-          branch_id: formData.branch,
-          department_id: deptId || null,
-          role_id: formData.role,
-          role: roleSlug,
-        });
-        if (!result.success) {
-          throw new Error("Impossible de créer l'employé");
-        }
-        if (userCode) {
-          let { error } = await supabase
+        
+        if (formData.is_agent_without_account) {
+          // Créer un agent sans compte (pas de vrai mot de passe)
+          const { data: newUser, error } = await supabase
             .from('users')
-            .update({ code: userCode })
-            .eq('email', username);
-          if (error?.message?.toLowerCase().includes('code')) {
-            error = null; // Colonne absente : on laisse passer sans bloquer la création
-          }
+            .insert({
+              email: username,
+              name,
+              branch_id: formData.branch,
+              department_id: deptId || null,
+              role_id: formData.role,
+              role: roleSlug,
+              code: userCode,
+              is_agent_without_account: true,
+              password: null,
+            })
+            .select('id')
+            .single();
+          
           if (error) throw error;
+          if (!newUser) throw new Error("Impossible de créer l'employé");
+        } else {
+          // Créer un utilisateur avec compte (mot de passe requis)
+          const result = await passwordService.createUserWithPassword(username, name, formData.password, {
+            branch_id: formData.branch,
+            department_id: deptId || null,
+            role_id: formData.role,
+            role: roleSlug,
+          });
+          if (!result.success) {
+            throw new Error("Impossible de créer l'employé");
+          }
+          
+          // Marquer que ce n'est pas un agent sans compte (par défaut)
+          if (result.data?.id) {
+            await supabase
+              .from('users')
+              .update({ is_agent_without_account: false })
+              .eq('id', result.data.id);
+          }
         }
+        
         toast({ title: 'Succès', description: 'Employé créé' });
       }
 
@@ -389,42 +427,67 @@ export function EmployeeUserFormDialog({
             onChange={(e) => setFormData({ ...formData, first_name: formatPrenom(e.target.value) })}
             className="border-2 border-blue-300 bg-blue-50"
           />
-          <div className="space-y-2">
-            <Input
-              placeholder="Nom utilisateur"
-              value={formData.username}
-              onChange={(e) => {
-                const cleaned = e.target.value.replace(/[^a-zA-Z0-9._-]/g, '');
-                setFormData({ ...formData, username: cleaned });
-                setUsernameError(null);
-                setUsernameTouched(true);
-              }}
-              className={`border-2 bg-blue-50 ${usernameError ? 'border-red-500' : 'border-blue-300'}`}
-              autoComplete="username"
+          
+          {/* Checkbox: Employee is an Agent without User Account */}
+          <div className="flex items-center space-x-3 rounded-lg border-2 border-amber-200 bg-amber-50 p-3">
+            <Checkbox
+              id="is_agent_without_account"
+              checked={formData.is_agent_without_account}
+              onCheckedChange={(checked) =>
+                setFormData({
+                  ...formData,
+                  is_agent_without_account: checked === true,
+                  ...(checked && { username: '', password: '' }), // Effacer les champs quand coché
+                })
+              }
             />
-            {usernameError && <p className="text-xs text-red-600">{usernameError}</p>}
+            <label htmlFor="is_agent_without_account" className="text-sm font-medium cursor-pointer">
+              Employee is an Agent without User Account
+            </label>
           </div>
-          <div className="space-y-2">
-            {!isCreate && <label className="text-sm font-medium">Mot de passe</label>}
-            <div className="relative">
-              <Input
-                placeholder={
-                  isCreate ? 'Mot de passe' : 'Nouveau mot de passe (vide = inchangé)'
-                }
-                type={showPassword ? 'text' : 'password'}
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="pr-10 border-2 border-blue-300 bg-blue-50"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            {renderPasswordStrength()}
+          
+          {/* Champs Username et Password - masqués si agent sans compte */}
+          {!formData.is_agent_without_account && (
+            <>
+              <div className="space-y-2">
+                <Input
+                  placeholder="Nom utilisateur"
+                  value={formData.username}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/[^a-zA-Z0-9._-]/g, '');
+                    setFormData({ ...formData, username: cleaned });
+                    setUsernameError(null);
+                    setUsernameTouched(true);
+                  }}
+                  className={`border-2 bg-blue-50 ${usernameError ? 'border-red-500' : 'border-blue-300'}`}
+                  autoComplete="username"
+                />
+                {usernameError && <p className="text-xs text-red-600">{usernameError}</p>}
+              </div>
+              <div className="space-y-2">
+                {!isCreate && <label className="text-sm font-medium">Mot de passe</label>}
+                <div className="relative">
+                  <Input
+                    placeholder={
+                      isCreate ? 'Mot de passe' : 'Nouveau mot de passe (vide = inchangé)'
+                    }
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="pr-10 border-2 border-blue-300 bg-blue-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {renderPasswordStrength()}
+              </div>
+            </>
+          )}
           </div>
           <Select
             value={formData.branch}

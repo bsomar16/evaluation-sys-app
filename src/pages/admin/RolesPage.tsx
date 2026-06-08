@@ -32,6 +32,7 @@ type RoleFormState = {
   level: number;
   child_roles: string[];
   color: string;
+  is_user: boolean;
   permissions: SidebarPermissionsMap;
   evaluations_actions: EvaluationActionsPermission;
   training_actions: TrainingActionsPermission;
@@ -51,6 +52,7 @@ export function RolesPage() {
     level: 0,
     child_roles: [],
     color: '#3b82f6',
+    is_user: true,
     permissions: createEmptySidebarPermissions(),
     evaluations_actions: createEmptyEvaluationActionsPermissions(),
     training_actions: createEmptyTrainingActionsPermissions(),
@@ -94,7 +96,7 @@ export function RolesPage() {
     try {
       const { data, error } = await supabase
         .from('roles')
-        .select('id, name, code, level, parent_role_id, color, child_roles, permissions, is_active, created_at, updated_at');
+        .select('id, name, code, level, parent_role_id, color, child_roles, permissions, is_user, is_active, created_at, updated_at');
       if (error) throw error;
       // Normalize child_roles to always be an array
       const normalizedData = (data || []).map(role => ({
@@ -143,6 +145,7 @@ export function RolesPage() {
         level: formData.level,
         child_roles: formData.child_roles.length > 0 ? formData.child_roles : null,
         color: formData.color,
+        is_user: formData.is_user,
         permissions: serializeRolePermissions(
           formData.permissions,
           formData.evaluations_actions,
@@ -304,6 +307,7 @@ export function RolesPage() {
       level: role.level,
       child_roles: normalizeChildRoles(role.child_roles),
       color: role.color || '#3b82f6',
+      is_user: role.is_user ?? true,
       permissions: parsed.sidebar,
       evaluations_actions: parsed.evaluations_actions,
       training_actions: parsed.training_actions,
@@ -353,6 +357,20 @@ export function RolesPage() {
                     aria-label="Couleur du rôle"
                     className="h-10 w-full rounded-md border-2 border-blue-300 bg-blue-50 cursor-pointer"
                   />
+
+                  {/* Checkbox: Is User */}
+                  <div className="flex items-center space-x-3 rounded-lg border-2 border-emerald-200 bg-emerald-50 p-3">
+                    <Checkbox
+                      id="is_user"
+                      checked={formData.is_user}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, is_user: checked === true })
+                      }
+                    />
+                    <label htmlFor="is_user" className="text-sm font-medium cursor-pointer">
+                      Role can have User Account (is_user)
+                    </label>
+                  </div>
 
                   <div id="role-access-section" className="rounded-lg border-2 border-primary/25 bg-primary/5 p-4 space-y-3">
                     <p className="font-semibold text-base">Accès aux modules</p>

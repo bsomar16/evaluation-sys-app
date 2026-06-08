@@ -8,6 +8,7 @@ export interface RoleRecord {
   color?: string;
   child_roles?: string[] | null;
   parent_role_id?: string | null;
+  is_user?: boolean;
 }
 
 function normalizeChildIds(child_roles?: string[] | null): string[] {

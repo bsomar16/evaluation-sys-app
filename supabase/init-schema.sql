@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS roles (
   color varchar(7) DEFAULT '#3b82f6',
   child_roles text[] DEFAULT '{}',
   permissions jsonb DEFAULT '{}'::jsonb,
+  is_user boolean DEFAULT true,
   is_active boolean DEFAULT true,
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
   branch_id uuid REFERENCES branches(id) ON DELETE SET NULL,
   role_id uuid REFERENCES roles(id) ON DELETE SET NULL,
   role varchar(50) DEFAULT 'employee',
+  is_agent_without_account boolean DEFAULT false,
   is_active boolean DEFAULT true,
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()

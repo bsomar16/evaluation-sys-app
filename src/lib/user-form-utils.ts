@@ -36,6 +36,7 @@ export interface EmployeeUserFormValues {
   branch: string;
   department: string;
   role: string;
+  is_agent_without_account: boolean;
 }
 
 export function emptyEmployeeUserForm(defaultRoleId = ''): EmployeeUserFormValues {
@@ -48,5 +49,6 @@ export function emptyEmployeeUserForm(defaultRoleId = ''): EmployeeUserFormValue
     branch: '',
     department: '',
     role: defaultRoleId,
+    is_agent_without_account: false,
   };
 }
