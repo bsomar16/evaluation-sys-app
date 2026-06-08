@@ -215,6 +215,30 @@ export default function Dashboard() {
     }
   };
 
+  // Auto-scroll selected branch to center
+  useEffect(() => {
+    if (selectedBranch && branchesScrollRef.current) {
+      setTimeout(() => {
+        const selectedButton = branchesScrollRef.current?.querySelector(`button[data-branch-id="${selectedBranch}"]`);
+        if (selectedButton) {
+          selectedButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 0);
+    }
+  }, [selectedBranch]);
+
+  // Auto-scroll selected department to center
+  useEffect(() => {
+    if (selectedDepartment && departmentsScrollRef.current) {
+      setTimeout(() => {
+        const selectedButton = departmentsScrollRef.current?.querySelector(`button[data-dept-id="${selectedDepartment}"]`);
+        if (selectedButton) {
+          selectedButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 0);
+    }
+  }, [selectedDepartment]);
+
   const getAccessibleBranches = () => {
     if (!branches.length) return [];
     
@@ -388,6 +412,7 @@ export default function Dashboard() {
                   accessibleBranches.map(branch => (
                     <button
                       key={branch.id}
+                      data-branch-id={branch.id}
                       onClick={() => {
                         setSelectedBranch(branch.id);
                         setSelectedDepartment('');
@@ -455,6 +480,7 @@ export default function Dashboard() {
                     accessibleDepartments.map(dept => (
                       <button
                         key={dept.id}
+                        data-dept-id={dept.id}
                         onClick={() => setSelectedDepartment(dept.id)}
                         className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
                           selectedDepartment === dept.id
