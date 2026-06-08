@@ -577,9 +577,10 @@ export default function Evaluation() {
                               )}
                             </TableCell>
                             <TableCell className="text-center">
-                              <Badge variant="default">
-                                {emp.role_name ?? '—'} {departmentName(emp.department_id) ?? '—'}
-                              </Badge>
+                              <span
+                                className={`inline-block h-2.5 w-2.5 rounded-full ${statusDotClass}`}
+                                title={status ? EVALUATION_STATUS_LABELS[status] : 'Aucun statut'}
+                              />
                             </TableCell>
                             <TableCell>
                               {canOpenEvaluationForm && (
