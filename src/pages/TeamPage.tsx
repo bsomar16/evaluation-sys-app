@@ -12,7 +12,7 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Archive } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
@@ -26,6 +26,7 @@ import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import { isUserArchived } from '@/lib/user-archive';
 import { EmployeeUserFormDialog } from '@/components/EmployeeUserFormDialog';
 import { UsersService } from '@/services/admin/users';
+import { archiveUser } from '@/services/userArchiveService';
 
 export default function TeamPage() {
   const { roleId } = useParams<{ roleId?: string }>();
@@ -41,6 +42,7 @@ export default function TeamPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<any | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [archiveTarget, setArchiveTarget] = useState<any>(null);
 
   useEffect(() => {
     loadData();
@@ -154,6 +156,19 @@ export default function TeamPage() {
     }
   };
 
+  const handleArchiveUser = async () => {
+    if (!archiveTarget) return;
+    try {
+      await archiveUser(archiveTarget.id);
+      toast({ title: 'Succès', description: 'Employé archivé' });
+      loadData();
+      setArchiveTarget(null);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    }
+  };
+
   if (isSiteDeveloper(session) || !canRead('employees')) {
     return <ModuleAccessDenied />;
   }
@@ -241,6 +256,15 @@ export default function TeamPage() {
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-amber-700"
+                              onClick={() => setArchiveTarget(user)}
+                              title="Archiver"
+                            >
+                              <Archive className="h-4 w-4" />
+                            </Button>
                             {canDeleteEmployees && (
                               <Button
                                 variant="ghost"
@@ -298,6 +322,21 @@ export default function TeamPage() {
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Supprimer
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!archiveTarget} onOpenChange={(open) => !open && setArchiveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Archiver l'employé</AlertDialogTitle>
+          <AlertDialogDescription>
+            Êtes-vous sûr de vouloir archiver {archiveTarget?.name} ? L'employé sera masqué de la liste active.
+          </AlertDialogDescription>
+          <div className="flex justify-end gap-3">
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleArchiveUser} className="bg-amber-600 text-white hover:bg-amber-700">
+              Archiver
             </AlertDialogAction>
           </div>
         </AlertDialogContent>
