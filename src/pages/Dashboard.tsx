@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock } from 'lucide-react';
+import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -34,27 +35,13 @@ interface EvaluationData {
   color: string;
 }
 
-interface HierarchyNode {
-  id: string;
-  name: string;
-  type: 'branch' | 'role' | 'department' | 'employee';
-  children: HierarchyNode[];
-  expanded: boolean;
-  level: number;
-  score?: number;
-  period?: string;
-  parent_id?: string;
-}
-
-interface EmployeeScore {
+interface AgentWithScore {
   id: string;
   name: string;
   email: string;
-  score: number;
-  period: string;
-  branch_id: string;
-  role_id: string;
-  department_id?: string;
+  role_name: string;
+  avg_score: number;
+  eval_count: number;
 }
 
 export default function Dashboard() {
@@ -71,239 +58,236 @@ export default function Dashboard() {
   const [evaluationStatus, setEvaluationStatus] = useState<EvaluationData[]>([]);
   const [trainingStatus, setTrainingStatus] = useState<EvaluationData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hierarchyNodes, setHierarchyNodes] = useState<HierarchyNode[]>([]);
-  const [topEmployees, setTopEmployees] = useState<EmployeeScore[]>([]);
-  const [worstEmployees, setWorstEmployees] = useState<EmployeeScore[]>([]);
-  const [employeesByPeriod, setEmployeesByPeriod] = useState<any[]>([]);
+  
+  // Selector data states
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [periods, setPeriods] = useState<string[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [allEvaluations, setAllEvaluations] = useState<any[]>([]);
+  
+  // Selected values
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  
+  // Filtered data
+  const [departmentManager, setDepartmentManager] = useState<any>(null);
+  const [departmentAgents, setDepartmentAgents] = useState<AgentWithScore[]>([]);
+  const [topAgents, setTopAgents] = useState<AgentWithScore[]>([]);
+  const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
 
   useEffect(() => {
-    loadDashboardData();
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      setCurrentUser(JSON.parse(userData));
+    }
+    loadInitialData();
   }, []);
 
-  const loadDashboardData = async () => {
+  const loadInitialData = async () => {
     try {
-      // Load stats
-      const { data: usersRaw } = await supabase.from('users').select('id, is_active, branch_id, role_id, archived_at');
-      const users = usersRaw?.filter((u) => !u.archived_at) ?? [];
-      const { data: evaluations } = await supabase.from('evaluations').select('id, status, score');
-      const { data: trainings } = await supabase.from('training_requests').select('id, status');
-      const { data: branches } = await supabase.from('branches').select('id, name');
-      const { data: roles } = await supabase.from('roles').select('id, name');
+      setLoading(true);
 
-      const activeCount = users?.filter(u => u.is_active).length || 0;
+      // Load base data
+      const { data: usersRaw } = await supabase.from('users').select('*');
+      const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
+      setUsers(filteredUsers);
+
+      const { data: evaluations } = await supabase.from('evaluations').select('*');
+      setAllEvaluations(evaluations || []);
+
+      const { data: branchesData } = await supabase.from('branches').select('*');
+      setBranches(branchesData || []);
+
+      const { data: departmentsData } = await supabase.from('departments').select('*');
+      setDepartments(departmentsData || []);
+
+      const { data: rolesData } = await supabase.from('roles').select('*');
+      setRoles(rolesData || []);
+
+      const { data: trainings } = await supabase.from('training_requests').select('*');
+
+      // Extract periods
+      const uniquePeriods = [...new Set((evaluations || []).map(e => e.period).filter(Boolean))];
+      setPeriods(uniquePeriods.sort().reverse()); // Most recent first
+      if (uniquePeriods.length > 0) {
+        setSelectedPeriod(uniquePeriods[0]);
+      }
+
+      // Calculate stats
+      const activeCount = filteredUsers.filter(u => u.is_active).length;
       const completedEvals = evaluations?.filter(e => e.status === 'completed').length || 0;
-      const completedTrains = trainings?.filter(t => t.status === 'completed').length || 0;
 
       setStats({
-        totalUsers: users?.length || 0,
+        totalUsers: filteredUsers.length,
         activeUsers: activeCount,
         totalEvaluations: evaluations?.length || 0,
         completedEvaluations: completedEvals,
-        totalBranches: branches?.length || 0,
+        totalBranches: branchesData?.length || 0,
         totalTrainings: trainings?.length || 0,
       });
 
-      // Build hierarchical view
-      buildHierarchy(branches || [], user?.branch_id);
+      // Pre-select first branch
+      if (currentUser?.branch_id) {
+        setSelectedBranch(currentUser.branch_id);
+      } else if (branchesData?.length > 0) {
+        setSelectedBranch(branchesData[0].id);
+      }
 
-      // Get top and worst employees
-      getTopAndWorstEmployees(evaluations || [], users || []);
-
-      // Get employees by period
-      getEmployeesByPeriod(evaluations || [], users || []);
-
-      // Branch data with employee counts
-      const branchCounts = new Map<string, { employees: number; evaluations: number }>();
-      branches?.forEach(b => {
-        branchCounts.set(b.id, { employees: 0, evaluations: 0 });
-      });
-
-      users?.forEach(u => {
-        if (u.branch_id && branchCounts.has(u.branch_id)) {
-          const data = branchCounts.get(u.branch_id);
-          if (data) data.employees++;
-        }
-      });
-
-      const branchDataArray: BranchData[] = (branches || []).map(b => ({
-        name: b.name,
-        employees: branchCounts.get(b.id)?.employees || 0,
-        evaluations: evaluations?.filter(e => {
-          const evalUser = users?.find(u => evaluations?.some(ev => ev.id === e.id && u.branch_id === b.id));
-          return evalUser !== undefined;
-        }).length || 0,
-      }));
-      setBranchData(branchDataArray);
-
-      // Role distribution
-      const roleCounts = new Map<string, number>();
-      const colors = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--destructive))', 'hsl(var(--accent))'];
-      
-      roles?.forEach((r, i) => {
-        const count = users?.filter(u => u.role_id === r.id).length || 0;
-        if (count > 0) {
-          roleCounts.set(r.name, count);
-        }
-      });
-
-      const roleDataArray: RoleData[] = Array.from(roleCounts).map((r, i) => ({
-        name: r[0],
-        count: r[1],
-        color: colors[i % colors.length],
-      }));
-      setRoleData(roleDataArray);
-
-      // Evaluation status
+      // Calculate evaluation statuses for charts
       const statusMap = new Map<string, number>();
       evaluations?.forEach(e => {
         const count = (statusMap.get(e.status) || 0) + 1;
         statusMap.set(e.status, count);
       });
 
-      const evalStatusArray: EvaluationData[] = Array.from(statusMap).map((s, i) => ({
+      const evalStatusArray = Array.from(statusMap).map((s) => ({
         status: s[0],
         count: s[1],
         color: s[0] === 'completed' ? 'hsl(var(--primary))' : s[0] === 'pending' ? 'hsl(var(--chart-2))' : 'hsl(var(--muted))',
       }));
       setEvaluationStatus(evalStatusArray);
 
-      // Training status
+      // Calculate training statuses for charts
       const trainingMap = new Map<string, number>();
       trainings?.forEach(t => {
         const count = (trainingMap.get(t.status) || 0) + 1;
         trainingMap.set(t.status, count);
       });
 
-      const trainStatusArray: EvaluationData[] = Array.from(trainingMap).map((t, i) => ({
+      const trainStatusArray = Array.from(trainingMap).map((t) => ({
         status: t[0],
         count: t[1],
         color: t[0] === 'completed' ? 'hsl(var(--primary))' : t[0] === 'pending' ? 'hsl(var(--chart-2))' : 'hsl(var(--muted))',
       }));
       setTrainingStatus(trainStatusArray);
 
+      // Calculate branch data
+      const branchCounts = new Map<string, number>();
+      branchesData?.forEach(b => {
+        branchCounts.set(b.id, 0);
+      });
+
+      filteredUsers?.forEach(u => {
+        if (u.branch_id && branchCounts.has(u.branch_id)) {
+          branchCounts.set(u.branch_id, (branchCounts.get(u.branch_id) || 0) + 1);
+        }
+      });
+
+      const branchDataArray = (branchesData || []).map(b => ({
+        name: b.name,
+        employees: branchCounts.get(b.id) || 0,
+        evaluations: 0,
+      }));
+      setBranchData(branchDataArray);
+
+      // Calculate role data
+      const roleCounts = new Map<string, number>();
+      const colors = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--destructive))', 'hsl(var(--accent))'];
+      
+      rolesData?.forEach((r) => {
+        const count = filteredUsers?.filter(u => u.role_id === r.id).length || 0;
+        if (count > 0) {
+          roleCounts.set(r.name, count);
+        }
+      });
+
+      const roleDataArray = Array.from(roleCounts).map((r, i) => ({
+        name: r[0],
+        count: r[1],
+        color: colors[i % colors.length],
+      }));
+      setRoleData(roleDataArray);
+
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      console.error('Error loading initial data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const buildHierarchy = (branches: any[], parentId?: string) => {
-    const hierarchy = buildBranchTree(branches, parentId);
-    setHierarchyNodes(hierarchy);
-  };
-
-  const buildBranchTree = (branches: any[], parentId?: string, level = 0): HierarchyNode[] => {
-    return (branches || [])
-      .filter(b => b.parent_branch_id === (parentId || null))
-      .map(branch => ({
-        id: branch.id,
-        name: branch.name,
-        type: 'branch' as const,
-        children: buildBranchTree(branches, branch.id, level + 1),
-        expanded: level === 0,
-        level,
-        parent_id: parentId,
-      }));
-  };
-
-  const getTopAndWorstEmployees = (evaluations: any[], users: any[]) => {
-    try {
-      const scores = (evaluations || [])
-        .filter(e => e.score !== null)
-        .map(e => ({
-          score: e.score,
-          email: e.employee_email,
-          period: e.period,
-        }));
-
-      const avgScores = new Map<string, { total: number; count: number; period: string }>();
-      scores.forEach(s => {
-        const current = avgScores.get(s.email) || { total: 0, count: 0, period: s.period };
-        avgScores.set(s.email, {
-          total: current.total + s.score,
-          count: current.count + 1,
-          period: s.period,
-        });
-      });
-
-      const employeeScores: EmployeeScore[] = Array.from(avgScores).map(([email, data]) => {
-        const user = users.find(u => u.email === email);
-        return {
-          id: user?.id || email,
-          name: user?.name || email,
-          email,
-          score: data.total / data.count,
-          period: data.period,
-          branch_id: user?.branch_id || '',
-          role_id: user?.role_id || '',
-          department_id: user?.department_id,
-        };
-      });
-
-      employeeScores.sort((a, b) => b.score - a.score);
-      setTopEmployees(employeeScores.slice(0, 5));
-      setWorstEmployees(employeeScores.slice(-5).reverse());
-    } catch (error) {
-      console.error('Error getting top/worst employees:', error);
+  const getAccessibleBranches = () => {
+    if (!branches.length) return [];
+    
+    const userRole = roles.find(r => r.id === currentUser?.role_id);
+    if (userRole?.name?.toLowerCase().includes('directeur')) {
+      return branches;
     }
+    
+    if (currentUser?.branch_id) {
+      return branches.filter(b => b.id === currentUser.branch_id);
+    }
+    
+    return branches;
   };
 
-  const getEmployeesByPeriod = (evaluations: any[], users: any[]) => {
-    const periodMap = new Map<string, number>();
-    evaluations?.forEach(e => {
-      const count = (periodMap.get(e.period) || 0) + 1;
-      periodMap.set(e.period, count);
+  const getAccessibleDepartments = () => {
+    if (!selectedBranch) return [];
+    
+    return departments.filter(d => {
+      const deptUsers = users.filter(u => u.department_id === d.id && u.branch_id === selectedBranch);
+      return deptUsers.length > 0;
+    });
+  };
+
+  const loadDepartmentData = () => {
+    if (!selectedPeriod || !selectedBranch || !selectedDepartment) {
+      setDepartmentManager(null);
+      setDepartmentAgents([]);
+      setTopAgents([]);
+      setWorstAgents([]);
+      return;
+    }
+
+    // Get department manager (first user in department)
+    const manager = users.find(
+      u => u.department_id === selectedDepartment && u.branch_id === selectedBranch
+    );
+    setDepartmentManager(manager || null);
+
+    // Get all Agents in this department
+    const agentRole = roles.find(r => r.name === 'Agent');
+    const departmentAgentsUsers = users.filter(
+      u => u.department_id === selectedDepartment && 
+           u.branch_id === selectedBranch && 
+           u.role_id === agentRole?.id
+    );
+
+    // Calculate scores for this period
+    const agentsWithScores: AgentWithScore[] = departmentAgentsUsers.map(agent => {
+      const agentEvals = allEvaluations.filter(
+        e => e.employee_email === agent.email && e.period === selectedPeriod && e.score !== null
+      );
+
+      const avgScore = agentEvals.length > 0
+        ? agentEvals.reduce((sum: number, e: any) => sum + e.score, 0) / agentEvals.length
+        : 0;
+
+      return {
+        id: agent.id,
+        name: agent.name,
+        email: agent.email,
+        role_name: 'Agent',
+        avg_score: avgScore,
+        eval_count: agentEvals.length,
+      };
     });
 
-    const data = Array.from(periodMap).map(([period, count]) => ({
-      period,
-      count,
-    }));
+    // Sort by score descending
+    agentsWithScores.sort((a, b) => b.avg_score - a.avg_score);
 
-    setEmployeesByPeriod(data);
+    setDepartmentAgents(agentsWithScores);
+    setTopAgents(agentsWithScores.slice(0, 3));
+    setWorstAgents(agentsWithScores.slice(-3).reverse());
   };
 
-  const toggleNodeExpanded = (nodeId: string) => {
-    const updateNodes = (nodes: HierarchyNode[]): HierarchyNode[] => {
-      return nodes.map(node => {
-        if (node.id === nodeId) {
-          return { ...node, expanded: !node.expanded };
-        }
-        return { ...node, children: updateNodes(node.children) };
-      });
-    };
-
-    setHierarchyNodes(updateNodes(hierarchyNodes));
-  };
-
-  const renderHierarchyNode = (node: HierarchyNode, depth: number = 0) => {
-    const hasChildren = node.children && node.children.length > 0;
-
-    return (
-      <div key={node.id} className="ml-" style={{ marginLeft: `${depth * 20}px` }}>
-        <div className="flex items-center gap-2 py-2 px-3 hover:bg-muted/50 rounded">
-          {hasChildren ? (
-            <button
-              onClick={() => toggleNodeExpanded(node.id)}
-              className="w-5 h-5 flex items-center justify-center hover:bg-accent rounded text-sm"
-            >
-              {node.expanded ? '▼' : '▶'}
-            </button>
-          ) : (
-            <div className="w-5" />
-          )}
-          <Building2 size={16} className="text-muted-foreground" />
-          <span className="text-sm font-medium">{node.name}</span>
-        </div>
-        {node.expanded && hasChildren && (
-          <div>
-            {node.children.map(child => renderHierarchyNode(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
-  };
+  // Load department data when selections change
+  useEffect(() => {
+    loadDepartmentData();
+  }, [selectedPeriod, selectedBranch, selectedDepartment, users, roles, allEvaluations]);
 
   // Dynamic stat cards from real data
   const dynamicStatCards = [
@@ -312,6 +296,9 @@ export default function Dashboard() {
     { label: 'Succursales', value: stats.totalBranches.toString(), icon: Building2, change: 'Branches' },
     { label: 'Formations', value: stats.totalTrainings.toString(), icon: Trophy, change: 'Demandes' },
   ];
+
+  const accessibleBranches = getAccessibleBranches();
+  const accessibleDepartments = getAccessibleDepartments();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -340,111 +327,189 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Hierarchical View */}
+      {/* Selectors Section */}
       <Card className="border-border shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-heading flex items-center gap-2">
-            <Building2 size={18} />
-            Structure Hiérarchique (Filiales)
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-heading">Filtres</CardTitle>
         </CardHeader>
-        <CardContent className="max-h-96 overflow-y-auto">
-          {hierarchyNodes.length > 0 ? (
-            <div>
-              {hierarchyNodes.map(node => renderHierarchyNode(node))}
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Period Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Période d'Évaluation *</label>
+              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une période" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periods.map(period => (
+                    <SelectItem key={period} value={period}>
+                      {period}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">Aucune filiale trouvée</p>
-          )}
+
+            {/* Branch Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Filiale *</label>
+              <Select value={selectedBranch} onValueChange={(val) => {
+                setSelectedBranch(val);
+                setSelectedDepartment('');
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une filiale" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accessibleBranches.map(branch => (
+                    <SelectItem key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Department Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Département *</label>
+              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un département" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accessibleDepartments.map(dept => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Top and Worst Employees */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top Employees */}
+      {/* Department Manager Card */}
+      {selectedDepartment && departmentManager && (
+        <Card className="border-border shadow-sm border-l-4 border-l-primary">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-heading">Responsable du Département</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4 p-3 rounded bg-muted/30">
+              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-bold">
+                {departmentManager.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">{departmentManager.name}</p>
+                <p className="text-sm text-muted-foreground">{departmentManager.email}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Top and Worst Agents */}
+      {selectedDepartment && departmentAgents.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Top Agents */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-heading flex items-center gap-2">
+                <Award size={18} className="text-primary" />
+                Meilleurs Agents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topAgents.length > 0 ? (
+                <div className="space-y-3">
+                  {topAgents.map((agent, i) => (
+                    <div key={agent.email} className="flex items-center justify-between p-2 rounded bg-muted/30 border-l-2 border-l-primary">
+                      <div>
+                        <p className="font-medium text-sm">{i + 1}. {agent.name}</p>
+                        <p className="text-xs text-muted-foreground">{agent.email}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg text-primary">{agent.avg_score.toFixed(2)}/20</p>
+                        <p className="text-xs text-muted-foreground">{agent.eval_count} éval.</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm">Aucun agent évalué</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Worst Agents */}
+          <Card className="border-border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-heading flex items-center gap-2">
+                <TrendingDown size={18} className="text-destructive" />
+                Agents à Améliorer
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {worstAgents.length > 0 ? (
+                <div className="space-y-3">
+                  {worstAgents.map((agent, i) => (
+                    <div key={agent.email} className="flex items-center justify-between p-2 rounded bg-muted/30 border-l-2 border-l-destructive">
+                      <div>
+                        <p className="font-medium text-sm">{i + 1}. {agent.name}</p>
+                        <p className="text-xs text-muted-foreground">{agent.email}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg text-destructive">{agent.avg_score.toFixed(2)}/20</p>
+                        <p className="text-xs text-muted-foreground">{agent.eval_count} éval.</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm">Aucun agent à améliorer</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* All Agents List */}
+      {selectedDepartment && departmentAgents.length > 0 && (
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading flex items-center gap-2">
-              <Trophy size={18} className="text-primary" />
-              Meilleurs Employés
+              <Users size={18} />
+              Tous les Agents ({departmentAgents.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {topEmployees.length > 0 ? (
-              <div className="space-y-3">
-                {topEmployees.map((emp, i) => (
-                  <div key={emp.email} className="flex items-center justify-between p-2 rounded bg-muted/30">
-                    <div>
-                      <p className="font-medium text-sm">{i + 1}. {emp.name}</p>
-                      <p className="text-xs text-muted-foreground">{emp.email}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg text-primary">{emp.score.toFixed(1)}/20</p>
-                      <p className="text-xs text-muted-foreground">{emp.period}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">Aucune donnée</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Worst Employees */}
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
-              <TrendingUp size={18} className="text-destructive" />
-              Employés à Améliorer
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {worstEmployees.length > 0 ? (
-              <div className="space-y-3">
-                {worstEmployees.map((emp, i) => (
-                  <div key={emp.email} className="flex items-center justify-between p-2 rounded bg-muted/30">
-                    <div>
-                      <p className="font-medium text-sm">{i + 1}. {emp.name}</p>
-                      <p className="text-xs text-muted-foreground">{emp.email}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-lg text-destructive">{emp.score.toFixed(1)}/20</p>
-                      <p className="text-xs text-muted-foreground">{emp.period}</p>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {departmentAgents.map((agent, idx) => (
+                <div key={agent.email} className="flex items-center justify-between p-3 rounded hover:bg-muted/50 transition-colors border border-border/50">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-muted-foreground">{idx + 1}.</span>
+                      <div>
+                        <p className="font-medium text-sm">{agent.name}</p>
+                        <p className="text-xs text-muted-foreground">{agent.email}</p>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-sm">Aucune donnée</p>
-            )}
+                  <div className="text-right">
+                    <p className="font-bold text-foreground">{agent.avg_score.toFixed(2)}/20</p>
+                    <p className="text-xs text-muted-foreground">{agent.eval_count} éval.</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      {/* Employees by Period Chart */}
-      <Card className="border-border shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-heading">Employés par Période d'Évaluation</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {employeesByPeriod.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={employeesByPeriod}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="period" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                <Bar dataKey="count" fill="hsl(var(--chart-2))" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[280px] flex items-center justify-center text-muted-foreground">Aucune donnée de période</div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Charts Row 1 */}
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Pie Chart - Evaluation Status */}
         <Card className="border-border shadow-sm">
