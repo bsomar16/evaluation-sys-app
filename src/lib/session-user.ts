@@ -94,8 +94,10 @@ export function getSessionRoleBadge(user: SessionUser | null): {
       style: getRoleBadgeStyleFromColor(SITE_DEVELOPER.roleColor),
     };
   }
+  const roleName = user?.roleName || user?.role || 'User';
+  const departmentName = user?.departmentName ? ` ${user.departmentName}` : '';
   return {
-    label: user?.roleName || user?.role || 'User',
+    label: `${roleName}${departmentName}`,
     style: getRoleBadgeStyleFromColor(user?.roleColor),
   };
 }
