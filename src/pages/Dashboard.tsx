@@ -222,31 +222,30 @@ export default function Dashboard() {
       
       const performScroll = () => {
         const selectedButton = scrollContainer.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
-        const flexWrapper = scrollContainer.querySelector('.flex') as HTMLElement;
-        
-        if (selectedButton && flexWrapper && scrollContainer.clientWidth > 0) {
-          // Get button position relative to the scroll container
-          const buttonRect = selectedButton.getBoundingClientRect();
+        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
+          // Calculate scroll position to center the element
           const containerRect = scrollContainer.getBoundingClientRect();
-          const currentScroll = scrollContainer.scrollLeft;
+          const buttonRect = selectedButton.getBoundingClientRect();
           
-          // Calculate button position relative to scroll content
-          const buttonPosInContent = selectedButton.offsetLeft - flexWrapper.offsetLeft;
-          const containerCenter = scrollContainer.clientWidth / 2;
-          const buttonCenter = buttonRect.width / 2;
+          // Distance from scroll container start to button start (accounting for current scroll)
+          const buttonLeftInScroll = selectedButton.offsetLeft;
+          const containerWidth = scrollContainer.clientWidth;
+          const buttonWidth = buttonRect.width;
           
-          // Target scroll position to center the button
-          const targetScroll = buttonPosInContent + buttonCenter - containerCenter;
-          const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+          // Calculate new scroll position
+          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
+          const maxScroll = scrollContainer.scrollWidth - containerWidth;
           const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
           
           scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
         }
       };
       
-      // Use requestAnimationFrame to ensure render is complete
+      // Use requestAnimationFrame twice to ensure render is complete
       requestAnimationFrame(() => {
-        requestAnimationFrame(performScroll);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(performScroll);
+        });
       });
     }
   }, [selectedBranch]);
@@ -258,31 +257,30 @@ export default function Dashboard() {
       
       const performScroll = () => {
         const selectedButton = scrollContainer.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
-        const flexWrapper = scrollContainer.querySelector('.flex') as HTMLElement;
-        
-        if (selectedButton && flexWrapper && scrollContainer.clientWidth > 0) {
-          // Get button position relative to the scroll container
-          const buttonRect = selectedButton.getBoundingClientRect();
+        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
+          // Calculate scroll position to center the element
           const containerRect = scrollContainer.getBoundingClientRect();
-          const currentScroll = scrollContainer.scrollLeft;
+          const buttonRect = selectedButton.getBoundingClientRect();
           
-          // Calculate button position relative to scroll content
-          const buttonPosInContent = selectedButton.offsetLeft - flexWrapper.offsetLeft;
-          const containerCenter = scrollContainer.clientWidth / 2;
-          const buttonCenter = buttonRect.width / 2;
+          // Distance from scroll container start to button start (accounting for current scroll)
+          const buttonLeftInScroll = selectedButton.offsetLeft;
+          const containerWidth = scrollContainer.clientWidth;
+          const buttonWidth = buttonRect.width;
           
-          // Target scroll position to center the button
-          const targetScroll = buttonPosInContent + buttonCenter - containerCenter;
-          const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+          // Calculate new scroll position
+          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
+          const maxScroll = scrollContainer.scrollWidth - containerWidth;
           const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
           
           scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
         }
       };
       
-      // Use requestAnimationFrame to ensure render is complete
+      // Use requestAnimationFrame twice to ensure render is complete
       requestAnimationFrame(() => {
-        requestAnimationFrame(performScroll);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(performScroll);
+        });
       });
     }
   }, [selectedDepartment]);
@@ -453,9 +451,10 @@ export default function Dashboard() {
             
             <div
               ref={branchesScrollRef}
-              className="flex-1 overflow-x-auto"
+              className="flex-1 overflow-hidden"
             >
-              <div className="flex gap-3 pb-2 px-2">
+              <div className="flex gap-3 pb-2">
+                <div style={{flex: '0 0 calc(50% - 90px)'}} />
                 {accessibleBranches.length > 0 ? (
                   accessibleBranches.map(branch => (
                     <button
@@ -485,6 +484,7 @@ export default function Dashboard() {
                 ) : (
                   <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
                 )}
+                <div style={{flex: '0 0 calc(50% - 90px)'}} />
               </div>
             </div>
             
@@ -521,9 +521,10 @@ export default function Dashboard() {
               
               <div
                 ref={departmentsScrollRef}
-                className="flex-1 overflow-x-auto"
+                className="flex-1 overflow-hidden"
               >
-                <div className="flex gap-3 pb-2 px-2">
+                <div className="flex gap-3 pb-2">
+                  <div style={{flex: '0 0 calc(50% - 90px)'}} />
                   {accessibleDepartments.length > 0 ? (
                     accessibleDepartments.map(dept => (
                       <button
@@ -547,6 +548,7 @@ export default function Dashboard() {
                   ) : (
                     <p className="text-muted-foreground text-sm">Aucun département disponible</p>
                   )}
+                  <div style={{flex: '0 0 calc(50% - 90px)'}} />
                 </div>
               </div>
               
