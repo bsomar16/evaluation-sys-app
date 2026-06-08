@@ -451,9 +451,10 @@ export default function Dashboard() {
             
             <div
               ref={branchesScrollRef}
-              className="flex-1 overflow-hidden"
+              className="flex-1 overflow-x-auto"
+              style={{scrollSnapType: 'x mandatory', scrollPaddingLeft: 'calc(50% - 90px)'}}
             >
-              <div className="flex gap-3 pb-2" style={{paddingLeft: 'max(0px, calc(50% - 180px))', paddingRight: 'max(0px, calc(50% - 180px))'}}>
+              <div className="flex gap-3 pb-2 px-2">
                 {accessibleBranches.length > 0 ? (
                   accessibleBranches.map(branch => (
                     <button
@@ -463,6 +464,7 @@ export default function Dashboard() {
                         setSelectedBranch(branch.id);
                         setSelectedDepartment('');
                       }}
+                      style={{scrollSnapAlign: 'center'}}
                       className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
                         selectedBranch === branch.id
                           ? 'border-primary bg-primary/10 shadow-md'
@@ -519,15 +521,17 @@ export default function Dashboard() {
               
               <div
                 ref={departmentsScrollRef}
-                className="flex-1 overflow-hidden"
+                className="flex-1 overflow-x-auto"
+                style={{scrollSnapType: 'x mandatory', scrollPaddingLeft: 'calc(50% - 90px)'}}
               >
-                <div className="flex gap-3 pb-2" style={{paddingLeft: 'max(0px, calc(50% - 180px))', paddingRight: 'max(0px, calc(50% - 180px))'}}>
+                <div className="flex gap-3 pb-2 px-2">
                   {accessibleDepartments.length > 0 ? (
                     accessibleDepartments.map(dept => (
                       <button
                         key={dept.id}
                         data-dept-id={dept.id}
                         onClick={() => setSelectedDepartment(dept.id)}
+                        style={{scrollSnapAlign: 'center'}}
                         className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
                           selectedDepartment === dept.id
                             ? 'border-primary bg-primary/10 shadow-md'
