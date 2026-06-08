@@ -488,7 +488,6 @@ export function EmployeeUserFormDialog({
               </div>
             </>
           )}
-          </div>
           <Select
             value={formData.branch}
             onValueChange={(value) => setFormData({ ...formData, branch: value })}
