@@ -35,6 +35,8 @@ import {
   findEvaluationForEmployeePeriod,
   getLatestEvaluationScoreForEmployee,
   getLatestEvaluationStatusForEmployee,
+  getEvaluationScoreForEmployeePeriod,
+  getEvaluationStatusForEmployeePeriod,
   upsertEvaluation,
 } from '@/lib/evaluation-storage';
 import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
@@ -182,6 +184,7 @@ export default function Evaluation() {
     const init = async () => {
       try {
         await runWithLoadingOverlay(async () => {
+          const currentPeriod = getCurrentEvaluationPeriodCode();
           const [emps, crit, calcRules, rolesRes, deptsRes] = await withTimeout(
             Promise.all([
               fetchEmployeesForEvaluation(),
@@ -205,8 +208,8 @@ export default function Evaluation() {
           await withTimeout(
             Promise.all(
               emps.map(async (emp) => {
-                scoreMap[emp.id] = await getLatestEvaluationScoreForEmployee(emp.id);
-                statusMap[emp.id] = await getLatestEvaluationStatusForEmployee(emp.id);
+                scoreMap[emp.id] = await getEvaluationScoreForEmployeePeriod(emp.id, currentPeriod);
+                statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
               })
             ),
             10000,

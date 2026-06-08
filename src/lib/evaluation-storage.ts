@@ -389,3 +389,21 @@ export async function getLatestEvaluationStatusForEmployee(
   const latest = list.find((e) => e.employee_id === employeeId && e.status !== 'draft');
   return latest?.status ?? null;
 }
+
+export async function getEvaluationScoreForEmployeePeriod(
+  employeeId: string,
+  period: string
+): Promise<number | null> {
+  const list = await fetchEvaluations();
+  const evaluation = list.find((e) => e.employee_id === employeeId && e.period === period && e.status !== 'draft');
+  return evaluation?.score ?? null;
+}
+
+export async function getEvaluationStatusForEmployeePeriod(
+  employeeId: string,
+  period: string
+): Promise<EvaluationStatus | null> {
+  const list = await fetchEvaluations();
+  const evaluation = list.find((e) => e.employee_id === employeeId && e.period === period && e.status !== 'draft');
+  return evaluation?.status ?? null;
+}
