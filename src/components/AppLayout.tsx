@@ -111,15 +111,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           .eq('id', session.id)
           .single();
         
-        if (userData?.appearance_mode) {
+        if (userData?.appearance_mode && userData.appearance_mode !== 'standard') {
           const mode = userData.appearance_mode as AppearanceMode;
           setAppearanceMode(mode);
+        } else {
+          setAppearanceMode('light');
         }
       } catch (error) {
         console.error('Failed to load appearance from DB:', error);
         // Fallback to localStorage
         const saved = localStorage.getItem('appearanceMode');
-        if (saved) setAppearanceMode(saved as AppearanceMode);
+        if (saved && saved !== 'standard') setAppearanceMode(saved as AppearanceMode);
+        else setAppearanceMode('light');
       }
     };
 
@@ -569,9 +572,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
             <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
               <p>{user ? getSessionHeaderSubtitle(user) : '—'}</p>
-              {user?.departmentName && (
-                <p className="text-muted-foreground/80">{user.departmentName}</p>
-              )}
             </div>
           </div>
           
