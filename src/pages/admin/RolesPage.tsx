@@ -777,7 +777,8 @@ export function RolesPage() {
           {loading ? <p>Chargement...</p> : filteredRoles.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Aucun rôle</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">

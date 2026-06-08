@@ -308,7 +308,8 @@ export function BranchesPage() {
           ) : filteredBranches.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Aucune filiale</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">

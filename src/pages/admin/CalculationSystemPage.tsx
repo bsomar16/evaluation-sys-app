@@ -269,7 +269,8 @@ export function CalculationSystemPage() {
           ) : filtered.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Aucun système de calcul</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
@@ -279,10 +280,10 @@ export function CalculationSystemPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagination.paginatedItems.map((r) => (
-                    const method = getCalculationMethodDefinition(rule.type);
+                  {pagination.paginatedItems.map((r) => {
+                    const method = getCalculationMethodDefinition(r.type);
                     return (
-                      <tr key={rule.id} className="border-b hover:bg-muted/50 align-top">
+                      <tr key={r.id} className="border-b hover:bg-muted/50 align-top">
                         <td className="py-3 px-4 font-medium">{rule.label}</td>
                         <td className="py-3 px-4">
                           <Badge variant="outline">

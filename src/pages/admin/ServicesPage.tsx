@@ -301,7 +301,8 @@ export function DepartmentsPage() {
           {loading ? <p>Chargement...</p> : filteredDepartments.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Aucun département</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">

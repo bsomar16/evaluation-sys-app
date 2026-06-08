@@ -395,7 +395,8 @@ export function EvaluationsPage() {
           ) : filtered.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Aucune évaluation</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
