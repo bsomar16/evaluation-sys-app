@@ -110,12 +110,12 @@ export default function Dashboard() {
 
       const { data: trainings } = await supabase.from('training_requests').select('*');
 
-      // Extract periods from evaluation_periods table
-      const { data: periodData } = await supabase.from('evaluation_periods').select('label').order('created_at', { ascending: false });
-      const periodLabels = periodData?.map(p => p.label).filter(Boolean) || [];
-      setPeriods(periodLabels);
-      if (periodLabels.length > 0) {
-        setSelectedPeriod(periodLabels[0]);
+      // Extract periods from evaluations
+      const uniquePeriods = [...new Set((evaluations || []).map(e => e.period).filter(Boolean))];
+      const sortedPeriods = Array.from(uniquePeriods).sort().reverse(); // Most recent first
+      setPeriods(sortedPeriods);
+      if (sortedPeriods.length > 0) {
+        setSelectedPeriod(sortedPeriods[0]);
       }
 
       // Calculate stats
