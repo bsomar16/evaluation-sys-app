@@ -329,96 +329,99 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Hierarchy Filters - Expandable Structure */}
-      <div className="space-y-3">
-        {/* Period Row - Always Visible */}
-        <Card className="border-border shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium min-w-32">Période *</label>
-              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Sélectionner une période" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periods.map(period => (
-                    <SelectItem key={period} value={period}>
-                      {period}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Branch Row - Expandable */}
-        <Card className="border-border shadow-sm">
-          <CardContent className="p-0">
-            {/* Branch Header - Click to Expand */}
-            <button
-              onClick={() => setExpandedBranch(!expandedBranch)}
-              className="w-full p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left"
-            >
-              {expandedBranch ? (
-                <ChevronDown size={18} className="text-primary" />
-              ) : (
-                <ChevronRight size={18} className="text-muted-foreground" />
-              )}
-              <label className="text-sm font-medium cursor-pointer">Filiale *</label>
-              {selectedBranch ? (
-                <span className="ml-auto text-sm font-semibold text-foreground">
-                  {branches.find(b => b.id === selectedBranch)?.name || 'Filiale'}
-                </span>
-              ) : (
-                <span className="ml-auto text-sm text-muted-foreground">Sélectionner une filiale</span>
-              )}
-            </button>
-
-            {/* Branch Selector - Expands When Clicked */}
-            {expandedBranch && (
-              <div className="border-t border-border px-4 py-4 bg-muted/20">
-                <Select value={selectedBranch} onValueChange={(val) => {
-                  setSelectedBranch(val);
-                  setSelectedDepartment('');
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une filiale" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accessibleBranches.map(branch => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+      {/* Hierarchy Filters - Professional Display with Steps & Cards */}
+      <div className="space-y-6">
+        {/* Period Steps - All visible at once */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Période d'Évaluation</h3>
+          <div className="flex flex-wrap gap-2">
+            {periods.length > 0 ? (
+              periods.map((period, idx) => (
+                <button
+                  key={period}
+                  onClick={() => setSelectedPeriod(period)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    selectedPeriod === period
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <span className="text-xs opacity-70">Étape {idx + 1}</span>
+                    {period}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <p className="text-muted-foreground text-sm">Aucune période disponible</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Department Row - Only Shows When Branch Selected & Expanded */}
-        {selectedBranch && expandedBranch && (
-          <Card className="border-border shadow-sm ml-4 border-l-2 border-l-primary">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <label className="text-sm font-medium min-w-32">Département *</label>
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Sélectionner un département" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accessibleDepartments.map(dept => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Branch Cards - All visible at once, hierarchical */}
+        <div>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Filiale</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {accessibleBranches.length > 0 ? (
+              accessibleBranches.map(branch => (
+                <button
+                  key={branch.id}
+                  onClick={() => {
+                    setSelectedBranch(branch.id);
+                    setSelectedDepartment('');
+                  }}
+                  className={`p-3 rounded-lg border-2 transition-all text-left ${
+                    selectedBranch === branch.id
+                      ? 'border-primary bg-primary/10 shadow-md'
+                      : 'border-border bg-card hover:border-muted-foreground/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 size={16} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
+                    <div>
+                      <p className="font-semibold text-sm text-foreground">{branch.name}</p>
+                      {branch.code && (
+                        <p className="text-xs text-muted-foreground">{branch.code}</p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))
+            ) : (
+              <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
+            )}
+          </div>
+        </div>
+
+        {/* Department Cards - Shows when branch selected, all visible at once */}
+        {selectedBranch && (
+          <div className="pl-4 border-l-2 border-l-primary">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Département</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {accessibleDepartments.length > 0 ? (
+                accessibleDepartments.map(dept => (
+                  <button
+                    key={dept.id}
+                    onClick={() => setSelectedDepartment(dept.id)}
+                    className={`p-3 rounded-lg border-2 transition-all text-left ${
+                      selectedDepartment === dept.id
+                        ? 'border-primary bg-primary/10 shadow-md'
+                        : 'border-border bg-card hover:border-muted-foreground/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users size={16} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
+                      <div>
+                        <p className="font-semibold text-sm text-foreground">{dept.name}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <p className="text-muted-foreground text-sm">Aucun département disponible</p>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
