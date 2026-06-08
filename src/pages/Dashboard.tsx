@@ -219,11 +219,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (selectedBranch && branchesScrollRef.current) {
       setTimeout(() => {
-        const selectedButton = branchesScrollRef.current?.querySelector(`button[data-branch-id="${selectedBranch}"]`);
-        if (selectedButton) {
-          selectedButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        const scrollContainer = branchesScrollRef.current;
+        const selectedButton = scrollContainer?.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
+        if (selectedButton && scrollContainer) {
+          const containerWidth = scrollContainer.clientWidth;
+          const buttonWidth = selectedButton.offsetWidth;
+          const buttonLeft = selectedButton.offsetLeft;
+          const centerOffset = buttonLeft - (containerWidth / 2) + (buttonWidth / 2);
+          scrollContainer.scrollTo({ left: centerOffset, behavior: 'smooth' });
         }
-      }, 0);
+      }, 50);
     }
   }, [selectedBranch]);
 
@@ -231,11 +236,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (selectedDepartment && departmentsScrollRef.current) {
       setTimeout(() => {
-        const selectedButton = departmentsScrollRef.current?.querySelector(`button[data-dept-id="${selectedDepartment}"]`);
-        if (selectedButton) {
-          selectedButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        const scrollContainer = departmentsScrollRef.current;
+        const selectedButton = scrollContainer?.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
+        if (selectedButton && scrollContainer) {
+          const containerWidth = scrollContainer.clientWidth;
+          const buttonWidth = selectedButton.offsetWidth;
+          const buttonLeft = selectedButton.offsetLeft;
+          const centerOffset = buttonLeft - (containerWidth / 2) + (buttonWidth / 2);
+          scrollContainer.scrollTo({ left: centerOffset, behavior: 'smooth' });
         }
-      }, 0);
+      }, 50);
     }
   }, [selectedDepartment]);
 
