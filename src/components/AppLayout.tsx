@@ -67,10 +67,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { id: 2, message: 'Formation assignée avec succès', time: 'Il y a 5h' },
     { id: 3, message: 'Rapport complété', time: 'Hier' },
   ]);
-  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
-    const saved = localStorage.getItem('appearanceMode');
-    return (saved as AppearanceMode) || 'standard';
-  });
+  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>('standard');
+  const [isLoading, setIsLoading] = useState(true);
   const [overlayTokens, setOverlayTokens] = useState<string[]>([]);
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
   const navTokenRef = useRef<string | null>(null);
@@ -86,100 +84,99 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const loadSessionAndNav = async () => {
-      const userData = localStorage.getItem("user");
-      const userRole = localStorage.getItem("userRole");
-      if (!userData) return;
-
-      let session = repairSiteDeveloperSession() ?? (JSON.parse(userData) as SessionUser);
-
-      if (!isSiteDeveloper(session)) {
-        session = { ...session, role: userRole ?? session.role };
-      }
-
-      const { data: rolesData } = await supabase
-        .from('roles')
-        .select('id, name, code, color, level, child_roles, parent_role_id');
-
-      setUser(session);
-      setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
-
-      // Load appearance from DB for this user
       try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('appearance_mode')
-          .eq('id', session.id)
-          .single();
-        
-        if (userData?.appearance_mode && userData.appearance_mode !== 'standard') {
-          const mode = userData.appearance_mode as AppearanceMode;
-          setAppearanceMode(mode);
-        } else {
-          setAppearanceMode('standard');
+        const userData = localStorage.getItem("user");
+        const userRole = localStorage.getItem("userRole");
+        if (!userData) {
+          setIsLoading(false);
+          return;
         }
-      } catch (error) {
-        console.error('Failed to load appearance from DB:', error);
-        // Fallback to localStorage
-        const saved = localStorage.getItem('appearanceMode');
-        if (saved && saved !== 'standard') setAppearanceMode(saved as AppearanceMode);
-        else setAppearanceMode('standard');
+
+        let session = repairSiteDeveloperSession() ?? (JSON.parse(userData) as SessionUser);
+
+        if (!isSiteDeveloper(session)) {
+          session = { ...session, role: userRole ?? session.role };
+        }
+
+        const { data: rolesData } = await supabase
+          .from('roles')
+          .select('id, name, code, color, level, child_roles, parent_role_id');
+
+        setUser(session);
+        setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
+
+        // Load appearance from DB for this user
+        try {
+          const { data: userAppearanceData } = await supabase
+            .from('users')
+            .select('appearance_mode')
+            .eq('id', session.id)
+            .single();
+          
+          if (userAppearanceData?.appearance_mode) {
+            const mode = userAppearanceData.appearance_mode as AppearanceMode;
+            setAppearanceMode(mode);
+            localStorage.setItem('appearanceMode', mode);
+          } else {
+            // If no mode in DB, use standard as default
+            setAppearanceMode('standard');
+            localStorage.setItem('appearanceMode', 'standard');
+          }
+        } catch (error) {
+          console.error('Failed to load appearance from DB:', error);
+          // Fallback to standard
+          setAppearanceMode('standard');
+          localStorage.setItem('appearanceMode', 'standard');
+        }
+      } finally {
+        setIsLoading(false);
       }
     };
 
     loadSessionAndNav();
-
-    const paletteKey = appearanceMode === 'standard' ? 'corporate' : getSelectedPaletteKey();
-    applyPaletteToDOM(paletteKey, appearanceMode);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('appearanceMode', appearanceMode);
-    
-    // Save appearance to DB if user is logged in
-    if (user) {
-      supabase
-        .from('users')
-        .update({ appearance_mode: appearanceMode })
-        .eq('id', user.id)
-        .then(() => {
-          console.log('Appearance saved to DB');
-        })
-        .catch((error) => {
-          console.error('Failed to save appearance to DB:', error);
-        });
-    }
-    
-    // Apply theme
+    // Apply theme immediately on load
     if (appearanceMode === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
 
-    // Get current selected palette
     let paletteKey = getSelectedPaletteKey();
-
-    // For standard mode, force Corporate Blue light palette + gray header
+    
     if (appearanceMode === 'standard') {
       paletteKey = 'corporate';
       saveSelectedPaletteKey(paletteKey);
-      
-      // Set gray header for standard mode
       document.documentElement.style.setProperty('--header-bg', '0 0% 94%');
     } else if (appearanceMode === 'light' && paletteKey === 'corporate') {
-      // For Corporate Blue in light mode, also apply light gray header
       document.documentElement.style.setProperty('--header-bg', '0 0% 94%');
     } else {
-      // Clear header-bg for non-standard modes
       document.documentElement.style.setProperty('--header-bg', 'var(--card)');
     }
 
-    // Apply the palette for the current appearance mode
     applyPaletteToDOM(paletteKey, appearanceMode);
-
-    // Dispatch event to notify other components of appearance change
     window.dispatchEvent(new CustomEvent('appearanceModeChange', { detail: appearanceMode }));
-  }, [appearanceMode, user]);
+  }, [appearanceMode]);
+
+  useEffect(() => {
+    localStorage.setItem('appearanceMode', appearanceMode);
+    
+    // Save appearance to DB if user is logged in
+    if (user && !isLoading) {
+      supabase
+        .from('users')
+        .update({ appearance_mode: appearanceMode })
+        .eq('id', user.id)
+        .then(() => {
+          console.log('Appearance saved to DB:', appearanceMode);
+        })
+        .catch((error) => {
+          console.error('Failed to save appearance to DB:', error);
+        });
+    }
+  }, [appearanceMode, user, isLoading]);
 
   // Listen for palette changes from UIStudio or other components
   // BUT: ignore palette changes in standard mode (standard is independent)

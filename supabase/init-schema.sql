@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS users (
   role_id uuid REFERENCES roles(id) ON DELETE SET NULL,
   role varchar(50) DEFAULT 'employee',
   is_agent_without_account boolean DEFAULT false,
+  appearance_mode varchar(50) DEFAULT 'standard',
   is_active boolean DEFAULT true,
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()
@@ -108,6 +109,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_branch ON users(branch_id);
 CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_users_appearance_mode ON users(appearance_mode);
 CREATE INDEX IF NOT EXISTS idx_evaluations_employee ON evaluations(employee_email);
 CREATE INDEX IF NOT EXISTS idx_training_employee ON training_requests(employee_email);
 CREATE INDEX IF NOT EXISTS idx_reports_user ON reports(user_id);
