@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown } from 'lucide-react';
+import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -72,6 +72,7 @@ export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<string>('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [expandedBranch, setExpandedBranch] = useState<boolean>(true); // Expansion state for hierarchy
   
   // Filtered data
   const [departmentManager, setDepartmentManager] = useState<any>(null);
@@ -328,18 +329,15 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Selectors Section */}
-      <Card className="border-border shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-heading">Filtres</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Period Selector */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Période d'Évaluation *</label>
+      {/* Hierarchy Filters - Expandable Structure */}
+      <div className="space-y-3">
+        {/* Period Row - Always Visible */}
+        <Card className="border-border shadow-sm">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium min-w-32">Période *</label>
               <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger>
+                <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Sélectionner une période" />
                 </SelectTrigger>
                 <SelectContent>
@@ -351,46 +349,78 @@ export default function Dashboard() {
                 </SelectContent>
               </Select>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Branch Selector */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Filiale *</label>
-              <Select value={selectedBranch} onValueChange={(val) => {
-                setSelectedBranch(val);
-                setSelectedDepartment('');
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une filiale" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accessibleBranches.map(branch => (
-                    <SelectItem key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Branch Row - Expandable */}
+        <Card className="border-border shadow-sm">
+          <CardContent className="p-0">
+            {/* Branch Header - Click to Expand */}
+            <button
+              onClick={() => setExpandedBranch(!expandedBranch)}
+              className="w-full p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors text-left"
+            >
+              {expandedBranch ? (
+                <ChevronDown size={18} className="text-primary" />
+              ) : (
+                <ChevronRight size={18} className="text-muted-foreground" />
+              )}
+              <label className="text-sm font-medium cursor-pointer">Filiale *</label>
+              {selectedBranch ? (
+                <span className="ml-auto text-sm font-semibold text-foreground">
+                  {branches.find(b => b.id === selectedBranch)?.name || 'Filiale'}
+                </span>
+              ) : (
+                <span className="ml-auto text-sm text-muted-foreground">Sélectionner une filiale</span>
+              )}
+            </button>
 
-            {/* Department Selector */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Département *</label>
-              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un département" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accessibleDepartments.map(dept => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            {/* Branch Selector - Expands When Clicked */}
+            {expandedBranch && (
+              <div className="border-t border-border px-4 py-4 bg-muted/20">
+                <Select value={selectedBranch} onValueChange={(val) => {
+                  setSelectedBranch(val);
+                  setSelectedDepartment('');
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une filiale" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accessibleBranches.map(branch => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Department Row - Only Shows When Branch Selected & Expanded */}
+        {selectedBranch && expandedBranch && (
+          <Card className="border-border shadow-sm ml-4 border-l-2 border-l-primary">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium min-w-32">Département *</label>
+                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Sélectionner un département" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accessibleDepartments.map(dept => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Department Manager Card */}
       {selectedDepartment && departmentManager && (
