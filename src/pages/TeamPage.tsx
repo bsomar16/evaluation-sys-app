@@ -137,6 +137,12 @@ export default function TeamPage() {
     };
   };
 
+  const getStatusBadgeText = (user: any) => {
+    const roleName = roles.find((r) => r.id === user.role_id)?.name || '—';
+    const deptName = departments.find((d) => d.id === user.department_id)?.name || '—';
+    return `${roleName} ${deptName}`.trim();
+  };
+
   const extractNom = (name: string) => splitFullName(name).nom;
   const extractPrenom = (name: string) => splitFullName(name).prenom;
 
@@ -242,8 +248,8 @@ export default function TeamPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <Badge variant={user.is_active !== false ? 'default' : 'secondary'}>
-                            {user.is_active !== false ? 'Actif' : 'Inactif'}
+                          <Badge variant="default">
+                            {getStatusBadgeText(user)}
                           </Badge>
                         </td>
                         {canManageEmployees && (
