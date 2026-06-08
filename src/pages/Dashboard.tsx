@@ -218,34 +218,42 @@ export default function Dashboard() {
   // Auto-scroll selected branch to center
   useEffect(() => {
     if (selectedBranch && branchesScrollRef.current) {
-      setTimeout(() => {
-        const scrollContainer = branchesScrollRef.current;
-        const selectedButton = scrollContainer?.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
+      const scrollContainer = branchesScrollRef.current;
+      // Use larger timeout to ensure DOM is ready
+      const timeoutId = setTimeout(() => {
+        const selectedButton = scrollContainer.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
         if (selectedButton && scrollContainer) {
           const containerWidth = scrollContainer.clientWidth;
           const buttonWidth = selectedButton.offsetWidth;
           const buttonLeft = selectedButton.offsetLeft;
-          const centerOffset = buttonLeft - (containerWidth / 2) + (buttonWidth / 2);
-          scrollContainer.scrollTo({ left: centerOffset, behavior: 'smooth' });
+          const centerOffset = buttonLeft + (buttonWidth / 2) - (containerWidth / 2);
+          const maxScroll = scrollContainer.scrollWidth - containerWidth;
+          const clampedOffset = Math.max(0, Math.min(centerOffset, maxScroll));
+          scrollContainer.scrollTo({ left: clampedOffset, behavior: 'smooth' });
         }
-      }, 50);
+      }, 150);
+      return () => clearTimeout(timeoutId);
     }
   }, [selectedBranch]);
 
   // Auto-scroll selected department to center
   useEffect(() => {
     if (selectedDepartment && departmentsScrollRef.current) {
-      setTimeout(() => {
-        const scrollContainer = departmentsScrollRef.current;
-        const selectedButton = scrollContainer?.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
+      const scrollContainer = departmentsScrollRef.current;
+      // Use larger timeout to ensure DOM is ready
+      const timeoutId = setTimeout(() => {
+        const selectedButton = scrollContainer.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
         if (selectedButton && scrollContainer) {
           const containerWidth = scrollContainer.clientWidth;
           const buttonWidth = selectedButton.offsetWidth;
           const buttonLeft = selectedButton.offsetLeft;
-          const centerOffset = buttonLeft - (containerWidth / 2) + (buttonWidth / 2);
-          scrollContainer.scrollTo({ left: centerOffset, behavior: 'smooth' });
+          const centerOffset = buttonLeft + (buttonWidth / 2) - (containerWidth / 2);
+          const maxScroll = scrollContainer.scrollWidth - containerWidth;
+          const clampedOffset = Math.max(0, Math.min(centerOffset, maxScroll));
+          scrollContainer.scrollTo({ left: clampedOffset, behavior: 'smooth' });
         }
-      }, 50);
+      }, 150);
+      return () => clearTimeout(timeoutId);
     }
   }, [selectedDepartment]);
 
