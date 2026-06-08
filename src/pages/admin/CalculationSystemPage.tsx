@@ -284,15 +284,15 @@ export function CalculationSystemPage() {
                     const method = getCalculationMethodDefinition(r.type);
                     return (
                       <tr key={r.id} className="border-b hover:bg-muted/50 align-top">
-                        <td className="py-3 px-4 font-medium">{rule.label}</td>
+                        <td className="py-3 px-4 font-medium">{r.label}</td>
                         <td className="py-3 px-4">
                           <Badge variant="outline">
-                            {method?.methodLabel ?? CRITERION_TYPE_LABELS[rule.type]}
+                            {method?.methodLabel ?? CRITERION_TYPE_LABELS[r.type]}
                           </Badge>
                         </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           {canWrite('calculation_system') && (
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(rule)}>
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
                               <Edit2 className="h-4 w-4" />
                             </Button>
                           )}
@@ -301,7 +301,7 @@ export function CalculationSystemPage() {
                               variant="ghost"
                               size="sm"
                               className="text-destructive"
-                              onClick={() => setDeleteTarget(rule)}
+                              onClick={() => setDeleteTarget(r)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
