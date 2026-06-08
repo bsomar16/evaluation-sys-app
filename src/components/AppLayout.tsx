@@ -69,7 +69,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   ]);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
     const saved = localStorage.getItem('appearanceMode');
-    return (saved as AppearanceMode) || 'light';
+    return (saved as AppearanceMode) || 'standard';
   });
   const [overlayTokens, setOverlayTokens] = useState<string[]>([]);
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
@@ -115,14 +115,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const mode = userData.appearance_mode as AppearanceMode;
           setAppearanceMode(mode);
         } else {
-          setAppearanceMode('light');
+          setAppearanceMode('standard');
         }
       } catch (error) {
         console.error('Failed to load appearance from DB:', error);
         // Fallback to localStorage
         const saved = localStorage.getItem('appearanceMode');
         if (saved && saved !== 'standard') setAppearanceMode(saved as AppearanceMode);
-        else setAppearanceMode('light');
+        else setAppearanceMode('standard');
       }
     };
 
