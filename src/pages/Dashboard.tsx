@@ -215,14 +215,14 @@ export default function Dashboard() {
     }
   };
 
-  // Auto-scroll selected branch to center
+  // Auto-scroll selected branch to center using requestAnimationFrame
   useEffect(() => {
     if (selectedBranch && branchesScrollRef.current) {
       const scrollContainer = branchesScrollRef.current;
-      // Use larger timeout to ensure DOM is ready
-      const timeoutId = setTimeout(() => {
+      
+      const performScroll = () => {
         const selectedButton = scrollContainer.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
-        if (selectedButton && scrollContainer) {
+        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
           const containerWidth = scrollContainer.clientWidth;
           const buttonWidth = selectedButton.offsetWidth;
           const buttonLeft = selectedButton.offsetLeft;
@@ -231,19 +231,23 @@ export default function Dashboard() {
           const clampedOffset = Math.max(0, Math.min(centerOffset, maxScroll));
           scrollContainer.scrollTo({ left: clampedOffset, behavior: 'smooth' });
         }
-      }, 150);
-      return () => clearTimeout(timeoutId);
+      };
+      
+      // Use requestAnimationFrame twice to ensure render is complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(performScroll);
+      });
     }
   }, [selectedBranch]);
 
-  // Auto-scroll selected department to center
+  // Auto-scroll selected department to center using requestAnimationFrame
   useEffect(() => {
     if (selectedDepartment && departmentsScrollRef.current) {
       const scrollContainer = departmentsScrollRef.current;
-      // Use larger timeout to ensure DOM is ready
-      const timeoutId = setTimeout(() => {
+      
+      const performScroll = () => {
         const selectedButton = scrollContainer.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
-        if (selectedButton && scrollContainer) {
+        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
           const containerWidth = scrollContainer.clientWidth;
           const buttonWidth = selectedButton.offsetWidth;
           const buttonLeft = selectedButton.offsetLeft;
@@ -252,8 +256,12 @@ export default function Dashboard() {
           const clampedOffset = Math.max(0, Math.min(centerOffset, maxScroll));
           scrollContainer.scrollTo({ left: clampedOffset, behavior: 'smooth' });
         }
-      }, 150);
-      return () => clearTimeout(timeoutId);
+      };
+      
+      // Use requestAnimationFrame twice to ensure render is complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(performScroll);
+      });
     }
   }, [selectedDepartment]);
 
