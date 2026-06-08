@@ -15,6 +15,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Edit2, Plus, Search, Trash2 } from 'lucide-react';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import { CalculationMethodParamsPanel } from '@/components/admin/CalculationMethodParamsPanel';
 import {
@@ -71,6 +73,8 @@ export function CalculationSystemPage() {
       CRITERION_TYPE_LABELS[r.type].toLowerCase().includes(q)
     );
   });
+
+  const pagination = usePagination(filtered, 10);
 
   const openCreate = () => {
     setIsCreate(true);
@@ -275,7 +279,7 @@ export function CalculationSystemPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((rule) => {
+                  {pagination.paginatedItems.map((r) => (
                     const method = getCalculationMethodDefinition(rule.type);
                     return (
                       <tr key={rule.id} className="border-b hover:bg-muted/50 align-top">
@@ -308,6 +312,17 @@ export function CalculationSystemPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              itemsPerPage={pagination.itemsPerPage}
+              totalItems={pagination.totalItems}
+              onPageChange={pagination.setCurrentPage}
+              onItemsPerPageChange={pagination.setItemsPerPage}
+              canGoPrev={pagination.canGoPrev}
+              canGoNext={pagination.canGoNext}
+            />
+            </>
           )}
         </CardContent>
       </Card>

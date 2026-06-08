@@ -17,6 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Trash2, Edit2, Search, X } from 'lucide-react';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import {
   collectAncestorDepartmentIds,
@@ -224,6 +226,8 @@ export function DepartmentsPage() {
     d.name?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const pagination = usePagination(filteredDepartments, 10);
+
   if (!canRead('departments')) {
     return <ModuleAccessDenied />;
   }
@@ -307,7 +311,7 @@ export function DepartmentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDepartments.map((dept) => {
+                  {pagination.paginatedItems.map((dept) => {
                     const children = getChildDepartments(dept);
                     return (
                       <tr key={dept.id} className="border-b hover:bg-muted/50">
@@ -349,6 +353,17 @@ export function DepartmentsPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              itemsPerPage={pagination.itemsPerPage}
+              totalItems={pagination.totalItems}
+              onPageChange={pagination.setCurrentPage}
+              onItemsPerPageChange={pagination.setItemsPerPage}
+              canGoPrev={pagination.canGoPrev}
+              canGoNext={pagination.canGoNext}
+            />
+            </>
           )}
         </CardContent>
       </Card>

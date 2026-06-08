@@ -29,6 +29,8 @@ import {
   Circle,
 } from 'lucide-react';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import {
   deleteEvaluation,
@@ -164,6 +166,8 @@ export function EvaluationsPage() {
     const matchStatus = statusFilter === ALL_STATUS || e.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  const pagination = usePagination(filtered, 10);
 
   const handleStatus = async (id: string, status: EvaluationStatus) => {
     if (!canWrite('evaluations_management')) return;
@@ -404,7 +408,7 @@ export function EvaluationsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((e) => (
+                  {pagination.paginatedItems.map((e) => (
                     <tr key={e.id} className="border-b hover:bg-muted/50">
                       <td className="py-3 px-4 font-medium">{e.employee_name ?? '—'}</td>
                       <td className="py-3 px-4">{e.period || '—'}</td>
@@ -441,6 +445,17 @@ export function EvaluationsPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              itemsPerPage={pagination.itemsPerPage}
+              totalItems={pagination.totalItems}
+              onPageChange={pagination.setCurrentPage}
+              onItemsPerPageChange={pagination.setItemsPerPage}
+              canGoPrev={pagination.canGoPrev}
+              canGoNext={pagination.canGoNext}
+            />
+            </>
           )}
         </CardContent>
       </Card>

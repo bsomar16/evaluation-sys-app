@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { usePagination } from '@/hooks/usePagination';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronDown, ChevronRight, Plus, Trash2, Edit2, Search, X } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -26,6 +27,7 @@ import {
 } from '@/lib/role-permissions';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
+import { PaginationControls } from '@/components/PaginationControls';
 
 type RoleFormState = {
   name: string;
@@ -273,6 +275,8 @@ export function RolesPage() {
   const filteredRoles = roles.filter((r) =>
     r.name?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const pagination = usePagination(filteredRoles, 10);
 
   const getChildRoleBadge = (child: any) => ({
     label: child.name,
@@ -784,7 +788,7 @@ export function RolesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRoles.map((role) => {
+                  {pagination.paginatedItems.map((role) => {
                     const childRoles = getChildRoles(role);
                     return (
                       <tr key={role.id} className="border-b hover:bg-muted/50">
@@ -836,6 +840,17 @@ export function RolesPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              itemsPerPage={pagination.itemsPerPage}
+              totalItems={pagination.totalItems}
+              onPageChange={pagination.setCurrentPage}
+              onItemsPerPageChange={pagination.setItemsPerPage}
+              canGoPrev={pagination.canGoPrev}
+              canGoNext={pagination.canGoNext}
+            />
+            </>
           )}
         </CardContent>
       </Card>

@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Plus, Trash2, Edit2, Search, X } from 'lucide-react';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import {
   CRITERION_TYPE_LABELS,
@@ -416,6 +418,8 @@ export function EvaluationCriteriaPage() {
       calculationSystemLabel(c, calculationRules).toLowerCase().includes(search.toLowerCase())
   );
 
+  const pagination = usePagination(filtered, 10);
+
   if (!canRead('evaluation_criteria')) {
     return <ModuleAccessDenied />;
   }
@@ -600,7 +604,7 @@ export function EvaluationCriteriaPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c) => (
+                  {pagination.paginatedItems.map((c) => (
                     <tr key={c.id} className="border-b hover:bg-muted/50">
                       <td className="py-3 px-4 font-medium align-top">{c.name}</td>
                       <td className="py-3 px-4 align-top">
@@ -639,6 +643,17 @@ export function EvaluationCriteriaPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              itemsPerPage={pagination.itemsPerPage}
+              totalItems={pagination.totalItems}
+              onPageChange={pagination.setCurrentPage}
+              onItemsPerPageChange={pagination.setItemsPerPage}
+              canGoPrev={pagination.canGoPrev}
+              canGoNext={pagination.canGoNext}
+            />
+            </>
           )}
         </CardContent>
       </Card>

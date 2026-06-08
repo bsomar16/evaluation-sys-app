@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { usePagination } from '@/hooks/usePagination';
 import { supabase } from '@/integrations/supabase/client';
 import { archiveUser, restoreUser, setUserActive, partitionUsersByArchive } from '@/services/userArchiveService';
 import { formatArchivedAt } from '@/lib/user-archive';
@@ -26,6 +27,7 @@ import type { BranchRecord } from '@/lib/branch-tree';
 import type { DepartmentRecord } from '@/lib/department-tree';
 import type { RoleRecord } from '@/lib/role-tree';
 import { EmployeeUserFormDialog } from '@/components/EmployeeUserFormDialog';
+import { PaginationControls } from '@/components/PaginationControls';
 
 type UserDialogState = { mode: 'create' | 'edit'; user?: any } | null;
 
@@ -158,6 +160,8 @@ export function UsersPage() {
     );
   });
 
+  const pagination = usePagination(filteredUsers, 10);
+
   const getRoleBadge = (user: any) => {
     const roleRecord = roles.find((r) => r.id === user.role_id || r.code === user.role);
     const label = roleRecord?.name || user.role || '—';
@@ -215,26 +219,27 @@ export function UsersPage() {
               {userTab === 'active' ? 'Aucun utilisateur actif' : 'Aucun utilisateur archivé'}
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4">Code</th>
-                    <th className="text-left py-3 px-4">Nom</th>
-                    <th className="text-left py-3 px-4">Prénom</th>
-                    <th className="text-left py-3 px-4">Username</th>
-                    <th className="text-left py-3 px-4">Filiale</th>
-                    <th className="text-left py-3 px-4">Rôle</th>
-                    {userTab === 'active' ? (
-                      <th className="text-left py-3 px-4">Statut</th>
-                    ) : (
-                      <th className="text-left py-3 px-4">Archivé le</th>
-                    )}
-                    <th className="text-right py-3 px-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((user) => (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4">Code</th>
+                      <th className="text-left py-3 px-4">Nom</th>
+                      <th className="text-left py-3 px-4">Prénom</th>
+                      <th className="text-left py-3 px-4">Username</th>
+                      <th className="text-left py-3 px-4">Filiale</th>
+                      <th className="text-left py-3 px-4">Rôle</th>
+                      {userTab === 'active' ? (
+                        <th className="text-left py-3 px-4">Statut</th>
+                      ) : (
+                        <th className="text-left py-3 px-4">Archivé le</th>
+                      )}
+                      <th className="text-right py-3 px-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagination.paginatedItems.map((user) => (
                     <tr key={user.id} className="border-b hover:bg-muted/50">
                       <td className="py-3 px-4">{user.code || '—'}</td>
                       <td className="py-3 px-4">{extractNom(user.name)}</td>
@@ -328,6 +333,17 @@ export function UsersPage() {
                 </tbody>
               </table>
             </div>
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              itemsPerPage={pagination.itemsPerPage}
+              totalItems={pagination.totalItems}
+              onPageChange={pagination.setCurrentPage}
+              onItemsPerPageChange={pagination.setItemsPerPage}
+              canGoPrev={pagination.canGoPrev}
+              canGoNext={pagination.canGoNext}
+            />
+            </>
           )}
         </CardContent>
       </Card>
