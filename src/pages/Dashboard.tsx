@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight } from 'lucide-react';
+import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -79,6 +79,10 @@ export default function Dashboard() {
   const [departmentAgents, setDepartmentAgents] = useState<AgentWithScore[]>([]);
   const [topAgents, setTopAgents] = useState<AgentWithScore[]>([]);
   const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
+
+  // Carousel refs
+  const branchesScrollRef = useRef<HTMLDivElement>(null);
+  const departmentsScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -331,26 +335,27 @@ export default function Dashboard() {
 
       {/* Hierarchy Filters - Professional Display with Steps & Cards */}
       <div className="space-y-6">
-        {/* Period Steps - All visible at once */}
+        {/* Period Steps - With Arrow Format */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-3">Période d'Évaluation</h3>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {periods.length > 0 ? (
               periods.map((period, idx) => (
-                <button
-                  key={period}
-                  onClick={() => setSelectedPeriod(period)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    selectedPeriod === period
-                      ? 'bg-primary text-primary-foreground shadow-md'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <span className="text-xs opacity-70">Étape {idx + 1}</span>
+                <div key={period} className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedPeriod(period)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      selectedPeriod === period
+                        ? 'bg-primary text-primary-foreground shadow-md'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
+                    }`}
+                  >
                     {period}
-                  </span>
-                </button>
+                  </button>
+                  {idx < periods.length - 1 && (
+                    <span className="text-muted-foreground">→</span>
+                  )}
+                </div>
               ))
             ) : (
               <p className="text-muted-foreground text-sm">Aucune période disponible</p>
@@ -358,68 +363,130 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Branch Cards - All visible at once, hierarchical */}
+        {/* Branch Carousel - Horizontal scroll with arrows */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-3">Filiale</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {accessibleBranches.length > 0 ? (
-              accessibleBranches.map(branch => (
-                <button
-                  key={branch.id}
-                  onClick={() => {
-                    setSelectedBranch(branch.id);
-                    setSelectedDepartment('');
-                  }}
-                  className={`p-3 rounded-lg border-2 transition-all text-left ${
-                    selectedBranch === branch.id
-                      ? 'border-primary bg-primary/10 shadow-md'
-                      : 'border-border bg-card hover:border-muted-foreground/50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Building2 size={16} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
-                    <div>
-                      <p className="font-semibold text-sm text-foreground">{branch.name}</p>
-                      {branch.code && (
-                        <p className="text-xs text-muted-foreground">{branch.code}</p>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
-            )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (branchesScrollRef.current) {
+                  branchesScrollRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+                }
+              }}
+              className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            
+            <div
+              ref={branchesScrollRef}
+              className="flex-1 overflow-hidden"
+            >
+              <div className="flex gap-3 pb-2">
+                {accessibleBranches.length > 0 ? (
+                  accessibleBranches.map(branch => (
+                    <button
+                      key={branch.id}
+                      onClick={() => {
+                        setSelectedBranch(branch.id);
+                        setSelectedDepartment('');
+                      }}
+                      className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
+                        selectedBranch === branch.id
+                          ? 'border-primary bg-primary/10 shadow-md'
+                          : 'border-border bg-card hover:border-muted-foreground/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Building2 size={16} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
+                        <div>
+                          <p className="font-semibold text-sm text-foreground">{branch.name}</p>
+                          {branch.code && (
+                            <p className="text-xs text-muted-foreground">{branch.code}</p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
+                )}
+              </div>
+            </div>
+            
+            <button
+              onClick={() => {
+                if (branchesScrollRef.current) {
+                  branchesScrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+                }
+              }}
+              className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={20} />
+            </button>
           </div>
         </div>
 
-        {/* Department Cards - Shows when branch selected, all visible at once */}
+        {/* Department Carousel - Shows when branch selected, horizontal scroll with arrows */}
         {selectedBranch && (
           <div className="pl-4 border-l-2 border-l-primary">
             <h3 className="text-sm font-semibold text-foreground mb-3">Département</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {accessibleDepartments.length > 0 ? (
-                accessibleDepartments.map(dept => (
-                  <button
-                    key={dept.id}
-                    onClick={() => setSelectedDepartment(dept.id)}
-                    className={`p-3 rounded-lg border-2 transition-all text-left ${
-                      selectedDepartment === dept.id
-                        ? 'border-primary bg-primary/10 shadow-md'
-                        : 'border-border bg-card hover:border-muted-foreground/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Users size={16} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
-                      <div>
-                        <p className="font-semibold text-sm text-foreground">{dept.name}</p>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <p className="text-muted-foreground text-sm">Aucun département disponible</p>
-              )}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (departmentsScrollRef.current) {
+                    departmentsScrollRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+                  }
+                }}
+                className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              
+              <div
+                ref={departmentsScrollRef}
+                className="flex-1 overflow-hidden"
+              >
+                <div className="flex gap-3 pb-2">
+                  {accessibleDepartments.length > 0 ? (
+                    accessibleDepartments.map(dept => (
+                      <button
+                        key={dept.id}
+                        onClick={() => setSelectedDepartment(dept.id)}
+                        className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
+                          selectedDepartment === dept.id
+                            ? 'border-primary bg-primary/10 shadow-md'
+                            : 'border-border bg-card hover:border-muted-foreground/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users size={16} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
+                          <div>
+                            <p className="font-semibold text-sm text-foreground">{dept.name}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Aucun département disponible</p>
+                  )}
+                </div>
+              </div>
+              
+              <button
+                onClick={() => {
+                  if (departmentsScrollRef.current) {
+                    departmentsScrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+                  }
+                }}
+                className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Scroll right"
+              >
+                <ChevronRight size={20} />
+              </button>
             </div>
           </div>
         )}
