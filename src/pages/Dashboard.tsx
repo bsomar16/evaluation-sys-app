@@ -223,19 +223,29 @@ export default function Dashboard() {
       const performScroll = () => {
         const selectedButton = scrollContainer.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
         if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
+          // Calculate scroll position to center the element
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const buttonRect = selectedButton.getBoundingClientRect();
+          
+          // Distance from scroll container start to button start (accounting for current scroll)
+          const buttonLeftInScroll = selectedButton.offsetLeft;
           const containerWidth = scrollContainer.clientWidth;
-          const buttonWidth = selectedButton.offsetWidth;
-          const buttonLeft = selectedButton.offsetLeft;
-          const centerOffset = buttonLeft + (buttonWidth / 2) - (containerWidth / 2);
+          const buttonWidth = buttonRect.width;
+          
+          // Calculate new scroll position
+          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
           const maxScroll = scrollContainer.scrollWidth - containerWidth;
-          const clampedOffset = Math.max(0, Math.min(centerOffset, maxScroll));
-          scrollContainer.scrollTo({ left: clampedOffset, behavior: 'smooth' });
+          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+          
+          scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
         }
       };
       
       // Use requestAnimationFrame twice to ensure render is complete
       requestAnimationFrame(() => {
-        requestAnimationFrame(performScroll);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(performScroll);
+        });
       });
     }
   }, [selectedBranch]);
@@ -248,19 +258,29 @@ export default function Dashboard() {
       const performScroll = () => {
         const selectedButton = scrollContainer.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
         if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
+          // Calculate scroll position to center the element
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const buttonRect = selectedButton.getBoundingClientRect();
+          
+          // Distance from scroll container start to button start (accounting for current scroll)
+          const buttonLeftInScroll = selectedButton.offsetLeft;
           const containerWidth = scrollContainer.clientWidth;
-          const buttonWidth = selectedButton.offsetWidth;
-          const buttonLeft = selectedButton.offsetLeft;
-          const centerOffset = buttonLeft + (buttonWidth / 2) - (containerWidth / 2);
+          const buttonWidth = buttonRect.width;
+          
+          // Calculate new scroll position
+          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
           const maxScroll = scrollContainer.scrollWidth - containerWidth;
-          const clampedOffset = Math.max(0, Math.min(centerOffset, maxScroll));
-          scrollContainer.scrollTo({ left: clampedOffset, behavior: 'smooth' });
+          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+          
+          scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
         }
       };
       
       // Use requestAnimationFrame twice to ensure render is complete
       requestAnimationFrame(() => {
-        requestAnimationFrame(performScroll);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(performScroll);
+        });
       });
     }
   }, [selectedDepartment]);
@@ -433,7 +453,7 @@ export default function Dashboard() {
               ref={branchesScrollRef}
               className="flex-1 overflow-hidden"
             >
-              <div className="flex gap-3 pb-2">
+              <div className="flex gap-3 pb-2" style={{paddingLeft: 'max(0px, calc(50% - 180px))', paddingRight: 'max(0px, calc(50% - 180px))'}}>
                 {accessibleBranches.length > 0 ? (
                   accessibleBranches.map(branch => (
                     <button
@@ -501,7 +521,7 @@ export default function Dashboard() {
                 ref={departmentsScrollRef}
                 className="flex-1 overflow-hidden"
               >
-                <div className="flex gap-3 pb-2">
+                <div className="flex gap-3 pb-2" style={{paddingLeft: 'max(0px, calc(50% - 180px))', paddingRight: 'max(0px, calc(50% - 180px))'}}>
                   {accessibleDepartments.length > 0 ? (
                     accessibleDepartments.map(dept => (
                       <button
