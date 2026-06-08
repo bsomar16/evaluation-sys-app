@@ -3,7 +3,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { passwordService } from '@/services/passwordService';
@@ -80,7 +79,6 @@ export function EmployeeUserFormDialog({
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [usernameTouched, setUsernameTouched] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [isAgent, setIsAgent] = useState(false);
 
   const creationScope = useMemo(
     () => getUserCreationScope(session, roles, branches, departments),
@@ -121,7 +119,6 @@ export function EmployeeUserFormDialog({
       setUsernameError(null);
       setUsernameTouched(false);
       setShowPassword(false);
-      setIsAgent(false);
       return;
     }
     if (editingUser) {
@@ -139,7 +136,6 @@ export function EmployeeUserFormDialog({
       setUsernameError(null);
       setUsernameTouched(false);
       setShowPassword(false);
-      setIsAgent(false);
     }
   }, [open, isCreate, editingUser, defaultRoleId]);
 
@@ -393,20 +389,9 @@ export function EmployeeUserFormDialog({
             onChange={(e) => setFormData({ ...formData, first_name: formatPrenom(e.target.value) })}
             className="border-2 border-blue-300 bg-blue-50"
           />
-          <div className="flex items-center gap-2 p-2 rounded-md bg-amber-50 border border-amber-200">
-            <Checkbox
-              id="is-agent"
-              checked={isAgent}
-              onCheckedChange={(checked) => setIsAgent(checked as boolean)}
-            />
-            <label htmlFor="is-agent" className="text-sm cursor-pointer">
-              Employé: Agent sans accès utilisateur (pas de compte de connexion)
-            </label>
-          </div>
-          {!isAgent && (
-            <div className="space-y-2">
-              <Input
-                placeholder="Nom utilisateur"
+          <div className="space-y-2">
+            <Input
+              placeholder="Nom utilisateur"
               value={formData.username}
               onChange={(e) => {
                 const cleaned = e.target.value.replace(/[^a-zA-Z0-9._-]/g, '');
@@ -441,7 +426,6 @@ export function EmployeeUserFormDialog({
             </div>
             {renderPasswordStrength()}
           </div>
-          )}
           <Select
             value={formData.branch}
             onValueChange={(value) => setFormData({ ...formData, branch: value })}
