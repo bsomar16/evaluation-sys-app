@@ -372,9 +372,9 @@ export default function Dashboard() {
               label: branch.name,
               content: (
                 <>
-                  <Building2 size={16} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
+                  <Building2 size={14} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
                   <div>
-                    <p className="font-semibold text-sm text-foreground">{branch.name}</p>
+                    <p className="font-semibold text-xs text-foreground">{branch.name}</p>
                     {branch.code && (
                       <p className="text-xs text-muted-foreground">{branch.code}</p>
                     )}
@@ -387,7 +387,7 @@ export default function Dashboard() {
               setSelectedBranch(id);
               setSelectedDepartment('');
             }}
-            itemWidth={180}
+            itemWidth={130}
           />
         </div>
 
@@ -401,16 +401,16 @@ export default function Dashboard() {
                 label: dept.name,
                 content: (
                   <>
-                    <Users size={16} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
+                    <Users size={14} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
                     <div>
-                      <p className="font-semibold text-sm text-foreground">{dept.name}</p>
+                      <p className="font-semibold text-xs text-foreground">{dept.name}</p>
                     </div>
                   </>
                 ),
               }))}
               selectedId={selectedDepartment}
               onSelect={(id) => setSelectedDepartment(id)}
-              itemWidth={180}
+              itemWidth={130}
             />
           </div>
         )}

@@ -120,7 +120,7 @@ export function RoulletteCarousel({
       <div className="flex-1 flex justify-center items-center">
         {/* Items wrapper - displays items with transforms */}
         <div
-          className="flex justify-center items-center gap-3 relative"
+          className="flex justify-center items-center gap-2 relative"
           style={{
             perspective: '1000px',
           }}
@@ -137,7 +137,7 @@ export function RoulletteCarousel({
               <button
                 key={item.id}
                 onClick={() => onSelect(item.id)}
-                className={`transition-all duration-500 ease-out p-3 rounded-lg border-2 text-left flex flex-col items-center justify-center flex-shrink-0 ${
+                className={`transition-all duration-500 ease-out p-2 rounded-lg border-2 text-left flex flex-col items-center justify-center flex-shrink-0 text-xs ${
                   isCenter
                     ? 'border-primary bg-primary/10 shadow-lg z-50'
                     : 'border-border bg-card hover:border-muted-foreground/50'
@@ -146,7 +146,7 @@ export function RoulletteCarousel({
                   opacity: item.opacity,
                   transform: `scale(${item.scale})`,
                   width: `${itemWidth}px`,
-                  minHeight: `${120 * item.scale}px`,
+                  minHeight: `${80 * item.scale}px`,
                   pointerEvents: item.isVisible ? 'auto' : 'none',
                   cursor: item.isVisible ? 'pointer' : 'default',
                   transition: 'all 500ms ease-out',
