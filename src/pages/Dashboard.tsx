@@ -102,15 +102,15 @@ export default function Dashboard() {
         break;
       case 1:
         opacity = 0.88;
-        scale = 0.97;
+        scale = 0.92;
         break;
       case 2:
         opacity = 0.75;
-        scale = 0.94;
+        scale = 0.84;
         break;
       default:
         opacity = 0.58;
-        scale = 0.91;
+        scale = 0.76;
         break;
     }
 
