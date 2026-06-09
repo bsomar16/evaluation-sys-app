@@ -94,7 +94,14 @@ export default function Dashboard() {
     }
     
     if (currentUser?.branch_id) {
-      return branches.filter(b => b.id === currentUser.branch_id);
+      const userBranch = branches.find(b => b.id === currentUser.branch_id);
+      if (!userBranch) return [];
+      
+      // Inclure la branche de l'utilisateur ET ses filiales filles
+      const childBranchIds = userBranch.child_branches || [];
+      const accessibleBranchIds = [currentUser.branch_id, ...childBranchIds];
+      
+      return branches.filter(b => accessibleBranchIds.includes(b.id));
     }
     
     return branches;
