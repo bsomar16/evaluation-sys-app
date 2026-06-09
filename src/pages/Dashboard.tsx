@@ -841,7 +841,10 @@ export default function Dashboard() {
         {/* TOP Employees - Hierarchical */}
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">🏆 TOP Employés</CardTitle>
+            <CardTitle className="text-base font-heading flex items-center gap-2">
+              <Trophy size={18} className="text-amber-600" />
+              TOP Employés
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {topEmployees.length > 0 ? (
@@ -929,7 +932,10 @@ export default function Dashboard() {
         {/* WORST Employees - Hierarchical */}
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">📉 WORST Employés</CardTitle>
+            <CardTitle className="text-base font-heading flex items-center gap-2">
+              <TrendingDown size={18} className="text-red-600" />
+              WORST Employés
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {worstEmployees.length > 0 ? (
