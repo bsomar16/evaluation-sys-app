@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import useEmblaCarousel from 'embla-carousel-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -80,78 +81,66 @@ export default function Dashboard() {
   const [topAgents, setTopAgents] = useState<AgentWithScore[]>([]);
   const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
 
-  // Carousel refs
-  const branchesScrollRef = useRef<HTMLDivElement>(null);
-  const departmentsScrollRef = useRef<HTMLDivElement>(null);
+  const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
+  const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
 
-  // Carousel roulette helper: calculates scale and opacity based on distance from center
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
     const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
     if (selectedIndex === -1) return { transform: 'scale(1)', opacity: 1 };
-    
+
     const total = selectedItems.length;
     let distance = Math.abs(itemIndex - selectedIndex);
     distance = Math.min(distance, total - distance);
-    
+
     let scale = 1;
     let opacity = 1;
-    
-    switch(distance) {
-      case 0: scale = 1; opacity = 1; break;
-      case 1: scale = 0.85; opacity = 0.8; break;
-      case 2: scale = 0.70; opacity = 0.6; break;
-      case 3: scale = 0.50; opacity = 0.4; break;
-      default: scale = 0.30; opacity = 0.2; break;
+
+    switch (distance) {
+      case 0:
+        scale = 1;
+        opacity = 1;
+        break;
+      case 1:
+        scale = 0.94;
+        opacity = 0.88;
+        break;
+      case 2:
+        scale = 0.88;
+        opacity = 0.75;
+        break;
+      default:
+        scale = 0.82;
+        opacity = 0.58;
+        break;
     }
-    
-    return { 
-      transform: `scale(${scale})`, 
+
+    return {
+      transform: `scale(${scale})`,
       opacity,
-      transition: 'all 0.3s ease-in-out'
+      transition: 'all 0.25s ease-in-out',
     };
   };
 
-  // Scroll to center selected item
-  const scrollToCenter = (ref: HTMLDivElement | null, items: any[], selectedId: string) => {
-    if (!ref) return;
-    
-    const selectedIndex = items.findIndex(item => item.id === selectedId);
-    if (selectedIndex === -1) return;
-    
-    setTimeout(() => {
-      const itemElements = ref.querySelectorAll('[data-carousel-item]');
-      const targetElement = itemElements[selectedIndex] as HTMLElement;
-      
-      if (targetElement) {
-        const containerWidth = ref.clientWidth;
-        const itemRect = targetElement.getBoundingClientRect();
-        const refRect = ref.getBoundingClientRect();
-        const scrollLeft = ref.scrollLeft;
-        
-        const itemCenterInContainer = itemRect.left - refRect.left + scrollLeft + (itemRect.width / 2);
-        const targetScroll = itemCenterInContainer - (containerWidth / 2);
-        
-        ref.scrollTo({ 
-          left: Math.max(0, targetScroll), 
-          behavior: 'smooth' 
-        });
+  const accessibleBranches = getAccessibleBranches();
+  const accessibleDepartments = getAccessibleDepartments();
+
+  useEffect(() => {
+    if (selectedBranch && branchEmblaApi && accessibleBranches.length > 0) {
+      const selectedIndex = accessibleBranches.findIndex(item => item.id === selectedBranch);
+      if (selectedIndex !== -1) {
+        branchEmblaApi.scrollTo(selectedIndex);
       }
-    }, 0);
-  };
-
-  // Effect to scroll branches to center when selected branch changes
-  useEffect(() => {
-    if (selectedBranch && accessibleBranches.length > 0) {
-      scrollToCenter(branchesScrollRef.current, accessibleBranches, selectedBranch);
     }
-  }, [selectedBranch, accessibleBranches]);
+  }, [selectedBranch, accessibleBranches, branchEmblaApi]);
 
-  // Effect to scroll departments to center when selected department changes
   useEffect(() => {
-    if (selectedDepartment && accessibleDepartments.length > 0) {
-      scrollToCenter(departmentsScrollRef.current, accessibleDepartments, selectedDepartment);
+    if (selectedDepartment && departmentEmblaApi && accessibleDepartments.length > 0) {
+      const selectedIndex = accessibleDepartments.findIndex(item => item.id === selectedDepartment);
+      if (selectedIndex !== -1) {
+        departmentEmblaApi.scrollTo(selectedIndex);
+      }
     }
-  }, [selectedDepartment, accessibleDepartments]);
+  }, [selectedDepartment, accessibleDepartments, departmentEmblaApi]);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -284,77 +273,7 @@ export default function Dashboard() {
     }
   };
 
-  // Auto-scroll selected branch to center using requestAnimationFrame
-  useEffect(() => {
-    if (selectedBranch && branchesScrollRef.current) {
-      const scrollContainer = branchesScrollRef.current;
-      
-      const performScroll = () => {
-        const selectedButton = scrollContainer.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
-        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
-          // Calculate scroll position to center the element
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const buttonRect = selectedButton.getBoundingClientRect();
-          
-          // Distance from scroll container start to button start (accounting for current scroll)
-          const buttonLeftInScroll = selectedButton.offsetLeft;
-          const containerWidth = scrollContainer.clientWidth;
-          const buttonWidth = buttonRect.width;
-          
-          // Calculate new scroll position
-          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
-          const maxScroll = scrollContainer.scrollWidth - containerWidth;
-          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
-          
-          scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
-        }
-      };
-      
-      // Use requestAnimationFrame twice to ensure render is complete
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(performScroll);
-        });
-      });
-    }
-  }, [selectedBranch]);
-
-  // Auto-scroll selected department to center using requestAnimationFrame
-  useEffect(() => {
-    if (selectedDepartment && departmentsScrollRef.current) {
-      const scrollContainer = departmentsScrollRef.current;
-      
-      const performScroll = () => {
-        const selectedButton = scrollContainer.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
-        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
-          // Calculate scroll position to center the element
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const buttonRect = selectedButton.getBoundingClientRect();
-          
-          // Distance from scroll container start to button start (accounting for current scroll)
-          const buttonLeftInScroll = selectedButton.offsetLeft;
-          const containerWidth = scrollContainer.clientWidth;
-          const buttonWidth = buttonRect.width;
-          
-          // Calculate new scroll position
-          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
-          const maxScroll = scrollContainer.scrollWidth - containerWidth;
-          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
-          
-          scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
-        }
-      };
-      
-      // Use requestAnimationFrame twice to ensure render is complete
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(performScroll);
-        });
-      });
-    }
-  }, [selectedDepartment]);
-
-  const getAccessibleBranches = () => {
+  function getAccessibleBranches() {
     if (!branches.length) return [];
     
     const userRole = roles.find(r => r.id === currentUser?.role_id);
@@ -367,16 +286,16 @@ export default function Dashboard() {
     }
     
     return branches;
-  };
+  }
 
-  const getAccessibleDepartments = () => {
+  function getAccessibleDepartments() {
     if (!selectedBranch) return [];
     
     return departments.filter(d => {
       const deptUsers = users.filter(u => u.department_id === d.id && u.branch_id === selectedBranch);
       return deptUsers.length > 0;
     });
-  };
+  }
 
   const loadDepartmentData = () => {
     if (!selectedPeriod || !selectedBranch || !selectedDepartment) {
@@ -442,9 +361,6 @@ export default function Dashboard() {
     { label: 'Formations', value: stats.totalTrainings.toString(), icon: Trophy, change: 'Demandes' },
   ];
 
-  const accessibleBranches = getAccessibleBranches();
-  const accessibleDepartments = getAccessibleDepartments();
-
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -502,68 +418,59 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Branch Carousel - Horizontal scroll with arrows */}
+        {/* Branch Carousel - Horizontal loop with arrows */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-3">Filiale</h3>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                if (branchesScrollRef.current) {
-                  branchesScrollRef.current.scrollBy({ left: -300, behavior: 'smooth' });
-                }
-              }}
+              onClick={() => branchEmblaApi?.scrollPrev()}
               className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Scroll left"
             >
               <ChevronLeft size={20} />
             </button>
-            
-            <div
-              ref={branchesScrollRef}
-              className="flex-1 overflow-x-auto overflow-y-hidden scroll-smooth"
-              style={{ scrollBehavior: 'smooth' }}
-            >
-              <div className="flex gap-3 pb-2 px-20">
-                {accessibleBranches.length > 0 ? (
-                  accessibleBranches.map((branch, index) => (
-                    <button
-                      key={branch.id}
-                      data-carousel-item
-                      data-branch-id={branch.id}
-                      onClick={() => {
-                        setSelectedBranch(branch.id);
-                        setSelectedDepartment('');
-                      }}
-                      style={getCarouselItemStyle(index, accessibleBranches, selectedBranch)}
-                      className={`flex-shrink-0 p-3 rounded-lg border-2 text-left min-w-max ${
-                        selectedBranch === branch.id
-                          ? 'border-primary bg-primary/10 shadow-md'
-                          : 'border-border bg-card hover:border-muted-foreground/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Building2 size={16} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
-                        <div>
-                          <p className="font-semibold text-sm text-foreground">{branch.name}</p>
-                          {branch.code && (
-                            <p className="text-xs text-muted-foreground">{branch.code}</p>
-                          )}
-                        </div>
+
+            <div className="flex-1 overflow-hidden">
+              <div ref={branchEmblaRef} className="overflow-hidden">
+                <div className="flex gap-3 pb-2 pl-16 pr-16">
+                  {accessibleBranches.length > 0 ? (
+                    accessibleBranches.map((branch, index) => (
+                      <div key={branch.id} className="flex-shrink-0 w-[240px] max-w-[240px] box-border">
+                        <button
+                          data-carousel-item
+                          data-branch-id={branch.id}
+                          onClick={() => {
+                            setSelectedBranch(branch.id);
+                            setSelectedDepartment('');
+                          }}
+                          style={getCarouselItemStyle(index, accessibleBranches, selectedBranch)}
+                          className={`w-full h-full p-3 rounded-xl border-2 text-left transition-all duration-300 ${
+                            selectedBranch === branch.id
+                              ? 'border-primary bg-primary/10 shadow-md'
+                              : 'border-border bg-card hover:border-muted-foreground/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Building2 size={16} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
+                            <div>
+                              <p className="font-semibold text-sm text-foreground">{branch.name}</p>
+                              {branch.code && (
+                                <p className="text-xs text-muted-foreground">{branch.code}</p>
+                              )}
+                            </div>
+                          </div>
+                        </button>
                       </div>
-                    </button>
-                  ))
-                ) : (
-                  <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
-                )}
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
+                  )}
+                </div>
               </div>
             </div>
-            
+
             <button
-              onClick={() => {
-                if (branchesScrollRef.current) {
-                  branchesScrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
-                }
-              }}
+              onClick={() => branchEmblaApi?.scrollNext()}
               className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Scroll right"
             >
@@ -572,63 +479,54 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Department Carousel - Shows when branch selected, horizontal scroll with arrows */}
+        {/* Department Carousel - Shows when branch selected, horizontal loop with arrows */}
         {selectedBranch && (
           <div className="pl-4 border-l-2 border-l-primary">
             <h3 className="text-sm font-semibold text-foreground mb-3">Département</h3>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  if (departmentsScrollRef.current) {
-                    departmentsScrollRef.current.scrollBy({ left: -300, behavior: 'smooth' });
-                  }
-                }}
+                onClick={() => departmentEmblaApi?.scrollPrev()}
                 className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Scroll left"
               >
                 <ChevronLeft size={20} />
               </button>
-              
-              <div
-                ref={departmentsScrollRef}
-                className="flex-1 overflow-x-auto overflow-y-hidden scroll-smooth"
-                style={{ scrollBehavior: 'smooth' }}
-              >
-                <div className="flex gap-3 pb-2 px-20">
-                  {accessibleDepartments.length > 0 ? (
-                    accessibleDepartments.map((dept, index) => (
-                      <button
-                        key={dept.id}
-                        data-carousel-item
-                        data-dept-id={dept.id}
-                        onClick={() => setSelectedDepartment(dept.id)}
-                        style={getCarouselItemStyle(index, accessibleDepartments, selectedDepartment)}
-                        className={`flex-shrink-0 p-3 rounded-lg border-2 text-left min-w-max ${
-                          selectedDepartment === dept.id
-                            ? 'border-primary bg-primary/10 shadow-md'
-                            : 'border-border bg-card hover:border-muted-foreground/50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Users size={16} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
-                          <div>
-                            <p className="font-semibold text-sm text-foreground">{dept.name}</p>
-                          </div>
+
+              <div className="flex-1 overflow-hidden">
+                <div ref={departmentEmblaRef} className="overflow-hidden">
+                  <div className="flex gap-3 pb-2 pl-16 pr-16">
+                    {accessibleDepartments.length > 0 ? (
+                      accessibleDepartments.map((dept, index) => (
+                        <div key={dept.id} className="flex-shrink-0 w-[240px] max-w-[240px] box-border">
+                          <button
+                            data-carousel-item
+                            data-dept-id={dept.id}
+                            onClick={() => setSelectedDepartment(dept.id)}
+                            style={getCarouselItemStyle(index, accessibleDepartments, selectedDepartment)}
+                            className={`w-full h-full p-3 rounded-xl border-2 text-left transition-all duration-300 ${
+                              selectedDepartment === dept.id
+                                ? 'border-primary bg-primary/10 shadow-md'
+                                : 'border-border bg-card hover:border-muted-foreground/50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Users size={16} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
+                              <div>
+                                <p className="font-semibold text-sm text-foreground">{dept.name}</p>
+                              </div>
+                            </div>
+                          </button>
                         </div>
-                      </button>
-                    ))
-                  ) : (
-                    <p className="text-muted-foreground text-sm">Aucun département disponible</p>
-                  )}
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground text-sm">Aucun département disponible</p>
+                    )}
+                  </div>
                 </div>
               </div>
-              
+
               <button
-                onClick={() => {
-                  if (departmentsScrollRef.current) {
-                    departmentsScrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
-                  }
-                }}
+                onClick={() => departmentEmblaApi?.scrollNext()}
                 className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Scroll right"
               >

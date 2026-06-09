@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-echo Demarrage HR Pulse sur http://localhost:9000/
+echo Demarrage HR Pulse en mode développement
 npm.cmd run dev
