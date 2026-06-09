@@ -84,6 +84,75 @@ export default function Dashboard() {
   const branchesScrollRef = useRef<HTMLDivElement>(null);
   const departmentsScrollRef = useRef<HTMLDivElement>(null);
 
+  // Carousel roulette helper: calculates scale and opacity based on distance from center
+  const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
+    const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
+    if (selectedIndex === -1) return { transform: 'scale(1)', opacity: 1 };
+    
+    const total = selectedItems.length;
+    let distance = Math.abs(itemIndex - selectedIndex);
+    distance = Math.min(distance, total - distance);
+    
+    let scale = 1;
+    let opacity = 1;
+    
+    switch(distance) {
+      case 0: scale = 1; opacity = 1; break;
+      case 1: scale = 0.85; opacity = 0.8; break;
+      case 2: scale = 0.70; opacity = 0.6; break;
+      case 3: scale = 0.50; opacity = 0.4; break;
+      default: scale = 0.30; opacity = 0.2; break;
+    }
+    
+    return { 
+      transform: `scale(${scale})`, 
+      opacity,
+      transition: 'all 0.3s ease-in-out'
+    };
+  };
+
+  // Scroll to center selected item
+  const scrollToCenter = (ref: HTMLDivElement | null, items: any[], selectedId: string) => {
+    if (!ref) return;
+    
+    const selectedIndex = items.findIndex(item => item.id === selectedId);
+    if (selectedIndex === -1) return;
+    
+    setTimeout(() => {
+      const itemElements = ref.querySelectorAll('[data-carousel-item]');
+      const targetElement = itemElements[selectedIndex] as HTMLElement;
+      
+      if (targetElement) {
+        const containerWidth = ref.clientWidth;
+        const itemRect = targetElement.getBoundingClientRect();
+        const refRect = ref.getBoundingClientRect();
+        const scrollLeft = ref.scrollLeft;
+        
+        const itemCenterInContainer = itemRect.left - refRect.left + scrollLeft + (itemRect.width / 2);
+        const targetScroll = itemCenterInContainer - (containerWidth / 2);
+        
+        ref.scrollTo({ 
+          left: Math.max(0, targetScroll), 
+          behavior: 'smooth' 
+        });
+      }
+    }, 0);
+  };
+
+  // Effect to scroll branches to center when selected branch changes
+  useEffect(() => {
+    if (selectedBranch) {
+      scrollToCenter(branchesScrollRef.current, accessibleBranches, selectedBranch);
+    }
+  }, [selectedBranch]);
+
+  // Effect to scroll departments to center when selected department changes
+  useEffect(() => {
+    if (selectedDepartment) {
+      scrollToCenter(departmentsScrollRef.current, accessibleDepartments, selectedDepartment);
+    }
+  }, [selectedDepartment]);
+
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
@@ -451,20 +520,22 @@ export default function Dashboard() {
             
             <div
               ref={branchesScrollRef}
-              className="flex-1 overflow-hidden"
+              className="flex-1 overflow-x-auto overflow-y-hidden scroll-smooth"
+              style={{ scrollBehavior: 'smooth' }}
             >
-              <div className="flex gap-3 pb-2">
-                <div style={{flex: '0 0 calc(50% - 90px)'}} />
+              <div className="flex gap-3 pb-2 px-20">
                 {accessibleBranches.length > 0 ? (
-                  accessibleBranches.map(branch => (
+                  accessibleBranches.map((branch, index) => (
                     <button
                       key={branch.id}
+                      data-carousel-item
                       data-branch-id={branch.id}
                       onClick={() => {
                         setSelectedBranch(branch.id);
                         setSelectedDepartment('');
                       }}
-                      className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
+                      style={getCarouselItemStyle(index, accessibleBranches, selectedBranch)}
+                      className={`flex-shrink-0 p-3 rounded-lg border-2 text-left min-w-max ${
                         selectedBranch === branch.id
                           ? 'border-primary bg-primary/10 shadow-md'
                           : 'border-border bg-card hover:border-muted-foreground/50'
@@ -484,7 +555,6 @@ export default function Dashboard() {
                 ) : (
                   <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
                 )}
-                <div style={{flex: '0 0 calc(50% - 90px)'}} />
               </div>
             </div>
             
@@ -521,17 +591,19 @@ export default function Dashboard() {
               
               <div
                 ref={departmentsScrollRef}
-                className="flex-1 overflow-hidden"
+                className="flex-1 overflow-x-auto overflow-y-hidden scroll-smooth"
+                style={{ scrollBehavior: 'smooth' }}
               >
-                <div className="flex gap-3 pb-2">
-                  <div style={{flex: '0 0 calc(50% - 90px)'}} />
+                <div className="flex gap-3 pb-2 px-20">
                   {accessibleDepartments.length > 0 ? (
-                    accessibleDepartments.map(dept => (
+                    accessibleDepartments.map((dept, index) => (
                       <button
                         key={dept.id}
+                        data-carousel-item
                         data-dept-id={dept.id}
                         onClick={() => setSelectedDepartment(dept.id)}
-                        className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
+                        style={getCarouselItemStyle(index, accessibleDepartments, selectedDepartment)}
+                        className={`flex-shrink-0 p-3 rounded-lg border-2 text-left min-w-max ${
                           selectedDepartment === dept.id
                             ? 'border-primary bg-primary/10 shadow-md'
                             : 'border-border bg-card hover:border-muted-foreground/50'
@@ -548,7 +620,6 @@ export default function Dashboard() {
                   ) : (
                     <p className="text-muted-foreground text-sm">Aucun département disponible</p>
                   )}
-                  <div style={{flex: '0 0 calc(50% - 90px)'}} />
                 </div>
               </div>
               
