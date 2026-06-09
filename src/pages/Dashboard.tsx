@@ -109,6 +109,10 @@ export default function Dashboard() {
   const [topAgents, setTopAgents] = useState<AgentWithScore[]>([]);
   const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
   
+  // Filter by branch/department for TOP/WORST
+  const [filterByBranch, setFilterByBranch] = useState<string | null>(null);
+  const [filterByDepartment, setFilterByDepartment] = useState<string | null>(null);
+  
   // Selected employee details
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null);
 
@@ -152,7 +156,7 @@ export default function Dashboard() {
     if (!selectedPeriod || allEvaluations.length === 0 || users.length === 0) return { top: [], worst: [] };
 
     // Calculate scores for all users
-    const employeeScores: EmployeePerformance[] = users
+    let employeeScores: EmployeePerformance[] = users
       .filter(u => !u.archived_at && u.email)
       .map(employee => {
         const evals = allEvaluations.filter(e => e.employee_email === employee.email && e.period === selectedPeriod && e.score !== null);
@@ -171,6 +175,13 @@ export default function Dashboard() {
           department_name: departments.find(d => d.id === employee.department_id)?.name || '—',
         };
       });
+
+    // Apply filters based on selection
+    if (filterByDepartment) {
+      employeeScores = employeeScores.filter(e => e.department_id === filterByDepartment);
+    } else if (filterByBranch) {
+      employeeScores = employeeScores.filter(e => e.branch_id === filterByBranch);
+    }
 
     // Filter employees with at least one evaluation and sort
     const withEvals = employeeScores.filter(e => e.eval_count > 0);
@@ -246,6 +257,13 @@ export default function Dashboard() {
       transition: 'all 0.25s ease-in-out',
     };
   };
+
+  // Update TOP/WORST employees when filter changes
+  useEffect(() => {
+    const { top, worst } = calculateEmployeePerformance();
+    setTopEmployees(top);
+    setWorstEmployees(worst);
+  }, [selectedPeriod, filterByBranch, filterByDepartment, allEvaluations, users, branches, departments, roles]);
 
   const accessibleBranches = getAccessibleBranches();
   const accessibleDepartments = getAccessibleDepartments();
@@ -855,12 +873,21 @@ export default function Dashboard() {
                 {topEmployees.map(branch => (
                   <div key={branch.id} className="border border-border/30 rounded-lg overflow-hidden">
                     <button
-                      onClick={() => setExpandedBranches(prev => {
-                        const next = new Set(prev);
-                        next.has(branch.id) ? next.delete(branch.id) : next.add(branch.id);
-                        return next;
-                      })}
-                      className="w-full px-4 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors font-semibold text-left bg-muted/20"
+                      onClick={() => {
+                        setExpandedBranches(prev => {
+                          const next = new Set(prev);
+                          next.has(branch.id) ? next.delete(branch.id) : next.add(branch.id);
+                          return next;
+                        });
+                        // Quand on expand une branche, filtrer par cette branche
+                        if (!expandedBranches.has(branch.id)) {
+                          setFilterByBranch(branch.id);
+                          setFilterByDepartment(null);
+                        } else {
+                          setFilterByBranch(null);
+                        }
+                      }}
+                      className={`w-full px-4 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors font-semibold text-left ${filterByBranch === branch.id ? 'bg-blue-100 dark:bg-blue-950' : 'bg-muted/20'}`}
                     >
                       {expandedBranches.has(branch.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       <Building2 size={14} />
@@ -871,13 +898,23 @@ export default function Dashboard() {
                         {branch.departments.map(dept => (
                           <div key={dept.id} className="ml-2 border border-border/20 rounded overflow-hidden">
                             <button
-                              onClick={() => setExpandedDepartments(prev => {
-                                const next = new Set(prev);
+                              onClick={() => {
+                                setExpandedDepartments(prev => {
+                                  const next = new Set(prev);
+                                  const key = `${branch.id}-${dept.id}`;
+                                  next.has(key) ? next.delete(key) : next.add(key);
+                                  return next;
+                                });
+                                // Quand on expand un service, filtrer par ce service
                                 const key = `${branch.id}-${dept.id}`;
-                                next.has(key) ? next.delete(key) : next.add(key);
-                                return next;
-                              })}
-                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-muted/30 transition-colors text-sm font-medium text-left bg-muted/10"
+                                if (!expandedDepartments.has(key)) {
+                                  setFilterByBranch(branch.id);
+                                  setFilterByDepartment(dept.id);
+                                } else {
+                                  setFilterByDepartment(null);
+                                }
+                              }}
+                              className={`w-full px-3 py-1.5 flex items-center gap-2 hover:bg-muted/30 transition-colors text-sm font-medium text-left ${filterByDepartment === dept.id ? 'bg-blue-100 dark:bg-blue-950' : 'bg-muted/10'}`}
                             >
                               {expandedDepartments.has(`${branch.id}-${dept.id}`) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                               <span>{dept.name}</span>
@@ -954,12 +991,21 @@ export default function Dashboard() {
                 {worstEmployees.map(branch => (
                   <div key={branch.id} className="border border-border/30 rounded-lg overflow-hidden">
                     <button
-                      onClick={() => setExpandedBranches(prev => {
-                        const next = new Set(prev);
-                        next.has(branch.id) ? next.delete(branch.id) : next.add(branch.id);
-                        return next;
-                      })}
-                      className="w-full px-4 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors font-semibold text-left bg-muted/20"
+                      onClick={() => {
+                        setExpandedBranches(prev => {
+                          const next = new Set(prev);
+                          next.has(branch.id) ? next.delete(branch.id) : next.add(branch.id);
+                          return next;
+                        });
+                        // Quand on expand une branche, filtrer par cette branche
+                        if (!expandedBranches.has(branch.id)) {
+                          setFilterByBranch(branch.id);
+                          setFilterByDepartment(null);
+                        } else {
+                          setFilterByBranch(null);
+                        }
+                      }}
+                      className={`w-full px-4 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors font-semibold text-left ${filterByBranch === branch.id ? 'bg-blue-100 dark:bg-blue-950' : 'bg-muted/20'}`}
                     >
                       {expandedBranches.has(branch.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       <Building2 size={14} />
@@ -970,13 +1016,23 @@ export default function Dashboard() {
                         {branch.departments.map(dept => (
                           <div key={dept.id} className="ml-2 border border-border/20 rounded overflow-hidden">
                             <button
-                              onClick={() => setExpandedDepartments(prev => {
-                                const next = new Set(prev);
+                              onClick={() => {
+                                setExpandedDepartments(prev => {
+                                  const next = new Set(prev);
+                                  const key = `${branch.id}-${dept.id}`;
+                                  next.has(key) ? next.delete(key) : next.add(key);
+                                  return next;
+                                });
+                                // Quand on expand un service, filtrer par ce service
                                 const key = `${branch.id}-${dept.id}`;
-                                next.has(key) ? next.delete(key) : next.add(key);
-                                return next;
-                              })}
-                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-muted/30 transition-colors text-sm font-medium text-left bg-muted/10"
+                                if (!expandedDepartments.has(key)) {
+                                  setFilterByBranch(branch.id);
+                                  setFilterByDepartment(dept.id);
+                                } else {
+                                  setFilterByDepartment(null);
+                                }
+                              }}
+                              className={`w-full px-3 py-1.5 flex items-center gap-2 hover:bg-muted/30 transition-colors text-sm font-medium text-left ${filterByDepartment === dept.id ? 'bg-blue-100 dark:bg-blue-950' : 'bg-muted/10'}`}
                             >
                               {expandedDepartments.has(`${branch.id}-${dept.id}`) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                               <span>{dept.name}</span>
@@ -1107,6 +1163,93 @@ export default function Dashboard() {
                 </table>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Evaluation Curve Chart */}
+      {selectedEmployee && (
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-heading">Courbe d'Évaluation - {selectedEmployee.name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              // Gather all evaluations for selected employee grouped by period
+              const evalsByPeriod = new Map<string, number[]>();
+              
+              allEvaluations
+                .filter(e => e.employee_email === selectedEmployee.email && e.score !== null)
+                .forEach(e => {
+                  if (!evalsByPeriod.has(e.period)) {
+                    evalsByPeriod.set(e.period, []);
+                  }
+                  evalsByPeriod.get(e.period)!.push(e.score);
+                });
+
+              // Convert to chart data
+              const chartData = Array.from(evalsByPeriod.entries())
+                .sort(([periodA], [periodB]) => periodA.localeCompare(periodB))
+                .map(([period, scores]) => ({
+                  period,
+                  average: parseFloat((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)),
+                  min: Math.min(...scores),
+                  max: Math.max(...scores),
+                  count: scores.length,
+                }));
+
+              return chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="period" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis domain={[0, 20]} />
+                    <Tooltip 
+                      formatter={(value: number) => value.toFixed(2)}
+                      labelFormatter={(label) => `Période: ${label}`}
+                    />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="average" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      dot={{ fill: '#3b82f6', r: 4 }}
+                      activeDot={{ r: 6 }}
+                      name="Moyenne"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="max" 
+                      stroke="#22c55e" 
+                      strokeWidth={1}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      name="Maximum"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="min" 
+                      stroke="#ef4444" 
+                      strokeWidth={1}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      name="Minimum"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                  Aucune évaluation disponible pour cet employé
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
