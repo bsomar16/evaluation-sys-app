@@ -84,23 +84,6 @@ export default function Dashboard() {
   const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
   const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
 
-  // Update selection dynamically during scroll
-  const updateBranchSelection = useCallback(() => {
-    if (!branchEmblaApi || accessibleBranches.length === 0) return;
-    const selectedIndex = branchEmblaApi.selectedScrollSnap();
-    if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
-      setSelectedBranch(accessibleBranches[selectedIndex].id);
-    }
-  }, [branchEmblaApi, accessibleBranches]);
-
-  const updateDepartmentSelection = useCallback(() => {
-    if (!departmentEmblaApi || accessibleDepartments.length === 0) return;
-    const selectedIndex = departmentEmblaApi.selectedScrollSnap();
-    if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
-      setSelectedDepartment(accessibleDepartments[selectedIndex].id);
-    }
-  }, [departmentEmblaApi, accessibleDepartments]);
-
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
     const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
     if (selectedIndex === -1) return { opacity: 1, transform: 'scale(1)' };
@@ -141,6 +124,23 @@ export default function Dashboard() {
 
   const accessibleBranches = getAccessibleBranches();
   const accessibleDepartments = getAccessibleDepartments();
+
+  // Update selection dynamically during scroll
+  const updateBranchSelection = useCallback(() => {
+    if (!branchEmblaApi || accessibleBranches.length === 0) return;
+    const selectedIndex = branchEmblaApi.selectedScrollSnap();
+    if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
+      setSelectedBranch(accessibleBranches[selectedIndex].id);
+    }
+  }, [branchEmblaApi, accessibleBranches]);
+
+  const updateDepartmentSelection = useCallback(() => {
+    if (!departmentEmblaApi || accessibleDepartments.length === 0) return;
+    const selectedIndex = departmentEmblaApi.selectedScrollSnap();
+    if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
+      setSelectedDepartment(accessibleDepartments[selectedIndex].id);
+    }
+  }, [departmentEmblaApi, accessibleDepartments]);
 
   // Listen to scroll events on branch carousel for dynamic selection
   useEffect(() => {
