@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -78,6 +78,9 @@ export default function Dashboard() {
   // Filtered data
   const [departmentManager, setDepartmentManager] = useState<any>(null);
   const [departmentAgents, setDepartmentAgents] = useState<AgentWithScore[]>([]);
+  
+  // Initialization tracking
+  const hasInitializedSelection = useRef(false);
   const [topAgents, setTopAgents] = useState<AgentWithScore[]>([]);
   const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
 
@@ -224,6 +227,22 @@ export default function Dashboard() {
     }
   }, [selectedDepartment, departmentEmblaApi, accessibleDepartments]);
 
+  // Initialize branch selection only once when data is loaded
+  useEffect(() => {
+    if (hasInitializedSelection.current || !branches.length || !currentUser) return;
+    
+    hasInitializedSelection.current = true;
+    
+    const accessibleList = getAccessibleBranches();
+    if (accessibleList.length > 0) {
+      if (currentUser?.branch_id) {
+        setSelectedBranch(currentUser.branch_id);
+      } else {
+        setSelectedBranch(accessibleList[0].id);
+      }
+    }
+  }, [branches, currentUser, getAccessibleBranches]);
+
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
@@ -275,13 +294,6 @@ export default function Dashboard() {
         totalBranches: branchesData?.length || 0,
         totalTrainings: trainings?.length || 0,
       });
-
-      // Pre-select first branch
-      if (currentUser?.branch_id) {
-        setSelectedBranch(currentUser.branch_id);
-      } else if (branchesData?.length > 0) {
-        setSelectedBranch(branchesData[0].id);
-      }
 
       // Calculate evaluation statuses for charts
       const statusMap = new Map<string, number>();
