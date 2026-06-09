@@ -46,7 +46,7 @@ export const SIDEBAR_MODULE_DEFS: { key: SidebarModuleKey; label: string; paths:
   { key: 'employees', label: 'Employé', paths: ['/equipe'] },
   { key: 'roles', label: 'Rôles', paths: ['/admin/roles'] },
   { key: 'branches', label: 'Filiale', paths: ['/admin/branches'] },
-  { key: 'departments', label: 'Départements', paths: ['/admin/departments'] },
+  { key: 'departments', label: 'Services', paths: ['/admin/departments'] },
   { key: 'evaluation_criteria', label: "Critères d'évaluation", paths: ['/admin/evaluation-criteria'] },
   { key: 'calculation_system', label: 'Système de calcul', paths: ['/admin/calculation-system'] },
   { key: 'evaluations', label: 'Évaluation', paths: ['/evaluation'] },

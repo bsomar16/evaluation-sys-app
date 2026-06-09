@@ -1,4 +1,4 @@
-/** Hiérarchie des départements (child_departments + parent_department_id) */
+/** Hiérarchie des services (child_departments + parent_department_id) */
 
 export interface DepartmentRecord {
   id: string;

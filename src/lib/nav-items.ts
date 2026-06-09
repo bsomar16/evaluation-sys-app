@@ -78,7 +78,7 @@ export function buildNavItems(
   if (canReadModule('departments', effective)) {
     items.push({
       path: '/admin/departments',
-      label: 'Départements',
+      label: 'Services',
       icon: Briefcase,
       moduleKey: 'departments',
     });

@@ -532,7 +532,7 @@ export default function Dashboard() {
         {/* Department Carousel - Shows when branch selected, horizontal loop with arrows */}
         {selectedBranch && (
           <div className="pl-4 border-l-2 border-l-primary">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Département</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Service</h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => departmentEmblaApi?.scrollPrev()}
@@ -569,7 +569,7 @@ export default function Dashboard() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-muted-foreground text-sm">Aucun département disponible</p>
+                      <p className="text-muted-foreground text-sm">Aucun service disponible</p>
                     )}
                   </div>
                 </div>
@@ -591,7 +591,7 @@ export default function Dashboard() {
       {selectedDepartment && departmentManager && (
         <Card className="border-border shadow-sm border-l-4 border-l-primary">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Responsable du Département</CardTitle>
+            <CardTitle className="text-base font-heading">Responsable du Service</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4 p-3 rounded bg-muted/30">

@@ -349,7 +349,7 @@ export function EvaluationCriteriaPage() {
       return;
     }
     if (!formData.department_all && formData.department_ids.length === 0) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Sélectionnez au moins un département ou cochez Pour tous' });
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Sélectionnez au moins un service ou cochez Pour tous' });
       return;
     }
     const linkedRule = calculationRules.find((r) => r.id === formData.calculation_rule_id);
@@ -429,7 +429,7 @@ export function EvaluationCriteriaPage() {
       <div>
         <h1 className="text-3xl font-bold">Critères d&apos;évaluation</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Associez chaque critère à un système de calcul et ciblez les rôles, filiales et départements souhaités.
+          Associez chaque critère à un système de calcul et ciblez les rôles, filiales et services souhaités.
         </p>
       </div>
 
@@ -568,8 +568,8 @@ export function EvaluationCriteriaPage() {
                   />
 
                   <ScopeMultiField
-                    label="Départements"
-                    emptyLabel="Ajouter un département"
+                    label="Services"
+                    emptyLabel="Ajouter un service"
                     allLabel="Pour tous"
                     allChecked={formData.department_all}
                     onAllCheckedChange={(department_all) => setFormData({ ...formData, department_all })}
@@ -600,7 +600,7 @@ export function EvaluationCriteriaPage() {
                     <th className="text-left py-3 px-4">Système de calcul</th>
                     <th className="text-left py-3 px-4">Rôles</th>
                     <th className="text-left py-3 px-4">Filiales</th>
-                    <th className="text-left py-3 px-4">Départements</th>
+                    <th className="text-left py-3 px-4">Services</th>
                     <th className="text-right py-3 px-4">Actions</th>
                   </tr>
                 </thead>

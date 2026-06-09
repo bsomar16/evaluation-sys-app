@@ -148,7 +148,7 @@ export function EmployeeUserFormDialog({
     }
   }, [selectableBranches, isCreate, open, formData.branch]);
 
-  // Auto-sélectionner le département si c'est le seul disponible (département sans fils)
+  // Auto-sélectionner le service si c'est le seul disponible (service sans fils)
   useEffect(() => {
     if (!isCreate || !open || formData.department) return;
     if (selectableDepartments.length === 1 && session?.department_id === selectableDepartments[0].id) {
@@ -246,8 +246,8 @@ export function EmployeeUserFormDialog({
     if (deptId && !isDepartmentAssignable(deptId, creationScope, editKeepIds)) {
       toast({
         variant: 'destructive',
-        title: 'Département non autorisé',
-        description: 'Vous ne pouvez assigner que des départements fils de votre département.',
+        title: 'Service non autorisé',
+        description: 'Vous ne pouvez assigner que des services fils de votre service.',
       });
       return;
     }
@@ -528,7 +528,7 @@ export function EmployeeUserFormDialog({
             disabled={selectableDepartments.length === 1 && session?.department_id && formData.department === session.department_id}
           >
             <SelectTrigger className={`border-2 ${selectableDepartments.length === 1 && session?.department_id && formData.department === session.department_id ? 'bg-gray-100 border-gray-300 opacity-60' : 'border-blue-300 bg-blue-50'}`}>
-              <SelectValue placeholder="Département (optionnel)" />
+              <SelectValue placeholder="Service (optionnel)" />
             </SelectTrigger>
             <SelectContent>
               {selectableDepartments.length > 1 && (
@@ -543,7 +543,7 @@ export function EmployeeUserFormDialog({
           </Select>
           {selectableDepartments.length === 1 && session?.department_id && formData.department === session.department_id && (
             <p className="text-xs text-muted-foreground">
-              Département fixé par défaut (lecture seule)
+              Service fixé par défaut (lecture seule)
             </p>
           )}
           <Select

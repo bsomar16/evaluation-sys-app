@@ -167,7 +167,7 @@ export default function Evaluation() {
       groups.set(key, list);
     }
     const toLabel = (key: string) => {
-      if (key === 'none') return groupBy === 'branch' ? 'Sans filiale' : 'Sans département';
+      if (key === 'none') return groupBy === 'branch' ? 'Sans filiale' : 'Sans service';
       if (groupBy === 'branch') return groups.get(key)?.[0]?.branch_name ?? '—';
       return departmentName(key) ?? '—';
     };
@@ -327,7 +327,7 @@ export default function Evaluation() {
         variant: 'destructive',
         title: 'Erreur',
         description:
-          'Aucun critère ne correspond à cet employé (rôle, filiale, département).',
+          'Aucun critère ne correspond à cet employé (rôle, filiale, service).'
       });
       return;
     }
@@ -475,13 +475,13 @@ export default function Evaluation() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Département</Label>
+                <Label>Service</Label>
                 <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={FILTER_ALL}>Tous les départements</SelectItem>
+                    <SelectItem value={FILTER_ALL}>Tous les services</SelectItem>
                     {departmentFilterOptions.map((d) => (
                       <SelectItem key={d.id} value={d.id}>
                         {d.name}
@@ -502,7 +502,7 @@ export default function Evaluation() {
                   <SelectContent>
                     <SelectItem value="none">Aucun</SelectItem>
                     <SelectItem value="branch">Par filiale</SelectItem>
-                    <SelectItem value="department">Par département</SelectItem>
+                    <SelectItem value="department">Par service</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -513,7 +513,7 @@ export default function Evaluation() {
                   <TableHead>Employé</TableHead>
                   <TableHead>Poste</TableHead>
                   <TableHead>Filiale</TableHead>
-                  <TableHead>Département</TableHead>
+                  <TableHead>Service</TableHead>
                   <TableHead className="text-right">Dernier score</TableHead>
                   <TableHead className="text-center">Statut</TableHead>
                   <TableHead />
@@ -641,7 +641,7 @@ export default function Evaluation() {
           )}
           {departmentName(selectedEmployee.department_id) && (
             <div>
-              <dt className="text-muted-foreground">Département</dt>
+              <dt className="text-muted-foreground">Service</dt>
               <dd className="font-medium">
                 {departmentName(selectedEmployee.department_id)}
               </dd>
@@ -655,7 +655,7 @@ export default function Evaluation() {
           )}
         </dl>
         <p className="text-xs text-muted-foreground">
-          Les critères affichés correspondent au rôle, à la filiale et au département de
+          Les critères affichés correspondent au rôle, à la filiale et au service de
           l&apos;employé.
         </p>
       </div>
@@ -701,7 +701,7 @@ export default function Evaluation() {
       {applicableCriteria.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            Aucun critère d&apos;évaluation ne correspond à cet employé (rôle, filiale, département).
+            Aucun critère d&apos;évaluation ne correspond à cet employé (rôle, filiale, service).
           </CardContent>
         </Card>
       ) : (

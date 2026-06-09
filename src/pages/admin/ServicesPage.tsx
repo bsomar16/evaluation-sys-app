@@ -64,7 +64,7 @@ export function DepartmentsPage() {
       setDepartments(data || []);
     } catch (error: any) {
       console.error('Erreur:', error);
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les départements' });
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les services' });
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,7 @@ export function DepartmentsPage() {
 
   const handleSaveDepartment = async () => {
     if (!formData.name) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Remplissez le nom du département' });
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Remplissez le nom du service' });
       return;
     }
 
@@ -93,12 +93,12 @@ export function DepartmentsPage() {
       if (editingDepartment) {
         const { error } = await supabase.from('departments').update(payload).eq('id', editingDepartment.id);
         if (error) throw error;
-        toast({ title: 'Succès', description: 'Département modifié' });
+        toast({ title: 'Succès', description: 'Service modifié' });
       } else {
         const { data: inserted, error } = await supabase.from('departments').insert([payload]).select('id').single();
         if (error) throw error;
         savedDeptId = inserted?.id;
-        toast({ title: 'Succès', description: 'Département créé' });
+        toast({ title: 'Succès', description: 'Service créé' });
       }
 
       if (savedDeptId) {
@@ -138,7 +138,7 @@ export function DepartmentsPage() {
       toast({
         variant: 'destructive',
         title: 'Suppression impossible',
-        description: `${userCount} utilisateur(s) sont rattachés à ce département. Réassignez-les dans Utilisateurs avant de supprimer.`,
+        description: `${userCount} utilisateur(s) sont rattachés à ce service. Réassignez-les dans Utilisateurs avant de supprimer.`,
       });
       return;
     }
@@ -151,8 +151,8 @@ export function DepartmentsPage() {
         title: 'Succès',
         description:
           detachedCount > 0
-            ? `Département supprimé. ${detachedCount} département(s) fils détaché(s) (restent dans la liste).`
-            : 'Département supprimé',
+            ? `Service supprimé. ${detachedCount} service(s) fils détaché(s) (restent dans la liste).`
+            : 'Service supprimé',
       });
       loadDepartments();
       setDeleteDepartment(null);
@@ -162,7 +162,7 @@ export function DepartmentsPage() {
     }
   };
 
-  /** Enfants : tableau child_departments du parent + parent_department_id pointant vers ce département */
+  /** Enfants : tableau child_departments du parent + parent_department_id pointant vers ce service */
   const getChildDepartments = (dept: DepartmentRecord) => {
     const childIds = new Set<string>(
       Array.isArray(dept.child_departments) ? dept.child_departments.filter(Boolean) : []
@@ -235,7 +235,7 @@ export function DepartmentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Départements</h1>
+        <h1 className="text-3xl font-bold">Services</h1>
       </div>
 
       <Card>
@@ -254,16 +254,16 @@ export function DepartmentsPage() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>{editingDepartment ? 'Modifier' : 'Créer'} Département</DialogTitle>
+                  <DialogTitle>{editingDepartment ? 'Modifier' : 'Créer'} Service</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Input placeholder="Nom du département" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="border-2 border-blue-300 bg-blue-50" />
+                  <Input placeholder="Nom du service" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="border-2 border-blue-300 bg-blue-50" />
 
                   <div className="border-t pt-4">
-                    <p className="font-semibold text-sm mb-2">Départements fils</p>
+                    <p className="font-semibold text-sm mb-2">Services fils</p>
                     <div className="flex gap-2 mb-2">
                       <Select value={childDeptInput} onValueChange={setChildDeptInput}>
-                        <SelectTrigger className="flex-1"><SelectValue placeholder="Ajouter un département fils" /></SelectTrigger>
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Ajouter un service fils" /></SelectTrigger>
                         <SelectContent>
                           {getAvailableChildDepartments().map((dept) => (
                             <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
@@ -299,7 +299,7 @@ export function DepartmentsPage() {
           </div>
 
           {loading ? <p>Chargement...</p> : filteredDepartments.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">Aucun département</p>
+            <p className="text-center text-muted-foreground py-8">Aucun service</p>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -307,7 +307,7 @@ export function DepartmentsPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-4">Nom</th>
-                    <th className="text-left py-3 px-4">Départements fils</th>
+                    <th className="text-left py-3 px-4">Services fils</th>
                     <th className="text-right py-3 px-4">Actions</th>
                   </tr>
                 </thead>
@@ -381,18 +381,18 @@ export function DepartmentsPage() {
                   <>
                     {children.length > 0 && (
                       <p>
-                        {children.length} département(s) fils seront <strong>détachés</strong> (restent dans la liste) :{' '}
+                        {children.length} service(s) fils seront <strong>détachés</strong> (restent dans la liste) :{' '}
                         {children.map((c) => c.name).join(', ')}.
                       </p>
                     )}
                     {deleteUserCount === null && <p>Vérification des utilisateurs rattachés…</p>}
                     {blockedByUsers && (
                       <p className="text-destructive font-medium">
-                        {deleteUserCount} utilisateur(s) ont ce département. Réassignez-les dans Utilisateurs.
+                        {deleteUserCount} utilisateur(s) ont ce service. Réassignez-les dans Utilisateurs.
                       </p>
                     )}
                     {deleteUserCount === 0 && children.length === 0 && (
-                      <p>Ce département sera supprimé définitivement.</p>
+                      <p>Ce service sera supprimé définitivement.</p>
                     )}
                   </>
                 );

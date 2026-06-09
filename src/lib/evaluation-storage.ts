@@ -119,7 +119,7 @@ function saveToLocal(list: EvaluationRecord[]) {
 
 /**
  * Critère applicable si l'employé correspond à chaque dimension renseignée
- * (même rôle, filiale et département que ceux portés par le critère).
+ * (même rôle, filiale et service que ceux portés par le critère).
  */
 export function criterionAppliesToEmployee(
   criterion: EvaluationCriterionRecord,

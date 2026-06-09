@@ -11,7 +11,7 @@ export interface UserCreationScope {
   departmentIds: string[];
 }
 
-/** Périmètre assignable à la création / édition d'utilisateurs (rôles / filiales / départements fils uniquement). */
+/** Périmètre assignable à la création / édition d'utilisateurs (rôles / filiales / services fils uniquement). */
 export function getUserCreationScope(
   session: SessionUser | null,
   allRoles: RoleRecord[],
@@ -37,7 +37,7 @@ export function getUserCreationScope(
     ? [session.branch_id, ...collectDescendantBranchIds(session.branch_id, allBranches)]
     : allBranches.map((b) => b.id);
 
-  // Pour les départements : si l'utilisateur a un département, lui + ses descendants ; sinon TOUS les départements
+  // Pour les services : si l'utilisateur a un service, lui + ses descendants ; sinon TOUS les services
   const departmentIds = session?.department_id && allDepartments.length > 0
     ? [session.department_id, ...collectDescendantDepartmentIds(session.department_id, allDepartments)]
     : allDepartments.map((d) => d.id);

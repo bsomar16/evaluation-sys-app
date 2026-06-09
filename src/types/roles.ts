@@ -90,7 +90,7 @@ export const SITE_DEVELOPER = {
   roleName: 'Développeur',
   /** Violet distinct des rôles métier */
   roleColor: '#7c3aed',
-  /** Pas de filiale / département — compte panneau de contrôle uniquement */
+  /** Pas de filiale / service — compte panneau de contrôle uniquement */
   controlPanelLabel: 'Panneau de contrôle',
 } as const;
 
