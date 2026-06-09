@@ -110,10 +110,8 @@ export default function Dashboard() {
   function getAccessibleDepartments() {
     if (!selectedBranch) return [];
     
-    return departments.filter(d => {
-      const deptUsers = users.filter(u => u.department_id === d.id && u.branch_id === selectedBranch);
-      return deptUsers.length > 0;
-    });
+    // Afficher tous les services associés à la branche sélectionnée, pas seulement ceux avec des utilisateurs
+    return departments.filter(d => d.branch_id === selectedBranch);
   }
 
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
