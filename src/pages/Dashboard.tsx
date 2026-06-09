@@ -134,20 +134,22 @@ export default function Dashboard() {
     }
   }, [selectedBranch, accessibleBranches, branchEmblaApi]);
 
-  // Auto-select branch when carousel is scrolled to center
+  // Auto-select branch dynamically while carousel is being scrolled
   useEffect(() => {
     if (!branchEmblaApi) return;
 
-    const handleSelect = () => {
+    const handleScroll = () => {
       const selectedIndex = branchEmblaApi.selectedScrollSnap();
       if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
         setSelectedBranch(accessibleBranches[selectedIndex].id);
       }
     };
 
-    branchEmblaApi.on('select', handleSelect);
+    branchEmblaApi.on('scroll', handleScroll);
+    branchEmblaApi.on('select', handleScroll);
     return () => {
-      branchEmblaApi.off('select', handleSelect);
+      branchEmblaApi.off('scroll', handleScroll);
+      branchEmblaApi.off('select', handleScroll);
     };
   }, [branchEmblaApi, accessibleBranches]);
 
@@ -160,20 +162,22 @@ export default function Dashboard() {
     }
   }, [selectedDepartment, accessibleDepartments, departmentEmblaApi]);
 
-  // Auto-select department when carousel is scrolled to center
+  // Auto-select department dynamically while carousel is being scrolled
   useEffect(() => {
     if (!departmentEmblaApi) return;
 
-    const handleSelect = () => {
+    const handleScroll = () => {
       const selectedIndex = departmentEmblaApi.selectedScrollSnap();
       if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
         setSelectedDepartment(accessibleDepartments[selectedIndex].id);
       }
     };
 
-    departmentEmblaApi.on('select', handleSelect);
+    departmentEmblaApi.on('scroll', handleScroll);
+    departmentEmblaApi.on('select', handleScroll);
     return () => {
-      departmentEmblaApi.off('select', handleSelect);
+      departmentEmblaApi.off('scroll', handleScroll);
+      departmentEmblaApi.off('select', handleScroll);
     };
   }, [departmentEmblaApi, accessibleDepartments]);
 
