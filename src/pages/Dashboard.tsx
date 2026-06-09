@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -214,76 +214,6 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
-
-  // Auto-scroll selected branch to center using requestAnimationFrame
-  useEffect(() => {
-    if (selectedBranch && branchesScrollRef.current) {
-      const scrollContainer = branchesScrollRef.current;
-      
-      const performScroll = () => {
-        const selectedButton = scrollContainer.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
-        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
-          // Calculate scroll position to center the element
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const buttonRect = selectedButton.getBoundingClientRect();
-          
-          // Distance from scroll container start to button start (accounting for current scroll)
-          const buttonLeftInScroll = selectedButton.offsetLeft;
-          const containerWidth = scrollContainer.clientWidth;
-          const buttonWidth = buttonRect.width;
-          
-          // Calculate new scroll position
-          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
-          const maxScroll = scrollContainer.scrollWidth - containerWidth;
-          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
-          
-          scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
-        }
-      };
-      
-      // Use requestAnimationFrame twice to ensure render is complete
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(performScroll);
-        });
-      });
-    }
-  }, [selectedBranch]);
-
-  // Auto-scroll selected department to center using requestAnimationFrame
-  useEffect(() => {
-    if (selectedDepartment && departmentsScrollRef.current) {
-      const scrollContainer = departmentsScrollRef.current;
-      
-      const performScroll = () => {
-        const selectedButton = scrollContainer.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
-        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
-          // Calculate scroll position to center the element
-          const containerRect = scrollContainer.getBoundingClientRect();
-          const buttonRect = selectedButton.getBoundingClientRect();
-          
-          // Distance from scroll container start to button start (accounting for current scroll)
-          const buttonLeftInScroll = selectedButton.offsetLeft;
-          const containerWidth = scrollContainer.clientWidth;
-          const buttonWidth = buttonRect.width;
-          
-          // Calculate new scroll position
-          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
-          const maxScroll = scrollContainer.scrollWidth - containerWidth;
-          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
-          
-          scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
-        }
-      };
-      
-      // Use requestAnimationFrame twice to ensure render is complete
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(performScroll);
-        });
-      });
-    }
-  }, [selectedDepartment]);
 
   const getAccessibleBranches = () => {
     if (!branches.length) return [];
