@@ -1134,7 +1134,6 @@ export default function Dashboard() {
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
                       <th className="text-left p-2">Date</th>
-                      <th className="text-left p-2">Évaluateur</th>
                       <th className="text-center p-2">Score</th>
                       <th className="text-left p-2">Commentaire</th>
                     </tr>
@@ -1146,9 +1145,8 @@ export default function Dashboard() {
                         evals.map((eval_, idx) => (
                           <tr key={idx} className="border-t border-border hover:bg-muted/30">
                             <td className="p-2">{eval_.created_at ? new Date(eval_.created_at).toLocaleDateString() : '—'}</td>
-                            <td className="p-2">{eval_.evaluator_email || '—'}</td>
                             <td className="p-2 text-center font-semibold">{eval_.score}/20</td>
-                            <td className="p-2 text-muted-foreground">{eval_.comments || '—'}</td>
+                            <td className="p-2 text-muted-foreground">{eval_.feedback || '—'}</td>
                           </tr>
                         ))
                       ) : (
