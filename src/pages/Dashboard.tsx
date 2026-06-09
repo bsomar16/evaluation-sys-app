@@ -86,36 +86,30 @@ export default function Dashboard() {
 
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
     const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
-    if (selectedIndex === -1) return { transform: 'scale(1)', opacity: 1 };
+    if (selectedIndex === -1) return { opacity: 1 };
 
     const total = selectedItems.length;
     let distance = Math.abs(itemIndex - selectedIndex);
     distance = Math.min(distance, total - distance);
 
-    let scale = 1;
     let opacity = 1;
 
     switch (distance) {
       case 0:
-        scale = 1;
         opacity = 1;
         break;
       case 1:
-        scale = 0.94;
         opacity = 0.88;
         break;
       case 2:
-        scale = 0.88;
         opacity = 0.75;
         break;
       default:
-        scale = 0.82;
         opacity = 0.58;
         break;
     }
 
     return {
-      transform: `scale(${scale})`,
       opacity,
       transition: 'all 0.25s ease-in-out',
     };
