@@ -426,7 +426,7 @@ export default function Dashboard() {
 
             <div className="flex-1 overflow-hidden">
               <div ref={branchEmblaRef} className="overflow-hidden">
-                <div className="flex gap-3 pb-2 pl-16 pr-16">
+                <div className="flex gap-3 pb-2 pl-2 pr-2">
                   {accessibleBranches.length > 0 ? (
                     accessibleBranches.map((branch, index) => (
                       <div key={branch.id} className="flex-shrink-0 w-[240px] max-w-[240px] box-border">
@@ -488,7 +488,7 @@ export default function Dashboard() {
 
               <div className="flex-1 overflow-hidden">
                 <div ref={departmentEmblaRef} className="overflow-hidden">
-                  <div className="flex gap-3 pb-2 pl-16 pr-16">
+                  <div className="flex gap-3 pb-2 pl-2 pr-2">
                     {accessibleDepartments.length > 0 ? (
                       accessibleDepartments.map((dept, index) => (
                         <div key={dept.id} className="flex-shrink-0 w-[240px] max-w-[240px] box-border">
