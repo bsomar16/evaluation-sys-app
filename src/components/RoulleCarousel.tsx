@@ -35,10 +35,8 @@ export function RoulletteCarousel({
   const actualSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
 
   // Calculate positions and opacities
-  const calculateStyle = (itemIndex: number) => {
-    const distance = itemIndex - actualSelectedIndex;
-    
-    // Determine opacity and scale based on distance
+  const calculateStyle = (distance: number) => {
+    // Determine opacity and scale based on distance from center
     let opacity = 0;
     let scale = 0;
     let isVisible = false;
@@ -54,7 +52,7 @@ export function RoulletteCarousel({
       scale = 0.85;
       isVisible = true;
     } else if (distance === 2 || distance === -2) {
-      // Half visible items
+      // Next items
       opacity = 0.35;
       scale = 0.7;
       isVisible = true;
@@ -70,17 +68,32 @@ export function RoulletteCarousel({
       isVisible = false;
     }
 
-    // Calculate horizontal position (centered carousel)
-    // Center item should be at container center
-    const centerOffset = distance * itemWidth;
-    
     return {
       opacity,
       scale,
       isVisible,
-      transform: `translateX(${centerOffset}px) scale(${scale})`,
     };
   };
+
+  // Create an ordered array of items with their distances from center
+  const orderedItems = items.map((item, index) => {
+    const distance = index - actualSelectedIndex;
+    const style = calculateStyle(distance);
+    
+    return {
+      ...item,
+      index,
+      distance,
+      ...style,
+    };
+  }).sort((a, b) => {
+    // Sort by distance (center first, then left/right alternating)
+    if (Math.abs(a.distance) !== Math.abs(b.distance)) {
+      return Math.abs(a.distance) - Math.abs(b.distance);
+    }
+    // For same distance, put left (negative) before right (positive)
+    return a.distance - b.distance;
+  });
 
   const scroll = (direction: 'left' | 'right') => {
     if (direction === 'left') {
@@ -104,59 +117,43 @@ export function RoulletteCarousel({
       </button>
 
       {/* Carousel Container */}
-      <div className="flex-1 overflow-hidden perspective">
+      <div className="flex-1 overflow-x-auto overflow-y-hidden">
+        {/* Items wrapper - displays all items with transforms */}
         <div
-          className="flex justify-center items-center relative"
+          className="flex justify-center items-center gap-3 px-4 py-2 min-h-[160px] w-max mx-auto"
           style={{
             width: '100%',
-            perspective: '1000px',
+            display: 'flex',
+            justifyContent: 'center',
           }}
         >
-          {/* Center line indicator (visual reference) */}
-          <div
-            className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-primary/20 pointer-events-none"
-            style={{ transform: 'translateX(-50%)' }}
-          />
-
-          {/* Carousel items container */}
-          <div
-            className="flex justify-center relative"
-            style={{
-              width: `${itemWidth}px`,
-              height: 'auto',
-              position: 'relative',
-              minHeight: '140px',
-            }}
-          >
-            {items.map((item, index) => {
-              const style = calculateStyle(index);
-
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onSelect(item.id)}
-                  className={`absolute transition-all duration-300 ease-out p-3 rounded-lg border-2 text-left cursor-pointer flex items-center justify-center ${
-                    index === actualSelectedIndex
-                      ? 'border-primary bg-primary/10 shadow-md z-50'
-                      : 'border-border bg-card hover:border-muted-foreground/50 z-10'
-                  }`}
-                  style={{
-                    opacity: style.opacity,
-                    transform: style.transform,
-                    width: `${itemWidth}px`,
-                    pointerEvents: style.isVisible ? 'auto' : 'none',
-                    left: '50%',
-                    marginLeft: `-${itemWidth / 2}px`,
-                    minWidth: 'max-content',
-                  }}
-                >
-                  <div className="flex items-center gap-2 w-full">
-                    {item.content}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          {orderedItems.map((item) => {
+            const isCenter = item.distance === 0;
+            
+            return (
+              <button
+                key={item.id}
+                onClick={() => onSelect(item.id)}
+                className={`transition-all duration-300 ease-out p-3 rounded-lg border-2 text-left flex flex-col items-center justify-center flex-shrink-0 ${
+                  isCenter
+                    ? 'border-primary bg-primary/10 shadow-md'
+                    : 'border-border bg-card hover:border-muted-foreground/50'
+                }`}
+                style={{
+                  opacity: item.opacity,
+                  transform: `scale(${item.scale})`,
+                  width: `${itemWidth}px`,
+                  minHeight: '120px',
+                  pointerEvents: item.isVisible ? 'auto' : 'none',
+                  cursor: item.isVisible ? 'pointer' : 'default',
+                }}
+              >
+                <div className="flex items-center gap-2 justify-center flex-wrap">
+                  {item.content}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
