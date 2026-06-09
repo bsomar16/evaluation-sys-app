@@ -117,38 +117,42 @@ export function RoulletteCarousel({
       </button>
 
       {/* Carousel Container */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        {/* Items wrapper - displays all items with transforms */}
+      <div className="flex-1 flex justify-center items-center">
+        {/* Items wrapper - displays items with transforms */}
         <div
-          className="flex justify-center items-center gap-3 px-4 py-2 min-h-[160px] w-max mx-auto"
+          className="flex justify-center items-center gap-3 relative"
           style={{
-            width: '100%',
-            display: 'flex',
-            justifyContent: 'center',
+            perspective: '1000px',
           }}
         >
           {orderedItems.map((item) => {
             const isCenter = item.distance === 0;
             
+            // Only show items within distance 3
+            if (Math.abs(item.distance) > 3) {
+              return null;
+            }
+            
             return (
               <button
                 key={item.id}
                 onClick={() => onSelect(item.id)}
-                className={`transition-all duration-300 ease-out p-3 rounded-lg border-2 text-left flex flex-col items-center justify-center flex-shrink-0 ${
+                className={`transition-all duration-500 ease-out p-3 rounded-lg border-2 text-left flex flex-col items-center justify-center flex-shrink-0 ${
                   isCenter
-                    ? 'border-primary bg-primary/10 shadow-md'
+                    ? 'border-primary bg-primary/10 shadow-lg z-50'
                     : 'border-border bg-card hover:border-muted-foreground/50'
                 }`}
                 style={{
                   opacity: item.opacity,
                   transform: `scale(${item.scale})`,
                   width: `${itemWidth}px`,
-                  minHeight: '120px',
+                  minHeight: `${120 * item.scale}px`,
                   pointerEvents: item.isVisible ? 'auto' : 'none',
                   cursor: item.isVisible ? 'pointer' : 'default',
+                  transition: 'all 500ms ease-out',
                 }}
               >
-                <div className="flex items-center gap-2 justify-center flex-wrap">
+                <div className="flex items-center gap-2 justify-center flex-wrap text-center">
                   {item.content}
                 </div>
               </button>
