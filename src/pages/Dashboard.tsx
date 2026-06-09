@@ -84,6 +84,31 @@ export default function Dashboard() {
   const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
   const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
 
+  // Helper functions to get accessible data
+  function getAccessibleBranches() {
+    if (!branches.length) return [];
+    
+    const userRole = roles.find(r => r.id === currentUser?.role_id);
+    if (userRole?.name?.toLowerCase().includes('directeur')) {
+      return branches;
+    }
+    
+    if (currentUser?.branch_id) {
+      return branches.filter(b => b.id === currentUser.branch_id);
+    }
+    
+    return branches;
+  }
+
+  function getAccessibleDepartments() {
+    if (!selectedBranch) return [];
+    
+    return departments.filter(d => {
+      const deptUsers = users.filter(u => u.department_id === d.id && u.branch_id === selectedBranch);
+      return deptUsers.length > 0;
+    });
+  }
+
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
     const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
     if (selectedIndex === -1) return { opacity: 1, transform: 'scale(1)' };
@@ -322,30 +347,6 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
-
-  function getAccessibleBranches() {
-    if (!branches.length) return [];
-    
-    const userRole = roles.find(r => r.id === currentUser?.role_id);
-    if (userRole?.name?.toLowerCase().includes('directeur')) {
-      return branches;
-    }
-    
-    if (currentUser?.branch_id) {
-      return branches.filter(b => b.id === currentUser.branch_id);
-    }
-    
-    return branches;
-  }
-
-  function getAccessibleDepartments() {
-    if (!selectedBranch) return [];
-    
-    return departments.filter(d => {
-      const deptUsers = users.filter(u => u.department_id === d.id && u.branch_id === selectedBranch);
-      return deptUsers.length > 0;
-    });
-  }
 
   const loadDepartmentData = () => {
     if (!selectedPeriod || !selectedBranch || !selectedDepartment) {
