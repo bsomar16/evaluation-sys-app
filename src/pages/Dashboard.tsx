@@ -108,6 +108,9 @@ export default function Dashboard() {
   const hasInitializedSelection = useRef(false);
   const [topAgents, setTopAgents] = useState<AgentWithScore[]>([]);
   const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
+  
+  // Selected employee details
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null);
 
   const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
   const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
@@ -882,12 +885,20 @@ export default function Dashboard() {
                             {expandedDepartments.has(`${branch.id}-${dept.id}`) && (
                               <div className="bg-background p-2 space-y-1">
                                 {dept.employees.map((emp, idx) => (
-                                  <div key={emp.id} className="px-3 py-1.5 bg-green-50 dark:bg-green-950/20 rounded text-xs flex justify-between items-center">
+                                  <button
+                                    key={emp.id}
+                                    onClick={() => setSelectedEmployee(emp)}
+                                    className={`w-full px-3 py-1.5 rounded text-xs flex justify-between items-center transition-colors cursor-pointer ${
+                                      selectedEmployee?.id === emp.id
+                                        ? 'bg-green-200 dark:bg-green-800 border border-green-500'
+                                        : 'bg-green-50 dark:bg-green-950/20 hover:bg-green-100 dark:hover:bg-green-900/30'
+                                    }`}
+                                  >
                                     <div>
                                       <span className="font-semibold text-green-700 dark:text-green-300">#{idx + 1}</span> {emp.name}
                                     </div>
                                     <span className="font-bold text-green-600 dark:text-green-400">{emp.avg_score.toFixed(1)}/20</span>
-                                  </div>
+                                  </button>
                                 ))}
                               </div>
                             )}
@@ -973,12 +984,20 @@ export default function Dashboard() {
                             {expandedDepartments.has(`${branch.id}-${dept.id}`) && (
                               <div className="bg-background p-2 space-y-1">
                                 {dept.employees.map((emp, idx) => (
-                                  <div key={emp.id} className="px-3 py-1.5 bg-red-50 dark:bg-red-950/20 rounded text-xs flex justify-between items-center">
+                                  <button
+                                    key={emp.id}
+                                    onClick={() => setSelectedEmployee(emp)}
+                                    className={`w-full px-3 py-1.5 rounded text-xs flex justify-between items-center transition-colors cursor-pointer ${
+                                      selectedEmployee?.id === emp.id
+                                        ? 'bg-red-200 dark:bg-red-800 border border-red-500'
+                                        : 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-900/30'
+                                    }`}
+                                  >
                                     <div>
                                       <span className="font-semibold text-red-700 dark:text-red-300">#{idx + 1}</span> {emp.name}
                                     </div>
                                     <span className="font-bold text-red-600 dark:text-red-400">{emp.avg_score.toFixed(1)}/20</span>
-                                  </div>
+                                  </button>
                                 ))}
                               </div>
                             )}
@@ -995,6 +1014,102 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Employee Details Section */}
+      {selectedEmployee && selectedPeriod && (
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-heading">Détails Employé - {selectedEmployee.name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">Filiale</p>
+                <p className="font-semibold text-sm">{selectedEmployee.branch_name}</p>
+              </div>
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">Service</p>
+                <p className="font-semibold text-sm">{selectedEmployee.department_name}</p>
+              </div>
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">Rôle</p>
+                <p className="font-semibold text-sm">{selectedEmployee.role_name}</p>
+              </div>
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">Email</p>
+                <p className="font-semibold text-sm text-xs">{selectedEmployee.email}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="border border-border rounded-lg p-4 text-center">
+                <p className="text-xs text-muted-foreground mb-1">Moyenne</p>
+                <p className="text-2xl font-bold text-primary">{selectedEmployee.avg_score.toFixed(2)}/20</p>
+              </div>
+              {(() => {
+                const evals = allEvaluations.filter(e => e.employee_email === selectedEmployee.email && e.period === selectedPeriod && e.score !== null);
+                const scores = evals.map(e => e.score);
+                const min = scores.length > 0 ? Math.min(...scores) : 0;
+                const max = scores.length > 0 ? Math.max(...scores) : 0;
+                return (
+                  <>
+                    <div className="border border-border rounded-lg p-4 text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Minimum</p>
+                      <p className="text-2xl font-bold text-red-600">{min.toFixed(2)}</p>
+                    </div>
+                    <div className="border border-border rounded-lg p-4 text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Maximum</p>
+                      <p className="text-2xl font-bold text-green-600">{max.toFixed(2)}</p>
+                    </div>
+                    <div className="border border-border rounded-lg p-4 text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Évaluations</p>
+                      <p className="text-2xl font-bold text-blue-600">{evals.length}</p>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            {/* Evaluations Details */}
+            <div>
+              <h3 className="font-semibold text-sm mb-3">Détail des Évaluations (période: {selectedPeriod})</h3>
+              <div className="max-h-64 overflow-y-auto border border-border rounded-lg">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-2">Date</th>
+                      <th className="text-left p-2">Évaluateur</th>
+                      <th className="text-center p-2">Score</th>
+                      <th className="text-left p-2">Commentaire</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const evals = allEvaluations.filter(e => e.employee_email === selectedEmployee.email && e.period === selectedPeriod && e.score !== null);
+                      return evals.length > 0 ? (
+                        evals.map((eval_, idx) => (
+                          <tr key={idx} className="border-t border-border hover:bg-muted/30">
+                            <td className="p-2">{eval_.created_at ? new Date(eval_.created_at).toLocaleDateString() : '—'}</td>
+                            <td className="p-2">{eval_.evaluator_email || '—'}</td>
+                            <td className="p-2 text-center font-semibold">{eval_.score}/20</td>
+                            <td className="p-2 text-muted-foreground">{eval_.comments || '—'}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                            Aucune évaluation pour cette période
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
