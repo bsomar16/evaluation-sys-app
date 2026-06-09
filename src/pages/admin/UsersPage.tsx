@@ -229,6 +229,7 @@ export function UsersPage() {
                       <th className="text-left py-3 px-4">Prénom</th>
                       <th className="text-left py-3 px-4">Username</th>
                       <th className="text-left py-3 px-4">Filiale</th>
+                      <th className="text-left py-3 px-4">Service</th>
                       <th className="text-left py-3 px-4">Rôle</th>
                       {userTab === 'active' ? (
                         <th className="text-left py-3 px-4">Statut</th>
@@ -247,6 +248,9 @@ export function UsersPage() {
                       <td className="py-3 px-4">{user.email}</td>
                       <td className="py-3 px-4">
                         {branches.find((b) => b.id === user.branch_id)?.name || user.branch_id}
+                      </td>
+                      <td className="py-3 px-4">
+                        {departments.find((d) => d.id === user.department_id)?.name || user.department_id || '—'}
                       </td>
                       <td className="py-3 px-4">
                         {(() => {
