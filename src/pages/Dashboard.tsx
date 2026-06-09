@@ -367,7 +367,7 @@ export default function Dashboard() {
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-3">Filiale</h3>
           <RoulletteCarousel
-            items={accessibleBranches.map(branch => ({
+            items={getAccessibleBranches().map(branch => ({
               id: branch.id,
               label: branch.name,
               content: (
@@ -396,7 +396,7 @@ export default function Dashboard() {
           <div className="pl-4 border-l-2 border-l-primary">
             <h3 className="text-sm font-semibold text-foreground mb-3">Département</h3>
             <RoulletteCarousel
-              items={accessibleDepartments.map(dept => ({
+              items={getAccessibleDepartments().map(dept => ({
                 id: dept.id,
                 label: dept.name,
                 content: (
