@@ -81,8 +81,8 @@ export default function Dashboard() {
   const [topAgents, setTopAgents] = useState<AgentWithScore[]>([]);
   const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
 
-  const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
-  const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
+  const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'start', containScroll: 'trimSnaps' });
+  const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'start', containScroll: 'trimSnaps' });
 
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
     const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
@@ -432,7 +432,7 @@ export default function Dashboard() {
 
             <div className="flex-1 overflow-hidden">
               <div ref={branchEmblaRef} className="overflow-hidden">
-                <div className="flex gap-3 pb-2">
+                <div className="flex gap-3 pb-2 justify-start">
                   {accessibleBranches.length > 0 ? (
                     accessibleBranches.map((branch, index) => (
                       <div key={branch.id} className="flex-shrink-0 w-[240px] max-w-[240px] box-border">
@@ -494,7 +494,7 @@ export default function Dashboard() {
 
               <div className="flex-1 overflow-hidden">
                 <div ref={departmentEmblaRef} className="overflow-hidden">
-                  <div className="flex gap-3 pb-2">
+                  <div className="flex gap-3 pb-2 justify-start">
                     {accessibleDepartments.length > 0 ? (
                       accessibleDepartments.map((dept, index) => (
                         <div key={dept.id} className="flex-shrink-0 w-[240px] max-w-[240px] box-border">
