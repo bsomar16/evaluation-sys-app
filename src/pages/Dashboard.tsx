@@ -134,48 +134,45 @@ export default function Dashboard() {
     }
   }, [selectedBranch, accessibleBranches, branchEmblaApi]);
 
-  // Auto-select branch dynamically using requestAnimationFrame for smooth updates during drag
+  // Auto-select branch dynamically by directly listening to DOM pointer events
   useEffect(() => {
-    if (!branchEmblaApi) return;
+    if (!branchEmblaRef.current || !branchEmblaApi) return;
 
     let animationFrameId: number;
     let isDragging = false;
 
     const updateSelection = () => {
+      const selectedIndex = branchEmblaApi.selectedScrollSnap();
+      if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
+        setSelectedBranch(accessibleBranches[selectedIndex].id);
+      }
       if (isDragging) {
-        const selectedIndex = branchEmblaApi.selectedScrollSnap();
-        if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
-          setSelectedBranch(accessibleBranches[selectedIndex].id);
-        }
         animationFrameId = requestAnimationFrame(updateSelection);
       }
     };
 
     const handlePointerDown = () => {
       isDragging = true;
-      animationFrameId = requestAnimationFrame(updateSelection);
+      updateSelection();
     };
 
     const handlePointerUp = () => {
       isDragging = false;
-      // Final update
-      const selectedIndex = branchEmblaApi.selectedScrollSnap();
-      if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
-        setSelectedBranch(accessibleBranches[selectedIndex].id);
-      }
+      updateSelection();
     };
 
-    branchEmblaApi.on('pointerDown', handlePointerDown);
-    branchEmblaApi.on('pointerUp', handlePointerUp);
-    branchEmblaApi.on('settle', handlePointerUp);
+    const carouselElement = branchEmblaRef.current;
+    carouselElement.addEventListener('pointerdown', handlePointerDown);
+    carouselElement.addEventListener('pointerup', handlePointerUp);
+    carouselElement.addEventListener('pointerleave', handlePointerUp);
 
     return () => {
-      branchEmblaApi.off('pointerDown', handlePointerDown);
-      branchEmblaApi.off('pointerUp', handlePointerUp);
-      branchEmblaApi.off('settle', handlePointerUp);
+      carouselElement.removeEventListener('pointerdown', handlePointerDown);
+      carouselElement.removeEventListener('pointerup', handlePointerUp);
+      carouselElement.removeEventListener('pointerleave', handlePointerUp);
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
-  }, [branchEmblaApi, accessibleBranches]);
+  }, [branchEmblaRef, branchEmblaApi, accessibleBranches]);
 
   useEffect(() => {
     if (selectedDepartment && departmentEmblaApi && accessibleDepartments.length > 0) {
@@ -186,48 +183,45 @@ export default function Dashboard() {
     }
   }, [selectedDepartment, accessibleDepartments, departmentEmblaApi]);
 
-  // Auto-select department dynamically using requestAnimationFrame for smooth updates during drag
+  // Auto-select department dynamically by directly listening to DOM pointer events
   useEffect(() => {
-    if (!departmentEmblaApi) return;
+    if (!departmentEmblaRef.current || !departmentEmblaApi) return;
 
     let animationFrameId: number;
     let isDragging = false;
 
     const updateSelection = () => {
+      const selectedIndex = departmentEmblaApi.selectedScrollSnap();
+      if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
+        setSelectedDepartment(accessibleDepartments[selectedIndex].id);
+      }
       if (isDragging) {
-        const selectedIndex = departmentEmblaApi.selectedScrollSnap();
-        if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
-          setSelectedDepartment(accessibleDepartments[selectedIndex].id);
-        }
         animationFrameId = requestAnimationFrame(updateSelection);
       }
     };
 
     const handlePointerDown = () => {
       isDragging = true;
-      animationFrameId = requestAnimationFrame(updateSelection);
+      updateSelection();
     };
 
     const handlePointerUp = () => {
       isDragging = false;
-      // Final update
-      const selectedIndex = departmentEmblaApi.selectedScrollSnap();
-      if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
-        setSelectedDepartment(accessibleDepartments[selectedIndex].id);
-      }
+      updateSelection();
     };
 
-    departmentEmblaApi.on('pointerDown', handlePointerDown);
-    departmentEmblaApi.on('pointerUp', handlePointerUp);
-    departmentEmblaApi.on('settle', handlePointerUp);
+    const carouselElement = departmentEmblaRef.current;
+    carouselElement.addEventListener('pointerdown', handlePointerDown);
+    carouselElement.addEventListener('pointerup', handlePointerUp);
+    carouselElement.addEventListener('pointerleave', handlePointerUp);
 
     return () => {
-      departmentEmblaApi.off('pointerDown', handlePointerDown);
-      departmentEmblaApi.off('pointerUp', handlePointerUp);
-      departmentEmblaApi.off('settle', handlePointerUp);
+      carouselElement.removeEventListener('pointerdown', handlePointerDown);
+      carouselElement.removeEventListener('pointerup', handlePointerUp);
+      carouselElement.removeEventListener('pointerleave', handlePointerUp);
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
-  }, [departmentEmblaApi, accessibleDepartments]);
+  }, [departmentEmblaRef, departmentEmblaApi, accessibleDepartments]);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
