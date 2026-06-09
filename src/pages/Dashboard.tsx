@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -7,7 +7,6 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
-import { RoulletteCarousel } from '@/components/RoulleCarousel';
 
 interface DashboardStats {
   totalUsers: number;
@@ -82,7 +81,8 @@ export default function Dashboard() {
   const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
 
   // Carousel refs
-  // (Removed - now using RoulletteCarousel component)
+  const branchesScrollRef = useRef<HTMLDivElement>(null);
+  const departmentsScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
@@ -214,6 +214,76 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
+  // Auto-scroll selected branch to center using requestAnimationFrame
+  useEffect(() => {
+    if (selectedBranch && branchesScrollRef.current) {
+      const scrollContainer = branchesScrollRef.current;
+      
+      const performScroll = () => {
+        const selectedButton = scrollContainer.querySelector(`button[data-branch-id="${selectedBranch}"]`) as HTMLElement;
+        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
+          // Calculate scroll position to center the element
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const buttonRect = selectedButton.getBoundingClientRect();
+          
+          // Distance from scroll container start to button start (accounting for current scroll)
+          const buttonLeftInScroll = selectedButton.offsetLeft;
+          const containerWidth = scrollContainer.clientWidth;
+          const buttonWidth = buttonRect.width;
+          
+          // Calculate new scroll position
+          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
+          const maxScroll = scrollContainer.scrollWidth - containerWidth;
+          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+          
+          scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
+        }
+      };
+      
+      // Use requestAnimationFrame twice to ensure render is complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(performScroll);
+        });
+      });
+    }
+  }, [selectedBranch]);
+
+  // Auto-scroll selected department to center using requestAnimationFrame
+  useEffect(() => {
+    if (selectedDepartment && departmentsScrollRef.current) {
+      const scrollContainer = departmentsScrollRef.current;
+      
+      const performScroll = () => {
+        const selectedButton = scrollContainer.querySelector(`button[data-dept-id="${selectedDepartment}"]`) as HTMLElement;
+        if (selectedButton && scrollContainer && scrollContainer.clientWidth > 0) {
+          // Calculate scroll position to center the element
+          const containerRect = scrollContainer.getBoundingClientRect();
+          const buttonRect = selectedButton.getBoundingClientRect();
+          
+          // Distance from scroll container start to button start (accounting for current scroll)
+          const buttonLeftInScroll = selectedButton.offsetLeft;
+          const containerWidth = scrollContainer.clientWidth;
+          const buttonWidth = buttonRect.width;
+          
+          // Calculate new scroll position
+          const targetScroll = buttonLeftInScroll - (containerWidth / 2) + (buttonWidth / 2);
+          const maxScroll = scrollContainer.scrollWidth - containerWidth;
+          const clampedScroll = Math.max(0, Math.min(targetScroll, maxScroll));
+          
+          scrollContainer.scrollTo({ left: clampedScroll, behavior: 'smooth' });
+        }
+      };
+      
+      // Use requestAnimationFrame twice to ensure render is complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(performScroll);
+        });
+      });
+    }
+  }, [selectedDepartment]);
 
   const getAccessibleBranches = () => {
     if (!branches.length) return [];
@@ -363,55 +433,137 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Branch Carousel - Roulette Style */}
+        {/* Branch Carousel - Horizontal scroll with arrows */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-3">Filiale</h3>
-          <RoulletteCarousel
-            items={getAccessibleBranches().map(branch => ({
-              id: branch.id,
-              label: branch.name,
-              content: (
-                <>
-                  <Building2 size={14} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
-                  <div>
-                    <p className="font-semibold text-xs text-foreground">{branch.name}</p>
-                    {branch.code && (
-                      <p className="text-xs text-muted-foreground">{branch.code}</p>
-                    )}
-                  </div>
-                </>
-              ),
-            }))}
-            selectedId={selectedBranch}
-            onSelect={(id) => {
-              setSelectedBranch(id);
-              setSelectedDepartment('');
-            }}
-            itemWidth={130}
-          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (branchesScrollRef.current) {
+                  branchesScrollRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+                }
+              }}
+              className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            
+            <div
+              ref={branchesScrollRef}
+              className="flex-1 overflow-hidden"
+            >
+              <div className="flex gap-3 pb-2">
+                <div style={{flex: '0 0 calc(50% - 90px)'}} />
+                {accessibleBranches.length > 0 ? (
+                  accessibleBranches.map(branch => (
+                    <button
+                      key={branch.id}
+                      data-branch-id={branch.id}
+                      onClick={() => {
+                        setSelectedBranch(branch.id);
+                        setSelectedDepartment('');
+                      }}
+                      className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
+                        selectedBranch === branch.id
+                          ? 'border-primary bg-primary/10 shadow-md'
+                          : 'border-border bg-card hover:border-muted-foreground/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Building2 size={16} className={selectedBranch === branch.id ? 'text-primary' : 'text-muted-foreground'} />
+                        <div>
+                          <p className="font-semibold text-sm text-foreground">{branch.name}</p>
+                          {branch.code && (
+                            <p className="text-xs text-muted-foreground">{branch.code}</p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
+                )}
+                <div style={{flex: '0 0 calc(50% - 90px)'}} />
+              </div>
+            </div>
+            
+            <button
+              onClick={() => {
+                if (branchesScrollRef.current) {
+                  branchesScrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+                }
+              }}
+              className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Scroll right"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
         </div>
 
-        {/* Department Carousel - Roulette Style */}
+        {/* Department Carousel - Shows when branch selected, horizontal scroll with arrows */}
         {selectedBranch && (
           <div className="pl-4 border-l-2 border-l-primary">
             <h3 className="text-sm font-semibold text-foreground mb-3">Département</h3>
-            <RoulletteCarousel
-              items={getAccessibleDepartments().map(dept => ({
-                id: dept.id,
-                label: dept.name,
-                content: (
-                  <>
-                    <Users size={14} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
-                    <div>
-                      <p className="font-semibold text-xs text-foreground">{dept.name}</p>
-                    </div>
-                  </>
-                ),
-              }))}
-              selectedId={selectedDepartment}
-              onSelect={(id) => setSelectedDepartment(id)}
-              itemWidth={130}
-            />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (departmentsScrollRef.current) {
+                    departmentsScrollRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+                  }
+                }}
+                className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              
+              <div
+                ref={departmentsScrollRef}
+                className="flex-1 overflow-hidden"
+              >
+                <div className="flex gap-3 pb-2">
+                  <div style={{flex: '0 0 calc(50% - 90px)'}} />
+                  {accessibleDepartments.length > 0 ? (
+                    accessibleDepartments.map(dept => (
+                      <button
+                        key={dept.id}
+                        data-dept-id={dept.id}
+                        onClick={() => setSelectedDepartment(dept.id)}
+                        className={`flex-shrink-0 p-3 rounded-lg border-2 transition-all text-left min-w-max ${
+                          selectedDepartment === dept.id
+                            ? 'border-primary bg-primary/10 shadow-md'
+                            : 'border-border bg-card hover:border-muted-foreground/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Users size={16} className={selectedDepartment === dept.id ? 'text-primary' : 'text-muted-foreground'} />
+                          <div>
+                            <p className="font-semibold text-sm text-foreground">{dept.name}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Aucun département disponible</p>
+                  )}
+                  <div style={{flex: '0 0 calc(50% - 90px)'}} />
+                </div>
+              </div>
+              
+              <button
+                onClick={() => {
+                  if (departmentsScrollRef.current) {
+                    departmentsScrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+                  }
+                }}
+                className="flex-shrink-0 p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Scroll right"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
           </div>
         )}
       </div>
