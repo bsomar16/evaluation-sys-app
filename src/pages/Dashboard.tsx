@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -45,6 +45,27 @@ interface AgentWithScore {
   eval_count: number;
 }
 
+interface EmployeePerformance extends AgentWithScore {
+  branch_id: string;
+  branch_name: string;
+  department_id: string;
+  department_name: string;
+}
+
+interface DepartmentHierarchy {
+  id: string;
+  name: string;
+  employees: EmployeePerformance[];
+  expanded?: boolean;
+}
+
+interface BranchHierarchy {
+  id: string;
+  name: string;
+  departments: DepartmentHierarchy[];
+  expanded?: boolean;
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
@@ -58,6 +79,10 @@ export default function Dashboard() {
   const [roleData, setRoleData] = useState<RoleData[]>([]);
   const [evaluationStatus, setEvaluationStatus] = useState<EvaluationData[]>([]);
   const [trainingStatus, setTrainingStatus] = useState<EvaluationData[]>([]);
+  const [topEmployees, setTopEmployees] = useState<BranchHierarchy[]>([]);
+  const [worstEmployees, setWorstEmployees] = useState<BranchHierarchy[]>([]);
+  const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
+  const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   
   // Selector data states
@@ -118,6 +143,68 @@ export default function Dashboard() {
       return deptUsers.length > 0;
     });
   }
+
+  // Calculate employee performance by branch and department hierarchy
+  const calculateEmployeePerformance = () => {
+    if (!selectedPeriod || allEvaluations.length === 0 || users.length === 0) return { top: [], worst: [] };
+
+    // Calculate scores for all users
+    const employeeScores: EmployeePerformance[] = users
+      .filter(u => !u.archived_at && u.email)
+      .map(employee => {
+        const evals = allEvaluations.filter(e => e.employee_email === employee.email && e.period === selectedPeriod && e.score !== null);
+        const avgScore = evals.length > 0 ? evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length : 0;
+        
+        return {
+          id: employee.id,
+          name: employee.name,
+          email: employee.email,
+          role_name: roles.find(r => r.id === employee.role_id)?.name || '—',
+          avg_score: avgScore,
+          eval_count: evals.length,
+          branch_id: employee.branch_id,
+          branch_name: branches.find(b => b.id === employee.branch_id)?.name || '—',
+          department_id: employee.department_id,
+          department_name: departments.find(d => d.id === employee.department_id)?.name || '—',
+        };
+      });
+
+    // Filter employees with at least one evaluation and sort
+    const withEvals = employeeScores.filter(e => e.eval_count > 0);
+    const topList = [...withEvals].sort((a, b) => b.avg_score - a.avg_score).slice(0, 20);
+    const worstList = [...withEvals].sort((a, b) => a.avg_score - b.avg_score).slice(0, 20);
+
+    // Build hierarchical structures
+    const buildHierarchy = (employees: EmployeePerformance[]): BranchHierarchy[] => {
+      const branchMap = new Map<string, Map<string, EmployeePerformance[]>>();
+      
+      employees.forEach(emp => {
+        if (!branchMap.has(emp.branch_id)) {
+          branchMap.set(emp.branch_id, new Map());
+        }
+        const deptMap = branchMap.get(emp.branch_id)!;
+        if (!deptMap.has(emp.department_id)) {
+          deptMap.set(emp.department_id, []);
+        }
+        deptMap.get(emp.department_id)!.push(emp);
+      });
+
+      return Array.from(branchMap.entries()).map(([branchId, deptMap]) => ({
+        id: branchId,
+        name: branches.find(b => b.id === branchId)?.name || '—',
+        departments: Array.from(deptMap.entries()).map(([deptId, emps]) => ({
+          id: deptId,
+          name: departments.find(d => d.id === deptId)?.name || '—',
+          employees: emps,
+        })),
+      }));
+    };
+
+    return {
+      top: buildHierarchy(topList),
+      worst: buildHierarchy(worstList),
+    };
+  };
 
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
     const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
@@ -751,26 +838,65 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Pie Chart - Training Status */}
+        {/* TOP Employees - Hierarchical */}
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Statut des Formations</CardTitle>
+            <CardTitle className="text-base font-heading">🏆 TOP Employés</CardTitle>
           </CardHeader>
           <CardContent>
-            {trainingStatus.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie data={trainingStatus} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="count" label={({ status, percent }) => `${status} ${(percent * 100).toFixed(0)}%`}>
-                    {trainingStatus.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
+            {topEmployees.length > 0 ? (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {topEmployees.map(branch => (
+                  <div key={branch.id} className="border border-border/30 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedBranches(prev => {
+                        const next = new Set(prev);
+                        next.has(branch.id) ? next.delete(branch.id) : next.add(branch.id);
+                        return next;
+                      })}
+                      className="w-full px-4 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors font-semibold text-left bg-muted/20"
+                    >
+                      {expandedBranches.has(branch.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <Building2 size={14} />
+                      <span>{branch.name}</span>
+                    </button>
+                    {expandedBranches.has(branch.id) && (
+                      <div className="bg-background p-2 space-y-1">
+                        {branch.departments.map(dept => (
+                          <div key={dept.id} className="ml-2 border border-border/20 rounded overflow-hidden">
+                            <button
+                              onClick={() => setExpandedDepartments(prev => {
+                                const next = new Set(prev);
+                                const key = `${branch.id}-${dept.id}`;
+                                next.has(key) ? next.delete(key) : next.add(key);
+                                return next;
+                              })}
+                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-muted/30 transition-colors text-sm font-medium text-left bg-muted/10"
+                            >
+                              {expandedDepartments.has(`${branch.id}-${dept.id}`) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                              <span>{dept.name}</span>
+                            </button>
+                            {expandedDepartments.has(`${branch.id}-${dept.id}`) && (
+                              <div className="bg-background p-2 space-y-1">
+                                {dept.employees.map((emp, idx) => (
+                                  <div key={emp.id} className="px-3 py-1.5 bg-green-50 dark:bg-green-950/20 rounded text-xs flex justify-between items-center">
+                                    <div>
+                                      <span className="font-semibold text-green-700 dark:text-green-300">#{idx + 1}</span> {emp.name}
+                                    </div>
+                                    <span className="font-bold text-green-600 dark:text-green-400">{emp.avg_score.toFixed(1)}/20</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="h-[280px] flex items-center justify-center text-muted-foreground">Aucune donnée de formation</div>
+              <div className="text-muted-foreground text-center py-4">Aucune donnée d'évaluation</div>
             )}
           </CardContent>
         </Card>
@@ -800,26 +926,65 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Pie Chart - Roles Distribution */}
+        {/* WORST Employees - Hierarchical */}
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Employés par Rôle</CardTitle>
+            <CardTitle className="text-base font-heading">📉 WORST Employés</CardTitle>
           </CardHeader>
           <CardContent>
-            {roleData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie data={roleData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="count" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {roleData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
+            {worstEmployees.length > 0 ? (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {worstEmployees.map(branch => (
+                  <div key={branch.id} className="border border-border/30 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedBranches(prev => {
+                        const next = new Set(prev);
+                        next.has(branch.id) ? next.delete(branch.id) : next.add(branch.id);
+                        return next;
+                      })}
+                      className="w-full px-4 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors font-semibold text-left bg-muted/20"
+                    >
+                      {expandedBranches.has(branch.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <Building2 size={14} />
+                      <span>{branch.name}</span>
+                    </button>
+                    {expandedBranches.has(branch.id) && (
+                      <div className="bg-background p-2 space-y-1">
+                        {branch.departments.map(dept => (
+                          <div key={dept.id} className="ml-2 border border-border/20 rounded overflow-hidden">
+                            <button
+                              onClick={() => setExpandedDepartments(prev => {
+                                const next = new Set(prev);
+                                const key = `${branch.id}-${dept.id}`;
+                                next.has(key) ? next.delete(key) : next.add(key);
+                                return next;
+                              })}
+                              className="w-full px-3 py-1.5 flex items-center gap-2 hover:bg-muted/30 transition-colors text-sm font-medium text-left bg-muted/10"
+                            >
+                              {expandedDepartments.has(`${branch.id}-${dept.id}`) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                              <span>{dept.name}</span>
+                            </button>
+                            {expandedDepartments.has(`${branch.id}-${dept.id}`) && (
+                              <div className="bg-background p-2 space-y-1">
+                                {dept.employees.map((emp, idx) => (
+                                  <div key={emp.id} className="px-3 py-1.5 bg-red-50 dark:bg-red-950/20 rounded text-xs flex justify-between items-center">
+                                    <div>
+                                      <span className="font-semibold text-red-700 dark:text-red-300">#{idx + 1}</span> {emp.name}
+                                    </div>
+                                    <span className="font-bold text-red-600 dark:text-red-400">{emp.avg_score.toFixed(1)}/20</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : (
-              <div className="h-[280px] flex items-center justify-center text-muted-foreground">Aucune donnée de rôle</div>
+              <div className="text-muted-foreground text-center py-4">Aucune donnée d'évaluation</div>
             )}
           </CardContent>
         </Card>
