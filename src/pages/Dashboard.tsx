@@ -134,45 +134,24 @@ export default function Dashboard() {
     }
   }, [selectedBranch, accessibleBranches, branchEmblaApi]);
 
-  // Auto-select branch dynamically by directly listening to DOM pointer events
+  // Auto-select branch dynamically while carousel is being scrolled
   useEffect(() => {
-    if (!branchEmblaRef.current || !branchEmblaApi) return;
+    if (!branchEmblaApi) return;
 
-    let animationFrameId: number;
-    let isDragging = false;
-
-    const updateSelection = () => {
+    const handleScroll = () => {
       const selectedIndex = branchEmblaApi.selectedScrollSnap();
       if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
         setSelectedBranch(accessibleBranches[selectedIndex].id);
       }
-      if (isDragging) {
-        animationFrameId = requestAnimationFrame(updateSelection);
-      }
     };
 
-    const handlePointerDown = () => {
-      isDragging = true;
-      updateSelection();
-    };
-
-    const handlePointerUp = () => {
-      isDragging = false;
-      updateSelection();
-    };
-
-    const carouselElement = branchEmblaRef.current;
-    carouselElement.addEventListener('pointerdown', handlePointerDown);
-    carouselElement.addEventListener('pointerup', handlePointerUp);
-    carouselElement.addEventListener('pointerleave', handlePointerUp);
-
+    branchEmblaApi.on('scroll', handleScroll);
+    branchEmblaApi.on('select', handleScroll);
     return () => {
-      carouselElement.removeEventListener('pointerdown', handlePointerDown);
-      carouselElement.removeEventListener('pointerup', handlePointerUp);
-      carouselElement.removeEventListener('pointerleave', handlePointerUp);
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      branchEmblaApi.off('scroll', handleScroll);
+      branchEmblaApi.off('select', handleScroll);
     };
-  }, [branchEmblaRef, branchEmblaApi, accessibleBranches]);
+  }, [branchEmblaApi, accessibleBranches]);
 
   useEffect(() => {
     if (selectedDepartment && departmentEmblaApi && accessibleDepartments.length > 0) {
@@ -183,45 +162,24 @@ export default function Dashboard() {
     }
   }, [selectedDepartment, accessibleDepartments, departmentEmblaApi]);
 
-  // Auto-select department dynamically by directly listening to DOM pointer events
+  // Auto-select department dynamically while carousel is being scrolled
   useEffect(() => {
-    if (!departmentEmblaRef.current || !departmentEmblaApi) return;
+    if (!departmentEmblaApi) return;
 
-    let animationFrameId: number;
-    let isDragging = false;
-
-    const updateSelection = () => {
+    const handleScroll = () => {
       const selectedIndex = departmentEmblaApi.selectedScrollSnap();
       if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
         setSelectedDepartment(accessibleDepartments[selectedIndex].id);
       }
-      if (isDragging) {
-        animationFrameId = requestAnimationFrame(updateSelection);
-      }
     };
 
-    const handlePointerDown = () => {
-      isDragging = true;
-      updateSelection();
-    };
-
-    const handlePointerUp = () => {
-      isDragging = false;
-      updateSelection();
-    };
-
-    const carouselElement = departmentEmblaRef.current;
-    carouselElement.addEventListener('pointerdown', handlePointerDown);
-    carouselElement.addEventListener('pointerup', handlePointerUp);
-    carouselElement.addEventListener('pointerleave', handlePointerUp);
-
+    departmentEmblaApi.on('scroll', handleScroll);
+    departmentEmblaApi.on('select', handleScroll);
     return () => {
-      carouselElement.removeEventListener('pointerdown', handlePointerDown);
-      carouselElement.removeEventListener('pointerup', handlePointerUp);
-      carouselElement.removeEventListener('pointerleave', handlePointerUp);
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      departmentEmblaApi.off('scroll', handleScroll);
+      departmentEmblaApi.off('select', handleScroll);
     };
-  }, [departmentEmblaRef, departmentEmblaApi, accessibleDepartments]);
+  }, [departmentEmblaApi, accessibleDepartments]);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
