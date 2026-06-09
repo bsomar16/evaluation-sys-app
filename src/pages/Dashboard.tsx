@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -84,6 +84,23 @@ export default function Dashboard() {
   const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
   const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
 
+  // Update selection dynamically during scroll
+  const updateBranchSelection = useCallback(() => {
+    if (!branchEmblaApi || accessibleBranches.length === 0) return;
+    const selectedIndex = branchEmblaApi.selectedScrollSnap();
+    if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
+      setSelectedBranch(accessibleBranches[selectedIndex].id);
+    }
+  }, [branchEmblaApi, accessibleBranches]);
+
+  const updateDepartmentSelection = useCallback(() => {
+    if (!departmentEmblaApi || accessibleDepartments.length === 0) return;
+    const selectedIndex = departmentEmblaApi.selectedScrollSnap();
+    if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
+      setSelectedDepartment(accessibleDepartments[selectedIndex].id);
+    }
+  }, [departmentEmblaApi, accessibleDepartments]);
+
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
     const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
     if (selectedIndex === -1) return { opacity: 1, transform: 'scale(1)' };
@@ -125,6 +142,37 @@ export default function Dashboard() {
   const accessibleBranches = getAccessibleBranches();
   const accessibleDepartments = getAccessibleDepartments();
 
+  // Listen to scroll events on branch carousel for dynamic selection
+  useEffect(() => {
+    if (!branchEmblaApi) return;
+
+    branchEmblaApi.on('scroll', updateBranchSelection);
+    branchEmblaApi.on('select', updateBranchSelection);
+    branchEmblaApi.on('slidesInView', updateBranchSelection);
+    
+    return () => {
+      branchEmblaApi.off('scroll', updateBranchSelection);
+      branchEmblaApi.off('select', updateBranchSelection);
+      branchEmblaApi.off('slidesInView', updateBranchSelection);
+    };
+  }, [branchEmblaApi, updateBranchSelection]);
+
+  // Listen to scroll events on department carousel for dynamic selection
+  useEffect(() => {
+    if (!departmentEmblaApi) return;
+
+    departmentEmblaApi.on('scroll', updateDepartmentSelection);
+    departmentEmblaApi.on('select', updateDepartmentSelection);
+    departmentEmblaApi.on('slidesInView', updateDepartmentSelection);
+    
+    return () => {
+      departmentEmblaApi.off('scroll', updateDepartmentSelection);
+      departmentEmblaApi.off('select', updateDepartmentSelection);
+      departmentEmblaApi.off('slidesInView', updateDepartmentSelection);
+    };
+  }, [departmentEmblaApi, updateDepartmentSelection]);
+
+  // Scroll to selected branch when manually selected
   useEffect(() => {
     if (selectedBranch && branchEmblaApi && accessibleBranches.length > 0) {
       const selectedIndex = accessibleBranches.findIndex(item => item.id === selectedBranch);
@@ -132,27 +180,9 @@ export default function Dashboard() {
         branchEmblaApi.scrollTo(selectedIndex);
       }
     }
-  }, [selectedBranch, accessibleBranches, branchEmblaApi]);
+  }, [selectedBranch, branchEmblaApi, accessibleBranches]);
 
-  // Auto-select branch dynamically while carousel is being scrolled
-  useEffect(() => {
-    if (!branchEmblaApi) return;
-
-    const handleScroll = () => {
-      const selectedIndex = branchEmblaApi.selectedScrollSnap();
-      if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
-        setSelectedBranch(accessibleBranches[selectedIndex].id);
-      }
-    };
-
-    branchEmblaApi.on('scroll', handleScroll);
-    branchEmblaApi.on('select', handleScroll);
-    return () => {
-      branchEmblaApi.off('scroll', handleScroll);
-      branchEmblaApi.off('select', handleScroll);
-    };
-  }, [branchEmblaApi, accessibleBranches]);
-
+  // Scroll to selected department when manually selected
   useEffect(() => {
     if (selectedDepartment && departmentEmblaApi && accessibleDepartments.length > 0) {
       const selectedIndex = accessibleDepartments.findIndex(item => item.id === selectedDepartment);
@@ -160,26 +190,7 @@ export default function Dashboard() {
         departmentEmblaApi.scrollTo(selectedIndex);
       }
     }
-  }, [selectedDepartment, accessibleDepartments, departmentEmblaApi]);
-
-  // Auto-select department dynamically while carousel is being scrolled
-  useEffect(() => {
-    if (!departmentEmblaApi) return;
-
-    const handleScroll = () => {
-      const selectedIndex = departmentEmblaApi.selectedScrollSnap();
-      if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
-        setSelectedDepartment(accessibleDepartments[selectedIndex].id);
-      }
-    };
-
-    departmentEmblaApi.on('scroll', handleScroll);
-    departmentEmblaApi.on('select', handleScroll);
-    return () => {
-      departmentEmblaApi.off('scroll', handleScroll);
-      departmentEmblaApi.off('select', handleScroll);
-    };
-  }, [departmentEmblaApi, accessibleDepartments]);
+  }, [selectedDepartment, departmentEmblaApi, accessibleDepartments]);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
