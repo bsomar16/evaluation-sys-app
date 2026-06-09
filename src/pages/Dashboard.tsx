@@ -141,17 +141,17 @@ export default function Dashboard() {
 
   // Effect to scroll branches to center when selected branch changes
   useEffect(() => {
-    if (selectedBranch) {
+    if (selectedBranch && accessibleBranches.length > 0) {
       scrollToCenter(branchesScrollRef.current, accessibleBranches, selectedBranch);
     }
-  }, [selectedBranch]);
+  }, [selectedBranch, accessibleBranches]);
 
   // Effect to scroll departments to center when selected department changes
   useEffect(() => {
-    if (selectedDepartment) {
+    if (selectedDepartment && accessibleDepartments.length > 0) {
       scrollToCenter(departmentsScrollRef.current, accessibleDepartments, selectedDepartment);
     }
-  }, [selectedDepartment]);
+  }, [selectedDepartment, accessibleDepartments]);
 
   useEffect(() => {
     const userData = localStorage.getItem("user");
