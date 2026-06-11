@@ -1,7 +1,6 @@
 const APP_LOADING_EVENT = 'app-loading-overlay';
-const INITIAL_LOAD_TOKEN = 'app-initial-load';
 
-type LoadingOverlayAction = 'show' | 'hide' | 'remove-initial';
+type LoadingOverlayAction = 'show' | 'hide';
 
 interface LoadingOverlayEventDetail {
   action: LoadingOverlayAction;
@@ -27,16 +26,10 @@ export function hideLoadingOverlay(token?: string): void {
   emitLoadingOverlayEvent({ action: 'hide', token });
 }
 
-export function removeInitialLoadToken(): void {
-  emitLoadingOverlayEvent({ action: 'remove-initial' });
-}
-
 export async function runWithLoadingOverlay<T>(
   work: () => Promise<T>,
   message = 'Chargement en cours...'
 ): Promise<T> {
-  // When first page starts loading, remove the initial app load token
-  removeInitialLoadToken();
   const token = showLoadingOverlay(message);
   try {
     return await work();
