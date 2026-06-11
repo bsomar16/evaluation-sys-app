@@ -85,44 +85,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const initialLoadHandledRef = useRef(false);
   const initialLoadTimeoutRef = useRef<number | null>(null);
 
-  // Show loading overlay on app startup - REDEPLOYMENT FIX 2024
+  // Show loading overlay on app startup - REDEPLOYMENT FIX 2024 - TWO EFFECT SOLUTION
   useEffect(() => {
-    // Mark window object to verify this code runs
-    (window as any).appLayoutMounted = Date.now();
-    
     // Add initial load token if not already present
     setOverlayTokens((prev) => {
       if (!prev.includes(INITIAL_LOAD_TOKEN)) {
-        console.log('[DEBUG] Adding initial load token');
-        (window as any).initialTokenAdded = Date.now();
         return [...prev, INITIAL_LOAD_TOKEN];
       }
       return prev;
     });
-    
-    // Set timeout to auto-remove initial token after 15 seconds
-    // IMPORTANT: This MUST be outside the setState to ensure proper execution
+  }, []);
+
+  // Handle timeout removal of initial token
+  useEffect(() => {
+    // Start timeout to auto-remove initial token after 15 seconds
     const timeoutId = window.setTimeout(() => {
-      console.log('[DEBUG] Timeout fired - removing initial load token');
-      (window as any).timeoutFired = Date.now();
       setOverlayTokens((current) => {
-        console.log('[DEBUG] Before filter:', current);
         const filtered = current.filter((t) => t !== INITIAL_LOAD_TOKEN);
-        console.log('[DEBUG] After filter:', filtered);
-        (window as any).tokenRemoved = Date.now();
         return filtered;
       });
       overlayTimeoutsRef.current.delete(INITIAL_LOAD_TOKEN);
     }, 15000);
-    
-    console.log('[DEBUG] Initial load effect: timeout set with ID', timeoutId);
-    (window as any).timeoutId = timeoutId;
-    
+
     initialLoadTimeoutRef.current = timeoutId;
     overlayTimeoutsRef.current.set(INITIAL_LOAD_TOKEN, timeoutId);
-    
+
     return () => {
-      console.log('[DEBUG] Cleaning up timeout');
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
