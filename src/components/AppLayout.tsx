@@ -72,6 +72,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [overlayTokens, setOverlayTokens] = useState<string[]>([]);
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
   const navTokenRef = useRef<string | null>(null);
+  const initialLoadTokenRef = useRef<string | null>(null);
   const overlayTimeoutsRef = useRef<Map<string, number>>(new Map());
   const [connectionBanner, setConnectionBanner] = useState<ConnectionBannerState | null>(() => {
     if (typeof navigator === 'undefined') return null;
@@ -85,6 +86,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadSessionAndNav = async () => {
       try {
+        initialLoadTokenRef.current = showLoadingOverlay('Chargement...');
         const userData = localStorage.getItem("user");
         const userRole = localStorage.getItem("userRole");
         if (!userData) {
@@ -130,6 +132,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }
       } finally {
         setIsLoading(false);
+        if (initialLoadTokenRef.current) {
+          hideLoadingOverlay(initialLoadTokenRef.current);
+          initialLoadTokenRef.current = null;
+        }
       }
     };
 
