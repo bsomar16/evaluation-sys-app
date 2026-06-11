@@ -98,6 +98,15 @@ export default function Evaluation() {
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
+  const statusFilterOptions: Array<{ value: EvaluationStatus; label: string; colorClass: string }> = [
+    { value: 'pending', label: 'En attente', colorClass: 'bg-slate-400' },
+    { value: 'submitted', label: 'Soumise', colorClass: 'bg-amber-400' },
+    { value: 'approved', label: 'Approuvée', colorClass: 'bg-emerald-500' },
+    { value: 'rejected', label: 'Rejetée', colorClass: 'bg-red-500' },
+  ];
+
+  const selectedStatusOption = statusFilterOptions.find((option) => option.value === statusFilter);
+
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
 
   const isSubmitted = currentStatus === 'submitted';
@@ -501,7 +510,7 @@ export default function Evaluation() {
 
         <Card>
           <CardContent className="p-0 space-y-3">
-            <div className="grid gap-3 p-4 sm:grid-cols-4">
+            <div className="grid gap-4 p-4">
               <div className="space-y-1">
                 <Label>Période</Label>
                 <Select value={period} onValueChange={setPeriod}>
@@ -521,69 +530,79 @@ export default function Evaluation() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <Label>Filiale</Label>
-                <Select value={branchFilter} onValueChange={setBranchFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={FILTER_ALL}>Toutes les filiales</SelectItem>
-                    {branchFilterOptions.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Service</Label>
-                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={FILTER_ALL}>Tous les services</SelectItem>
-                    {departmentFilterOptions.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Statut</Label>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as EvaluationStatus | 'all')}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les statuts</SelectItem>
-                    <SelectItem value="pending">En attente</SelectItem>
-                    <SelectItem value="draft">Brouillon</SelectItem>
-                    <SelectItem value="submitted">Soumise</SelectItem>
-                    <SelectItem value="approved">Approuvée</SelectItem>
-                    <SelectItem value="rejected">Rejetée</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Groupement</Label>
-                <Select
-                  value={groupBy}
-                  onValueChange={(v) => setGroupBy(v as 'none' | 'branch' | 'department')}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Aucun</SelectItem>
-                    <SelectItem value="branch">Par filiale</SelectItem>
-                    <SelectItem value="department">Par service</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="space-y-1">
+                  <Label>Filiale</Label>
+                  <Select value={branchFilter} onValueChange={setBranchFilter}>
+                    <SelectTrigger className="min-w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={FILTER_ALL}>Toutes les filiales</SelectItem>
+                      {branchFilterOptions.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Service</Label>
+                  <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                    <SelectTrigger className="min-w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={FILTER_ALL}>Tous les services</SelectItem>
+                      {departmentFilterOptions.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Statut</Label>
+                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as EvaluationStatus | 'all')}>
+                    <SelectTrigger className="min-w-[160px]">
+                      <div className="flex items-center gap-2">
+                        {selectedStatusOption ? (
+                          <span className={`${selectedStatusOption.colorClass} inline-block h-2.5 w-2.5 rounded-full`} />
+                        ) : null}
+                        <SelectValue placeholder="Tous les statuts" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      {statusFilterOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className="flex items-center gap-2">
+                            <span className={`${option.colorClass} inline-block h-2.5 w-2.5 rounded-full`} />
+                            {option.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Groupement</Label>
+                  <Select
+                    value={groupBy}
+                    onValueChange={(v) => setGroupBy(v as 'none' | 'branch' | 'department')}
+                  >
+                    <SelectTrigger className="min-w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucun</SelectItem>
+                      <SelectItem value="branch">Par filiale</SelectItem>
+                      <SelectItem value="department">Par service</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
             <Table>
@@ -668,15 +687,10 @@ export default function Evaluation() {
                               )}
                             </TableCell>
                             <TableCell className="text-center">
-                              <div className="inline-flex items-center justify-center gap-2">
-                                <span
-                                  className={`inline-block h-2.5 w-2.5 rounded-full ${statusDotClass}`}
-                                  title={status ? EVALUATION_STATUS_LABELS[status] : 'Aucun statut'}
-                                />
-                                <span className="text-sm text-muted-foreground">
-                                  {status ? EVALUATION_STATUS_LABELS[status] : '—'}
-                                </span>
-                              </div>
+                              <span
+                                className={`inline-block h-2.5 w-2.5 rounded-full ${statusDotClass}`}
+                                title={status ? EVALUATION_STATUS_LABELS[status] : 'Aucun statut'}
+                              />
                             </TableCell>
                             <TableCell>
                               {canOpenEvaluationForm && (
