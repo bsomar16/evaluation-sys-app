@@ -153,7 +153,9 @@ export default function Dashboard() {
 
   // Calculate employee performance by branch and department hierarchy
   const calculateEmployeePerformance = () => {
-    if (!selectedPeriod || allEvaluations.length === 0 || users.length === 0) return { top: [], worst: [] };
+    if (!selectedPeriod || allEvaluations.length === 0 || users.length === 0) {
+      return { top: [], worst: [] };
+    }
 
     // Calculate scores for all users
     let employeeScores: EmployeePerformance[] = users
@@ -181,13 +183,15 @@ export default function Dashboard() {
       employeeScores = employeeScores.filter(e => e.department_id === filterByDepartment);
     } else if (filterByBranch) {
       employeeScores = employeeScores.filter(e => e.branch_id === filterByBranch);
-    } else if (selectedBranch) {
-      // Auto-filter by carousel selected branch when no manual filter is applied
-      employeeScores = employeeScores.filter(e => e.branch_id === selectedBranch);
     }
+    // REMOVED: AUTO-FILTER BY SELECTEDBRANCH - it was breaking TOP/WORST display
+    // } else if (selectedBranch) {
+    //   employeeScores = employeeScores.filter(e => e.branch_id === selectedBranch);
+    // }
 
     // Filter employees with at least one evaluation and sort (only top 1)
     const withEvals = employeeScores.filter(e => e.eval_count > 0);
+    
     const topList = [...withEvals].sort((a, b) => b.avg_score - a.avg_score).slice(0, 1);
     const worstList = [...withEvals].sort((a, b) => a.avg_score - b.avg_score).slice(0, 1);
 
@@ -365,30 +369,54 @@ export default function Dashboard() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
+      console.log('🔄 Loading initial dashboard data...');
 
       // Load base data
       const { data: usersRaw } = await supabase.from('users').select('*');
+      console.log('👥 Users loaded:', usersRaw?.length ?? 0);
       const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
       setUsers(filteredUsers);
 
       const { data: evaluations } = await supabase.from('evaluations').select('*');
+      console.log('📊 Evaluations loaded:', evaluations?.length ?? 0);
       setAllEvaluations(evaluations || []);
 
       const { data: branchesData } = await supabase.from('branches').select('*');
+      console.log('🏢 Branches loaded:', branchesData?.length ?? 0);
       setBranches(branchesData || []);
 
       const { data: departmentsData } = await supabase.from('departments').select('*');
+      console.log('📋 Departments loaded:', departmentsData?.length ?? 0);
       setDepartments(departmentsData || []);
 
       const { data: rolesData } = await supabase.from('roles').select('*');
+      console.log('👔 Roles loaded:', rolesData?.length ?? 0);
       setRoles(rolesData || []);
 
       const { data: trainings } = await supabase.from('training_requests').select('*');
 
-      // Extract periods from evaluations (monthly format: YYYY-MM)
+      // Extract periods from evaluations
       const uniquePeriods = [...new Set((evaluations || []).map(e => e.period).filter(Boolean))];
-      const sortedPeriods = Array.from(uniquePeriods)
-        .sort((a, b) => new Date(b + '-01').getTime() - new Date(a + '-01').getTime()); // Most recent first
+      // Parse periods in "Q2 2026" or "2026-Q2" format and sort by actual date
+      const sortedPeriods = Array.from(uniquePeriods).sort((a, b) => {
+        // Extract year and quarter from "Q2 2026" format
+        const aMatch = a.match(/Q(\d+)\s(\d{4})/i);
+        const bMatch = b.match(/Q(\d+)\s(\d{4})/i);
+        
+        if (!aMatch || !bMatch) {
+          // Fallback: string comparison if format doesn't match
+          return b.localeCompare(a);
+        }
+        
+        const [, aQuarter, aYear] = aMatch;
+        const [, bQuarter, bYear] = bMatch;
+        const aDate = new Date(parseInt(aYear), (parseInt(aQuarter) - 1) * 3, 1);
+        const bDate = new Date(parseInt(bYear), (parseInt(bQuarter) - 1) * 3, 1);
+        
+        return bDate.getTime() - aDate.getTime(); // Most recent first
+      });
+      
+      console.log('📅 Periods extracted:', sortedPeriods);
       setPeriods(sortedPeriods);
       if (sortedPeriods.length > 0) {
         setSelectedPeriod(sortedPeriods[0]);
@@ -479,8 +507,11 @@ export default function Dashboard() {
       }));
       setRoleData(roleDataArray);
 
+      console.log('✅ Dashboard data loaded successfully');
+      console.log('📈 Stats:', { usersCount: filteredUsers.length, branchesCount: branchesData?.length, evalsCount: evaluations?.length, periods: sortedPeriods });
+
     } catch (error) {
-      console.error('Error loading initial data:', error);
+      console.error('❌ Error loading initial data:', error);
     } finally {
       setLoading(false);
     }
