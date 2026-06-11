@@ -84,6 +84,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
 
   useEffect(() => {
+    const handleOverlayEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: 'show' | 'hide'; token?: string; message?: string }>).detail;
+      if (!detail?.action) return;
+
+      if (detail.action === 'show') {
+        if (detail.message) setOverlayMessage(detail.message);
+        if (detail.token) {
+          setOverlayTokens((prev) => (prev.includes(detail.token!) ? prev : [...prev, detail.token!]));
+          const timeoutId = window.setTimeout(() => {
+            setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
+            overlayTimeoutsRef.current.delete(detail.token!);
+          }, 12000);
+          overlayTimeoutsRef.current.set(detail.token, timeoutId);
+        }
+        return;
+      }
+
+      if (detail.token) {
+        const timeoutId = overlayTimeoutsRef.current.get(detail.token);
+        if (timeoutId) {
+          window.clearTimeout(timeoutId);
+          overlayTimeoutsRef.current.delete(detail.token);
+        }
+        setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
+      } else {
+        overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+        overlayTimeoutsRef.current.clear();
+        setOverlayTokens([]);
+      }
+    };
+
+    window.addEventListener(APP_LOADING_EVENT, handleOverlayEvent);
+    return () => {
+      window.removeEventListener(APP_LOADING_EVENT, handleOverlayEvent);
+      overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      overlayTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
     const loadSessionAndNav = async () => {
       try {
         initialLoadTokenRef.current = showLoadingOverlay('Chargement...');
@@ -418,46 +458,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       clearOnlineBannerTimeout();
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleOverlayEvent = (event: Event) => {
-      const detail = (event as CustomEvent<{ action?: 'show' | 'hide'; token?: string; message?: string }>).detail;
-      if (!detail?.action) return;
-
-      if (detail.action === 'show') {
-        if (detail.message) setOverlayMessage(detail.message);
-        if (detail.token) {
-          setOverlayTokens((prev) => (prev.includes(detail.token!) ? prev : [...prev, detail.token!]));
-          const timeoutId = window.setTimeout(() => {
-            setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
-            overlayTimeoutsRef.current.delete(detail.token!);
-          }, 12000);
-          overlayTimeoutsRef.current.set(detail.token, timeoutId);
-        }
-        return;
-      }
-
-      if (detail.token) {
-        const timeoutId = overlayTimeoutsRef.current.get(detail.token);
-        if (timeoutId) {
-          window.clearTimeout(timeoutId);
-          overlayTimeoutsRef.current.delete(detail.token);
-        }
-        setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
-      } else {
-        overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-        overlayTimeoutsRef.current.clear();
-        setOverlayTokens([]);
-      }
-    };
-
-    window.addEventListener(APP_LOADING_EVENT, handleOverlayEvent);
-    return () => {
-      window.removeEventListener(APP_LOADING_EVENT, handleOverlayEvent);
-      overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      overlayTimeoutsRef.current.clear();
     };
   }, []);
 
