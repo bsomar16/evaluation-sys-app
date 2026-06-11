@@ -453,7 +453,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const timeoutId = window.setTimeout(() => {
             setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
             overlayTimeoutsRef.current.delete(detail.token!);
-          }, 12000);
+          }, 8000);
           overlayTimeoutsRef.current.set(detail.token, timeoutId);
         }
         return;
