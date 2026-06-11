@@ -96,14 +96,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isLoading && initialLoadTokenRef.current) {
       const token = initialLoadTokenRef.current;
-      // Clear timeout if exists
+      // Immediately remove from tokens (no wait)
+      setOverlayTokens((prev) => {
+        const filtered = prev.filter((t) => t !== token);
+        return filtered.length !== prev.length ? filtered : prev;
+      });
+      // Clear any timeout that might exist
       const timeoutId = overlayTimeoutsRef.current.get(token);
       if (timeoutId) {
         window.clearTimeout(timeoutId);
         overlayTimeoutsRef.current.delete(token);
       }
-      // Immediately remove from tokens
-      setOverlayTokens((prev) => prev.filter((t) => t !== token));
       initialLoadTokenRef.current = null;
     }
   }, [isLoading]);
