@@ -21,7 +21,7 @@ import {
 import type { RoleRecord } from '@/lib/role-tree';
 import LoadingOverlay from '@/components/ui/loading-overlay';
 import { APP_LOADING_EVENT } from '@/lib/loading-overlay';
-import { hideLoadingOverlay, showLoadingOverlay } from '@/lib/loading-overlay';
+import { APP_LOADING_EVENT } from '@/lib/loading-overlay';
 import {
   isEvaluationPeriodOpen,
   subscribeEvaluationPeriodChange,
@@ -82,23 +82,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
   const INITIAL_LOAD_TOKEN = 'app-initial-load';
+  const initialLoadHandledRef = useRef(false);
 
   // Show loading overlay on app startup
   useEffect(() => {
-    setOverlayTokens((prev) => {
-      if (!prev.includes(INITIAL_LOAD_TOKEN)) {
-        return [...prev, INITIAL_LOAD_TOKEN];
-      }
-      return prev;
-    });
-  }, []);
-
-  // Hide initial loading overlay when isLoading becomes false
-  useEffect(() => {
-    if (!isLoading) {
-      setOverlayTokens((prev) => prev.filter((t) => t !== INITIAL_LOAD_TOKEN));
+    if (!initialLoadHandledRef.current) {
+      initialLoadHandledRef.current = true;
+      setOverlayTokens((prev) => {
+        if (!prev.includes(INITIAL_LOAD_TOKEN)) {
+          return [...prev, INITIAL_LOAD_TOKEN];
+        }
+        return prev;
+      });
     }
-  }, [isLoading]);
+  }, []);
 
   useEffect(() => {
     const loadSessionAndNav = async () => {
@@ -435,7 +432,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const handleOverlayEvent = (event: Event) => {
-      const detail = (event as CustomEvent<{ action?: 'show' | 'hide'; token?: string; message?: string }>).detail;
+      const detail = (event as CustomEvent<{ action?: 'show' | 'hide' | 'remove-initial'; token?: string; message?: string }>).detail;
       if (!detail?.action) return;
 
       if (detail.action === 'show') {
@@ -448,6 +445,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           }, 8000);
           overlayTimeoutsRef.current.set(detail.token, timeoutId);
         }
+        return;
+      }
+
+      if (detail.action === 'remove-initial') {
+        setOverlayTokens((prev) => prev.filter((token) => token !== 'app-initial-load'));
         return;
       }
 
