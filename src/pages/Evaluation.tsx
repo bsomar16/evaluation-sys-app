@@ -94,6 +94,7 @@ export default function Evaluation() {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [branchFilter, setBranchFilter] = useState(FILTER_ALL);
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
+  const [statusFilter, setStatusFilter] = useState<EvaluationStatus | 'all'>('all');
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
@@ -151,9 +152,11 @@ export default function Evaluation() {
       const byBranch = branchFilter === FILTER_ALL || emp.branch_id === branchFilter;
       const byDepartment =
         departmentFilter === FILTER_ALL || emp.department_id === departmentFilter;
-      return byBranch && byDepartment;
+      const byStatus =
+        statusFilter === 'all' || statusByEmployee[emp.id] === statusFilter;
+      return byBranch && byDepartment && byStatus;
     });
-  }, [employees, branchFilter, departmentFilter]);
+  }, [employees, branchFilter, departmentFilter, statusFilter, statusByEmployee]);
 
   const pagination = usePagination(filteredEmployees, 10);
 
@@ -551,6 +554,22 @@ export default function Evaluation() {
                 </Select>
               </div>
               <div className="space-y-1">
+                <Label>Statut</Label>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as EvaluationStatus | 'all')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les statuts</SelectItem>
+                    <SelectItem value="pending">En attente</SelectItem>
+                    <SelectItem value="draft">Brouillon</SelectItem>
+                    <SelectItem value="submitted">Soumise</SelectItem>
+                    <SelectItem value="approved">Approuvée</SelectItem>
+                    <SelectItem value="rejected">Rejetée</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
                 <Label>Groupement</Label>
                 <Select
                   value={groupBy}
@@ -649,10 +668,15 @@ export default function Evaluation() {
                               )}
                             </TableCell>
                             <TableCell className="text-center">
-                              <span
-                                className={`inline-block h-2.5 w-2.5 rounded-full ${statusDotClass}`}
-                                title={status ? EVALUATION_STATUS_LABELS[status] : 'Aucun statut'}
-                              />
+                              <div className="inline-flex items-center justify-center gap-2">
+                                <span
+                                  className={`inline-block h-2.5 w-2.5 rounded-full ${statusDotClass}`}
+                                  title={status ? EVALUATION_STATUS_LABELS[status] : 'Aucun statut'}
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  {status ? EVALUATION_STATUS_LABELS[status] : '—'}
+                                </span>
+                              </div>
                             </TableCell>
                             <TableCell>
                               {canOpenEvaluationForm && (
