@@ -385,9 +385,10 @@ export default function Dashboard() {
 
       const { data: trainings } = await supabase.from('training_requests').select('*');
 
-      // Extract periods from evaluations
+      // Extract periods from evaluations (monthly format: YYYY-MM)
       const uniquePeriods = [...new Set((evaluations || []).map(e => e.period).filter(Boolean))];
-      const sortedPeriods = Array.from(uniquePeriods).sort().reverse(); // Most recent first
+      const sortedPeriods = Array.from(uniquePeriods)
+        .sort((a, b) => new Date(b + '-01').getTime() - new Date(a + '-01').getTime()); // Most recent first
       setPeriods(sortedPeriods);
       if (sortedPeriods.length > 0) {
         setSelectedPeriod(sortedPeriods[0]);
@@ -395,7 +396,7 @@ export default function Dashboard() {
 
       // Calculate stats
       const activeCount = filteredUsers.filter(u => u.is_active).length;
-      const completedEvals = evaluations?.filter(e => e.status === 'completed').length || 0;
+      const completedEvals = evaluations?.length || 0;
 
       setStats({
         totalUsers: filteredUsers.length,
@@ -573,7 +574,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         {/* Period Steps - With Arrow Format */}
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Période d'Évaluation</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">Période d'Évaluation (Mois)</h3>
           <div className="flex items-center gap-2 flex-wrap">
             {periods.length > 0 ? (
               periods.map((period, idx) => (
@@ -1131,7 +1132,7 @@ export default function Dashboard() {
 
             {/* Evaluations Details */}
             <div>
-              <h3 className="font-semibold text-sm mb-3">Détail des Évaluations (période: {selectedPeriod})</h3>
+              <h3 className="font-semibold text-sm mb-3">Détail des Évaluations Acceptées (Mois: {selectedPeriod})</h3>
               <div className="max-h-64 overflow-y-auto border border-border rounded-lg">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 sticky top-0">
