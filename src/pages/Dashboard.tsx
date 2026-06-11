@@ -157,9 +157,31 @@ export default function Dashboard() {
       return { top: [], worst: [] };
     }
 
-    // Calculate scores for all users
+    // Get accessible branch IDs for role-based filtering
+    const getAccessibleBranchIds = (): string[] => {
+      if (!branches.length) return [];
+      
+      const userRole = roles.find(r => r.id === currentUser?.role_id);
+      if (userRole?.name?.toLowerCase().includes('directeur')) {
+        return branches.map(b => b.id);
+      }
+      
+      if (currentUser?.branch_id) {
+        const userBranch = branches.find(b => b.id === currentUser.branch_id);
+        if (!userBranch) return [];
+        
+        const childBranchIds = userBranch.child_branches || [];
+        return [currentUser.branch_id, ...childBranchIds];
+      }
+      
+      return branches.map(b => b.id);
+    };
+
+    const accessibleBranchIds = getAccessibleBranchIds();
+
+    // Calculate scores for all users, applying role-based access filtering
     let employeeScores: EmployeePerformance[] = users
-      .filter(u => !u.archived_at && u.email)
+      .filter(u => !u.archived_at && u.email && accessibleBranchIds.includes(u.branch_id))
       .map(employee => {
         const evals = allEvaluations.filter(e => e.employee_email === employee.email && e.period === selectedPeriod && e.score !== null);
         const avgScore = evals.length > 0 ? evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length : 0;
@@ -178,16 +200,12 @@ export default function Dashboard() {
         };
       });
 
-    // Apply filters based on selection (with hierarchy: department > branch > selected carousel branch)
+    // Apply filters based on selection (with hierarchy: department > branch > manual filter)
     if (filterByDepartment) {
       employeeScores = employeeScores.filter(e => e.department_id === filterByDepartment);
     } else if (filterByBranch) {
       employeeScores = employeeScores.filter(e => e.branch_id === filterByBranch);
     }
-    // REMOVED: AUTO-FILTER BY SELECTEDBRANCH - it was breaking TOP/WORST display
-    // } else if (selectedBranch) {
-    //   employeeScores = employeeScores.filter(e => e.branch_id === selectedBranch);
-    // }
 
     // Filter employees with at least one evaluation and sort (only top 1)
     const withEvals = employeeScores.filter(e => e.eval_count > 0);
