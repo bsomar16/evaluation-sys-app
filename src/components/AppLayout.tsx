@@ -85,19 +85,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Show loading overlay on app startup
   useEffect(() => {
-    initialLoadTokenRef.current = showLoadingOverlay('Chargement en cours...');
-    return () => {
-      if (initialLoadTokenRef.current) {
-        hideLoadingOverlay(initialLoadTokenRef.current);
-        initialLoadTokenRef.current = null;
-      }
-    };
+    if (!initialLoadTokenRef.current) {
+      const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      initialLoadTokenRef.current = token;
+      setOverlayTokens((prev) => [...prev, token]);
+    }
   }, []);
 
   // Hide initial loading overlay when isLoading becomes false
   useEffect(() => {
     if (!isLoading && initialLoadTokenRef.current) {
-      hideLoadingOverlay(initialLoadTokenRef.current);
+      setOverlayTokens((prev) => prev.filter((token) => token !== initialLoadTokenRef.current));
       initialLoadTokenRef.current = null;
     }
   }, [isLoading]);
