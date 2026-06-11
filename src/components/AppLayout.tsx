@@ -85,7 +85,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const initialLoadHandledRef = useRef(false);
   const initialLoadTimeoutRef = useRef<number | null>(null);
 
-  // Show loading overlay on app startup
+  // Show loading overlay on app startup - REDEPLOYMENT FIX 2024
   useEffect(() => {
     // Mark window object to verify this code runs
     (window as any).appLayoutMounted = Date.now();
@@ -101,6 +101,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     });
     
     // Set timeout to auto-remove initial token after 15 seconds
+    // IMPORTANT: This MUST be outside the setState to ensure proper execution
     const timeoutId = window.setTimeout(() => {
       console.log('[DEBUG] Timeout fired - removing initial load token');
       (window as any).timeoutFired = Date.now();
