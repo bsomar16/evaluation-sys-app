@@ -483,12 +483,7 @@ export default function Evaluation() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
-        <Loader2 className="h-5 w-5 animate-spin" />
-        Chargement...
-      </div>
-    );
+    return null;
   }
 
   if (!selectedEmployeeId || !selectedEmployee) {
