@@ -72,7 +72,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [overlayTokens, setOverlayTokens] = useState<string[]>([]);
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
   const navTokenRef = useRef<string | null>(null);
-  const initialLoadTokenRef = useRef<string | null>(null);
+  const overlayTimeoutsRef = useRef<Map<string, number>>(new Map());
   const [connectionBanner, setConnectionBanner] = useState<ConnectionBannerState | null>(() => {
     if (typeof navigator === 'undefined') return null;
     return navigator.onLine ? null : 'offline';
@@ -81,37 +81,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [evaluationPeriodOpen, setEvaluationPeriodOpen] = useState(() => isEvaluationPeriodOpen());
   const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
+  const initialLoadTokenRef = useRef<string | null>(null);
 
+  // Show loading overlay on app startup
   useEffect(() => {
-    const handleOverlayEvent = (event: Event) => {
-      const detail = (event as CustomEvent<{ action?: 'show' | 'hide'; token?: string; message?: string }>).detail;
-      if (!detail?.action) return;
-
-      if (detail.action === 'show') {
-        if (detail.message) setOverlayMessage(detail.message);
-        if (detail.token) {
-          setOverlayTokens((prev) => (prev.includes(detail.token!) ? prev : [...prev, detail.token!]));
-        }
-        return;
-      }
-
-      if (detail.token) {
-        setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
-      } else {
-        setOverlayTokens([]);
-      }
-    };
-
-    window.addEventListener(APP_LOADING_EVENT, handleOverlayEvent);
+    initialLoadTokenRef.current = showLoadingOverlay('Chargement en cours...');
     return () => {
-      window.removeEventListener(APP_LOADING_EVENT, handleOverlayEvent);
+      if (initialLoadTokenRef.current) {
+        hideLoadingOverlay(initialLoadTokenRef.current);
+        initialLoadTokenRef.current = null;
+      }
     };
   }, []);
+
+  // Hide initial loading overlay when isLoading becomes false
+  useEffect(() => {
+    if (!isLoading && initialLoadTokenRef.current) {
+      hideLoadingOverlay(initialLoadTokenRef.current);
+      initialLoadTokenRef.current = null;
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     const loadSessionAndNav = async () => {
       try {
-        initialLoadTokenRef.current = showLoadingOverlay('Chargement...');
         const userData = localStorage.getItem("user");
         const userRole = localStorage.getItem("userRole");
         if (!userData) {
@@ -157,10 +150,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }
       } finally {
         setIsLoading(false);
-        if (initialLoadTokenRef.current) {
-          hideLoadingOverlay(initialLoadTokenRef.current);
-          initialLoadTokenRef.current = null;
-        }
       }
     };
 
@@ -290,7 +279,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           if (childUserIds.length > 0) {
             const { count: childCount, error: childError } = await supabase
               .from('evaluations')
-              .select('id', { count: 'exact' })
+              .select('id', { count: 'exact', head: true })
               .in('status', ['submitted', 'pending'])
               .in('evaluated_user_id', childUserIds);
 
@@ -304,7 +293,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       // Also get current user's pending evaluations
       const { count, error } = await supabase
         .from('evaluations')
-        .select('id', { count: 'exact' })
+        .select('id', { count: 'exact', head: true })
         .in('status', ['submitted', 'pending']);
 
       if (error) throw error;
@@ -359,7 +348,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     try {
       const { count: dbCount, error } = await supabase
         .from('training_requests')
-        .select('id', { count: 'exact' })
+        .select('id', { count: 'exact', head: true })
         .eq('status', 'pending');
 
       if (!error) count = dbCount ?? 0;
@@ -443,6 +432,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       clearOnlineBannerTimeout();
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleOverlayEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: 'show' | 'hide'; token?: string; message?: string }>).detail;
+      if (!detail?.action) return;
+
+      if (detail.action === 'show') {
+        if (detail.message) setOverlayMessage(detail.message);
+        if (detail.token) {
+          setOverlayTokens((prev) => (prev.includes(detail.token!) ? prev : [...prev, detail.token!]));
+          const timeoutId = window.setTimeout(() => {
+            setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
+            overlayTimeoutsRef.current.delete(detail.token!);
+          }, 12000);
+          overlayTimeoutsRef.current.set(detail.token, timeoutId);
+        }
+        return;
+      }
+
+      if (detail.token) {
+        const timeoutId = overlayTimeoutsRef.current.get(detail.token);
+        if (timeoutId) {
+          window.clearTimeout(timeoutId);
+          overlayTimeoutsRef.current.delete(detail.token);
+        }
+        setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
+      } else {
+        overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+        overlayTimeoutsRef.current.clear();
+        setOverlayTokens([]);
+      }
+    };
+
+    window.addEventListener(APP_LOADING_EVENT, handleOverlayEvent);
+    return () => {
+      window.removeEventListener(APP_LOADING_EVENT, handleOverlayEvent);
+      overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      overlayTimeoutsRef.current.clear();
     };
   }, []);
 
