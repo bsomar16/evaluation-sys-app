@@ -31,6 +31,8 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, ChevronRight, Loader2, Plus, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import {
   hasTrainingModuleAccess,
@@ -144,21 +146,13 @@ export default function Training() {
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+
+  const pagination = usePagination(requests, 10);
 
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId) ?? null;
   const selectedRequest =
     selectedRequestId != null ? requests.find((r) => r.id === selectedRequestId) ?? null : null;
   const formUnlocked = Boolean(selectedEmployeeId);
-
-  const paginatedRequests = useMemo(() => {
-    const startIdx = (currentPage - 1) * pageSize;
-    const endIdx = startIdx + pageSize;
-    return requests.slice(startIdx, endIdx);
-  }, [requests, currentPage, pageSize]);
-
-  const totalPages = Math.ceil(requests.length / pageSize);
 
   const loadEmployees = useCallback(async () => {
     setEmployeesLoading(true);
@@ -663,7 +657,7 @@ export default function Training() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedRequests.map((r) => (
+                {pagination.paginatedItems.map((r) => (
                   <TableRow
                     key={r.id}
                     className={
@@ -706,50 +700,16 @@ export default function Training() {
             </Table>
           )}
           {requests.length > 0 && (
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-4 px-4 border-t">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Lignes par page:</span>
-                  <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5</SelectItem>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {Math.min((currentPage - 1) * pageSize + 1, requests.length)}-{Math.min(currentPage * pageSize, requests.length)} de {requests.length}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="gap-1"
-                >
-                  ← Précédent
-                </Button>
-                <div className="text-sm text-muted-foreground">
-                  Page {currentPage} sur {totalPages}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="gap-1"
-                >
-                  Suivant →
-                </Button>
-              </div>
-            </div>
+            <PaginationControls
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              itemsPerPage={pagination.itemsPerPage}
+              totalItems={pagination.totalItems}
+              onPageChange={pagination.setCurrentPage}
+              onItemsPerPageChange={pagination.setItemsPerPage}
+              canGoPrev={pagination.canGoPrev}
+              canGoNext={pagination.canGoNext}
+            />
           )}
         </CardContent>
       </Card>

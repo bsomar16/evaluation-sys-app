@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Download, FileText, X } from 'lucide-react';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
 import { employees, months } from '@/data/mockData';
 
 function getTier(score: number) {
@@ -68,26 +70,18 @@ function EmployeeProfile({ employee, onClose }: { employee: typeof employees[0];
 export default function Employees() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   const filtered = employees.filter((e) =>
     e.name.toLowerCase().includes(search.toLowerCase()) ||
     e.branch.toLowerCase().includes(search.toLowerCase())
   );
 
-  const paginatedFiltered = useMemo(() => {
-    const startIdx = (currentPage - 1) * pageSize;
-    const endIdx = startIdx + pageSize;
-    return filtered.slice(startIdx, endIdx);
-  }, [filtered, currentPage, pageSize]);
-
-  const totalPages = Math.ceil(filtered.length / pageSize);
+  const pagination = usePagination(filtered, 10);
 
   // Reset pagination when search changes
   const handleSearch = (value: string) => {
     setSearch(value);
-    setCurrentPage(1);
+    pagination.setCurrentPage(1);
   };
 
   const selectedEmp = employees.find((e) => e.id === selectedId);
@@ -137,7 +131,7 @@ export default function Employees() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedFiltered.map((emp) => (
+              {pagination.paginatedItems.map((emp) => (
                 <TableRow key={emp.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedId(emp.id)}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -160,50 +154,16 @@ export default function Employees() {
       </Card>
 
       {filtered.length > 0 && (
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-4 px-4 border rounded-lg bg-muted/30">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Lignes par page:</span>
-              <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
-                <SelectTrigger className="w-20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <span className="text-sm text-muted-foreground">
-              {Math.min((currentPage - 1) * pageSize + 1, filtered.length)}-{Math.min(currentPage * pageSize, filtered.length)} de {filtered.length}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="gap-1"
-            >
-              ← Précédent
-            </Button>
-            <div className="text-sm text-muted-foreground">
-              Page {currentPage} sur {totalPages}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="gap-1"
-            >
-              Suivant →
-            </Button>
-          </div>
-        </div>
+        <PaginationControls
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          itemsPerPage={pagination.itemsPerPage}
+          totalItems={pagination.totalItems}
+          onPageChange={pagination.setCurrentPage}
+          onItemsPerPageChange={pagination.setItemsPerPage}
+          canGoPrev={pagination.canGoPrev}
+          canGoNext={pagination.canGoNext}
+        />
       )}
     </div>
   );

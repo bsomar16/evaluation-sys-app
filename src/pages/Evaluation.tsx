@@ -11,6 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { CheckCircle, ChevronRight, Loader2, Send, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import {
   EvaluationCriterionInputs,
@@ -93,8 +95,6 @@ export default function Evaluation() {
   const [branchFilter, setBranchFilter] = useState(FILTER_ALL);
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
@@ -155,6 +155,8 @@ export default function Evaluation() {
     });
   }, [employees, branchFilter, departmentFilter]);
 
+  const pagination = usePagination(filteredEmployees, 10);
+
   const groupedEmployees = useMemo(() => {
     if (groupBy === 'none') {
       return [{ key: 'all', label: null as string | null, employees: filteredEmployees }];
@@ -179,18 +181,12 @@ export default function Evaluation() {
       .sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '', 'fr'));
   }, [filteredEmployees, groupBy, departments]);
 
-  const paginatedFilteredEmployees = useMemo(() => {
-    const startIdx = (currentPage - 1) * pageSize;
-    const endIdx = startIdx + pageSize;
-    return filteredEmployees.slice(startIdx, endIdx);
-  }, [filteredEmployees, currentPage, pageSize]);
-
   const paginatedGroupedEmployees = useMemo(() => {
     if (groupBy === 'none') {
-      return [{ key: 'all', label: null as string | null, employees: paginatedFilteredEmployees }];
+      return [{ key: 'all', label: null as string | null, employees: pagination.paginatedItems }];
     }
     const groups = new Map<string, EmployeeForEvaluation[]>();
-    for (const emp of paginatedFilteredEmployees) {
+    for (const emp of pagination.paginatedItems) {
       const key =
         groupBy === 'branch'
           ? emp.branch_id ?? 'none'
@@ -207,13 +203,11 @@ export default function Evaluation() {
     return [...groups.entries()]
       .map(([key, emps]) => ({ key, label: toLabel(key), employees: emps }))
       .sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '', 'fr'));
-  }, [paginatedFilteredEmployees, groupBy, departments]);
-
-  const totalPages = Math.ceil(filteredEmployees.length / pageSize);
+  }, [pagination.paginatedItems, groupBy, departments]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [filteredEmployees, pageSize, groupBy]);
+    pagination.setCurrentPage(1);
+  }, [filteredEmployees, pagination.itemsPerPage, groupBy]);
 
   useEffect(() => {
     if (!canReadEvaluations) {
@@ -674,50 +668,16 @@ export default function Evaluation() {
               </TableBody>
             </Table>
             {filteredEmployees.length > 0 && (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-4 px-4 border-t">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Lignes par page:</span>
-                    <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
-                      <SelectTrigger className="w-20">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {Math.min((currentPage - 1) * pageSize + 1, filteredEmployees.length)}-{Math.min(currentPage * pageSize, filteredEmployees.length)} de {filteredEmployees.length}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="gap-1"
-                  >
-                    ← Précédent
-                  </Button>
-                  <div className="text-sm text-muted-foreground">
-                    Page {currentPage} sur {totalPages}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="gap-1"
-                  >
-                    Suivant →
-                  </Button>
-                </div>
-              </div>
+              <PaginationControls
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                itemsPerPage={pagination.itemsPerPage}
+                totalItems={pagination.totalItems}
+                onPageChange={pagination.setCurrentPage}
+                onItemsPerPageChange={pagination.setItemsPerPage}
+                canGoPrev={pagination.canGoPrev}
+                canGoNext={pagination.canGoNext}
+              />
             )}
           </CardContent>
         </Card>
