@@ -89,7 +89,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialLoadHandledRef.current) {
       initialLoadHandledRef.current = true;
-      console.log('[DEBUG] Initial load: setting overlay token');
+      const msg1 = '[DEBUG] Initial load: setting overlay token at ' + new Date().toISOString();
+      console.log(msg1);
+      localStorage.setItem('debug_log', (localStorage.getItem('debug_log') || '') + '\n' + msg1);
+      
       setOverlayTokens((prev) => {
         if (!prev.includes(INITIAL_LOAD_TOKEN)) {
           return [...prev, INITIAL_LOAD_TOKEN];
@@ -99,18 +102,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       
       // Set timeout to auto-remove initial token after 15 seconds
       const timeoutId = window.setTimeout(() => {
-        console.log('[DEBUG] Timeout fired - removing initial load token');
+        const msg2 = '[DEBUG] Timeout fired at ' + new Date().toISOString();
+        console.log(msg2);
+        localStorage.setItem('debug_log', (localStorage.getItem('debug_log') || '') + '\n' + msg2);
+        
         setOverlayTokens((current) => {
-          console.log('[DEBUG] Current tokens before filter:', current);
+          const msg3 = '[DEBUG] Removing token. Current: ' + JSON.stringify(current);
+          console.log(msg3);
+          localStorage.setItem('debug_log', (localStorage.getItem('debug_log') || '') + '\n' + msg3);
           const filtered = current.filter((t) => t !== INITIAL_LOAD_TOKEN);
-          console.log('[DEBUG] Tokens after filter:', filtered);
           return filtered;
         });
         overlayTimeoutsRef.current.delete(INITIAL_LOAD_TOKEN);
       }, 15000);
+      
+      const msg4 = '[DEBUG] Timeout set with ID ' + timeoutId + ' at ' + new Date().toISOString();
+      console.log(msg4);
+      localStorage.setItem('debug_log', (localStorage.getItem('debug_log') || '') + '\n' + msg4);
+      
       initialLoadTimeoutRef.current = timeoutId;
       overlayTimeoutsRef.current.set(INITIAL_LOAD_TOKEN, timeoutId);
-      console.log('[DEBUG] Timeout set with ID:', timeoutId);
     }
   }, []);
 
