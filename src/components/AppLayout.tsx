@@ -305,7 +305,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           if (childUserIds.length > 0) {
             const { count: childCount, error: childError } = await supabase
               .from('evaluations')
-              .select('id', { count: 'exact', head: true })
+              .select('id', { count: 'exact' })
               .in('status', ['submitted', 'pending'])
               .in('evaluated_user_id', childUserIds);
 
@@ -319,7 +319,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       // Also get current user's pending evaluations
       const { count, error } = await supabase
         .from('evaluations')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .in('status', ['submitted', 'pending']);
 
       if (error) throw error;
@@ -374,7 +374,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     try {
       const { count: dbCount, error } = await supabase
         .from('training_requests')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .eq('status', 'pending');
 
       if (!error) count = dbCount ?? 0;
