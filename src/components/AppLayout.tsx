@@ -86,7 +86,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Show loading overlay on app startup
   useEffect(() => {
     if (!initialLoadTokenRef.current) {
-      const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const token = `app-initial-load-${Date.now()}`;
       initialLoadTokenRef.current = token;
       setOverlayTokens((prev) => [...prev, token]);
     }
@@ -95,7 +95,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Hide initial loading overlay when isLoading becomes false
   useEffect(() => {
     if (!isLoading && initialLoadTokenRef.current) {
-      setOverlayTokens((prev) => prev.filter((token) => token !== initialLoadTokenRef.current));
+      const token = initialLoadTokenRef.current;
+      // Clear timeout if exists
+      const timeoutId = overlayTimeoutsRef.current.get(token);
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+        overlayTimeoutsRef.current.delete(token);
+      }
+      // Immediately remove from tokens
+      setOverlayTokens((prev) => prev.filter((t) => t !== token));
       initialLoadTokenRef.current = null;
     }
   }, [isLoading]);
