@@ -93,6 +93,9 @@ export default function Evaluation() {
   const [branchFilter, setBranchFilter] = useState(FILTER_ALL);
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
 
@@ -176,6 +179,42 @@ export default function Evaluation() {
       .sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '', 'fr'));
   }, [filteredEmployees, groupBy, departments]);
 
+  const paginatedFilteredEmployees = useMemo(() => {
+    const startIdx = (currentPage - 1) * pageSize;
+    const endIdx = startIdx + pageSize;
+    return filteredEmployees.slice(startIdx, endIdx);
+  }, [filteredEmployees, currentPage, pageSize]);
+
+  const paginatedGroupedEmployees = useMemo(() => {
+    if (groupBy === 'none') {
+      return [{ key: 'all', label: null as string | null, employees: paginatedFilteredEmployees }];
+    }
+    const groups = new Map<string, EmployeeForEvaluation[]>();
+    for (const emp of paginatedFilteredEmployees) {
+      const key =
+        groupBy === 'branch'
+          ? emp.branch_id ?? 'none'
+          : emp.department_id ?? 'none';
+      const list = groups.get(key) ?? [];
+      list.push(emp);
+      groups.set(key, list);
+    }
+    const toLabel = (key: string) => {
+      if (key === 'none') return groupBy === 'branch' ? 'Sans filiale' : 'Sans service';
+      if (groupBy === 'branch') return groups.get(key)?.[0]?.branch_name ?? '—';
+      return departmentName(key) ?? '—';
+    };
+    return [...groups.entries()]
+      .map(([key, emps]) => ({ key, label: toLabel(key), employees: emps }))
+      .sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '', 'fr'));
+  }, [paginatedFilteredEmployees, groupBy, departments]);
+
+  const totalPages = Math.ceil(filteredEmployees.length / pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filteredEmployees, pageSize, groupBy]);
+
   useEffect(() => {
     if (!canReadEvaluations) {
       setLoading(false);
@@ -202,6 +241,14 @@ export default function Evaluation() {
           setRules(calcRules);
           setRoles(rolesRes.data ?? []);
           setDepartments(deptsRes.data ?? []);
+          
+          // Extract available periods from evaluations
+          const periods = new Set<string>();
+          const evaluations = (await supabase.from('evaluations').select('period')).data || [];
+          evaluations.forEach(e => {
+            if (e.period) periods.add(e.period);
+          });
+          setAvailablePeriods(Array.from(periods).sort().reverse());
 
           const scoreMap: Record<string, number | null> = {};
           const statusMap: Record<string, EvaluationStatus | null> = {};
@@ -457,7 +504,26 @@ export default function Evaluation() {
 
         <Card>
           <CardContent className="p-0 space-y-3">
-            <div className="grid gap-3 p-4 sm:grid-cols-3">
+            <div className="grid gap-3 p-4 sm:grid-cols-4">
+              <div className="space-y-1">
+                <Label>Période</Label>
+                <Select value={period} onValueChange={setPeriod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePeriods.length === 0 ? (
+                      <SelectItem value={period}>{period}</SelectItem>
+                    ) : (
+                      availablePeriods.map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {p}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1">
                 <Label>Filiale</Label>
                 <Select value={branchFilter} onValueChange={setBranchFilter}>
@@ -526,8 +592,20 @@ export default function Evaluation() {
                       Aucun employé pour ce filtre
                     </TableCell>
                   </TableRow>
+                ) : paginatedGroupedEmployees.length === 0 && groupedEmployees.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      Aucun employé pour ce filtre
+                    </TableCell>
+                  </TableRow>
+                ) : paginatedGroupedEmployees.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      Aucun employé pour cette page
+                    </TableCell>
+                  </TableRow>
                 ) : (
-                  groupedEmployees.map((group) => (
+                  paginatedGroupedEmployees.map((group) => (
                     <Fragment key={`group-block-${group.key}`}>
                       {group.label && (
                         <TableRow className="bg-muted/30">
@@ -595,6 +673,52 @@ export default function Evaluation() {
                 )}
               </TableBody>
             </Table>
+            {filteredEmployees.length > 0 && (
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-4 px-4 border-t">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Lignes par page:</span>
+                    <Select value={pageSize.toString()} onValueChange={(v) => setPageSize(Number(v))}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {Math.min((currentPage - 1) * pageSize + 1, filteredEmployees.length)}-{Math.min(currentPage * pageSize, filteredEmployees.length)} de {filteredEmployees.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="gap-1"
+                  >
+                    ← Précédent
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} sur {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="gap-1"
+                  >
+                    Suivant →
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
         {!isPeriodOpen && (
@@ -662,12 +786,22 @@ export default function Evaluation() {
 
       <div className="space-y-2">
         <Label htmlFor="evaluation-period">Période d&apos;évaluation (campagne)</Label>
-        <Input
-          id="evaluation-period"
-          readOnly
-          value={period}
-          className="border-2 border-blue-300 bg-muted/40 max-w-xs cursor-default"
-        />
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="max-w-xs border-2 border-blue-300">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availablePeriods.length === 0 ? (
+              <SelectItem value={period}>{period}</SelectItem>
+            ) : (
+              availablePeriods.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
         <p className="text-xs text-muted-foreground leading-relaxed">
           <span className="font-medium">{period}</span>
           {periodDescription ? (
