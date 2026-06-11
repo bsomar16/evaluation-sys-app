@@ -87,42 +87,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Show loading overlay on app startup
   useEffect(() => {
-    if (!initialLoadHandledRef.current) {
-      initialLoadHandledRef.current = true;
-      const msg1 = '[DEBUG] Initial load: setting overlay token at ' + new Date().toISOString();
-      console.log(msg1);
-      localStorage.setItem('debug_log', (localStorage.getItem('debug_log') || '') + '\n' + msg1);
-      
-      setOverlayTokens((prev) => {
-        if (!prev.includes(INITIAL_LOAD_TOKEN)) {
-          return [...prev, INITIAL_LOAD_TOKEN];
-        }
-        return prev;
+    // Add initial load token if not already present
+    setOverlayTokens((prev) => {
+      if (!prev.includes(INITIAL_LOAD_TOKEN)) {
+        console.log('[DEBUG] Adding initial load token');
+        window.localStorage.setItem('debug_msg', 'Initial token added');
+        return [...prev, INITIAL_LOAD_TOKEN];
+      }
+      return prev;
+    });
+    
+    // Set timeout to auto-remove initial token after 15 seconds
+    const timeoutId = window.setTimeout(() => {
+      console.log('[DEBUG] Timeout fired - removing initial load token');
+      window.localStorage.setItem('debug_msg', 'Timeout fired and removing token');
+      setOverlayTokens((current) => {
+        console.log('[DEBUG] Before filter:', current);
+        const filtered = current.filter((t) => t !== INITIAL_LOAD_TOKEN);
+        console.log('[DEBUG] After filter:', filtered);
+        window.localStorage.setItem('debug_msg', 'Token removed. New tokens: ' + JSON.stringify(filtered));
+        return filtered;
       });
-      
-      // Set timeout to auto-remove initial token after 15 seconds
-      const timeoutId = window.setTimeout(() => {
-        const msg2 = '[DEBUG] Timeout fired at ' + new Date().toISOString();
-        console.log(msg2);
-        localStorage.setItem('debug_log', (localStorage.getItem('debug_log') || '') + '\n' + msg2);
-        
-        setOverlayTokens((current) => {
-          const msg3 = '[DEBUG] Removing token. Current: ' + JSON.stringify(current);
-          console.log(msg3);
-          localStorage.setItem('debug_log', (localStorage.getItem('debug_log') || '') + '\n' + msg3);
-          const filtered = current.filter((t) => t !== INITIAL_LOAD_TOKEN);
-          return filtered;
-        });
-        overlayTimeoutsRef.current.delete(INITIAL_LOAD_TOKEN);
-      }, 15000);
-      
-      const msg4 = '[DEBUG] Timeout set with ID ' + timeoutId + ' at ' + new Date().toISOString();
-      console.log(msg4);
-      localStorage.setItem('debug_log', (localStorage.getItem('debug_log') || '') + '\n' + msg4);
-      
-      initialLoadTimeoutRef.current = timeoutId;
-      overlayTimeoutsRef.current.set(INITIAL_LOAD_TOKEN, timeoutId);
-    }
+      overlayTimeoutsRef.current.delete(INITIAL_LOAD_TOKEN);
+    }, 15000);
+    
+    console.log('[DEBUG] Initial load effect: timeout set with ID', timeoutId);
+    window.localStorage.setItem('debug_msg', 'Timeout set: ' + timeoutId);
+    
+    initialLoadTimeoutRef.current = timeoutId;
+    overlayTimeoutsRef.current.set(INITIAL_LOAD_TOKEN, timeoutId);
+    
+    return () => {
+      console.log('[DEBUG] Cleaning up timeout');
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   useEffect(() => {
