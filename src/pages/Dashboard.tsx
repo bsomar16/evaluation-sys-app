@@ -186,10 +186,10 @@ export default function Dashboard() {
       employeeScores = employeeScores.filter(e => e.branch_id === selectedBranch);
     }
 
-    // Filter employees with at least one evaluation and sort
+    // Filter employees with at least one evaluation and sort (only top 1)
     const withEvals = employeeScores.filter(e => e.eval_count > 0);
-    const topList = [...withEvals].sort((a, b) => b.avg_score - a.avg_score).slice(0, 20);
-    const worstList = [...withEvals].sort((a, b) => a.avg_score - b.avg_score).slice(0, 20);
+    const topList = [...withEvals].sort((a, b) => b.avg_score - a.avg_score).slice(0, 1);
+    const worstList = [...withEvals].sort((a, b) => a.avg_score - b.avg_score).slice(0, 1);
 
     // Build hierarchical structures
     const buildHierarchy = (employees: EmployeePerformance[]): BranchHierarchy[] => {
@@ -407,18 +407,25 @@ export default function Dashboard() {
         totalTrainings: trainings?.length || 0,
       });
 
-      // Calculate evaluation statuses for charts
-      const statusMap = new Map<string, number>();
-      evaluations?.forEach(e => {
-        const count = (statusMap.get(e.status) || 0) + 1;
-        statusMap.set(e.status, count);
-      });
-
-      const evalStatusArray = Array.from(statusMap).map((s) => ({
-        status: s[0],
-        count: s[1],
-        color: s[0] === 'completed' ? 'hsl(var(--primary))' : s[0] === 'pending' ? 'hsl(var(--chart-2))' : 'hsl(var(--muted))',
-      }));
+      // Calculate evaluation statuses for charts - count completed evaluations
+      const completedCount = evaluations?.filter(e => e.status === 'completed').length || 0;
+      const pendingCount = evaluations?.filter(e => e.status === 'pending').length || 0;
+      
+      const evalStatusArray = [];
+      if (completedCount > 0) {
+        evalStatusArray.push({
+          status: 'completed',
+          count: completedCount,
+          color: 'hsl(var(--primary))',
+        });
+      }
+      if (pendingCount > 0) {
+        evalStatusArray.push({
+          status: 'pending',
+          count: pendingCount,
+          color: 'hsl(var(--chart-2))',
+        });
+      }
       setEvaluationStatus(evalStatusArray);
 
       // Calculate training statuses for charts
