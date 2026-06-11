@@ -73,7 +73,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
   const navTokenRef = useRef<string | null>(null);
   const initialLoadTokenRef = useRef<string | null>(null);
-  const overlayTimeoutsRef = useRef<Map<string, number>>(new Map());
   const [connectionBanner, setConnectionBanner] = useState<ConnectionBannerState | null>(() => {
     if (typeof navigator === 'undefined') return null;
     return navigator.onLine ? null : 'offline';
@@ -92,25 +91,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         if (detail.message) setOverlayMessage(detail.message);
         if (detail.token) {
           setOverlayTokens((prev) => (prev.includes(detail.token!) ? prev : [...prev, detail.token!]));
-          const timeoutId = window.setTimeout(() => {
-            setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
-            overlayTimeoutsRef.current.delete(detail.token!);
-          }, 12000);
-          overlayTimeoutsRef.current.set(detail.token, timeoutId);
         }
         return;
       }
 
       if (detail.token) {
-        const timeoutId = overlayTimeoutsRef.current.get(detail.token);
-        if (timeoutId) {
-          window.clearTimeout(timeoutId);
-          overlayTimeoutsRef.current.delete(detail.token);
-        }
         setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
       } else {
-        overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-        overlayTimeoutsRef.current.clear();
         setOverlayTokens([]);
       }
     };
@@ -118,8 +105,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     window.addEventListener(APP_LOADING_EVENT, handleOverlayEvent);
     return () => {
       window.removeEventListener(APP_LOADING_EVENT, handleOverlayEvent);
-      overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      overlayTimeoutsRef.current.clear();
     };
   }, []);
 

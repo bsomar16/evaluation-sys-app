@@ -55,15 +55,6 @@ import { getSessionUser } from '@/lib/session-user';
 import { supabase } from '@/integrations/supabase/client';
 import { runWithLoadingOverlay } from '@/lib/loading-overlay';
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-    }),
-  ]);
-}
-
 export default function Evaluation() {
   const FILTER_ALL = '__all__';
   const { toast } = useToast();
@@ -230,17 +221,13 @@ export default function Evaluation() {
       try {
         await runWithLoadingOverlay(async () => {
           const currentPeriod = getCurrentEvaluationPeriodCode();
-          const [emps, crit, calcRules, rolesRes, deptsRes] = await withTimeout(
-            Promise.all([
-              fetchEmployeesForEvaluation(),
-              fetchEvaluationCriteria(),
-              fetchCalculationRules(),
-              supabase.from('roles').select('id, name'),
-              supabase.from('departments').select('id, name'),
-            ]),
-            10000,
-            'Délai dépassé pendant le chargement des données.'
-          );
+          const [emps, crit, calcRules, rolesRes, deptsRes] = await Promise.all([
+            fetchEmployeesForEvaluation(),
+            fetchEvaluationCriteria(),
+            fetchCalculationRules(),
+            supabase.from('roles').select('id, name'),
+            supabase.from('departments').select('id, name'),
+          ]);
 
           setEmployees(emps);
           setCriteria(crit.filter((c) => c.is_active !== false));
@@ -248,25 +235,20 @@ export default function Evaluation() {
           setRoles(rolesRes.data ?? []);
           setDepartments(deptsRes.data ?? []);
           
-          // Extract available periods from evaluations
           const periods = new Set<string>();
           const evaluations = (await supabase.from('evaluations').select('period')).data || [];
-          evaluations.forEach(e => {
+          evaluations.forEach((e) => {
             if (e.period) periods.add(e.period);
           });
           setAvailablePeriods(Array.from(periods).sort().reverse());
 
           const scoreMap: Record<string, number | null> = {};
           const statusMap: Record<string, EvaluationStatus | null> = {};
-          await withTimeout(
-            Promise.all(
-              emps.map(async (emp) => {
-                scoreMap[emp.id] = await getEvaluationScoreForEmployeePeriod(emp.id, currentPeriod);
-                statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
-              })
-            ),
-            10000,
-            'Délai dépassé pendant le chargement des scores.'
+          await Promise.all(
+            emps.map(async (emp) => {
+              scoreMap[emp.id] = await getEvaluationScoreForEmployeePeriod(emp.id, currentPeriod);
+              statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
+            })
           );
           setScoresByEmployee(scoreMap);
           setStatusByEmployee(statusMap);
@@ -483,7 +465,15 @@ export default function Evaluation() {
   }
 
   if (loading) {
-    return null;
+    return (
+      <div className="min-h-[60vh] p-4">
+        <div className="space-y-4 animate-pulse">
+          <div className="h-8 w-1/3 rounded-md bg-muted" />
+          <div className="h-6 w-1/2 rounded-md bg-muted" />
+          <div className="h-72 rounded-lg bg-muted/70" />
+        </div>
+      </div>
+    );
   }
 
   if (!selectedEmployeeId || !selectedEmployee) {
