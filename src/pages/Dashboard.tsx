@@ -176,11 +176,14 @@ export default function Dashboard() {
         };
       });
 
-    // Apply filters based on selection
+    // Apply filters based on selection (with hierarchy: department > branch > selected carousel branch)
     if (filterByDepartment) {
       employeeScores = employeeScores.filter(e => e.department_id === filterByDepartment);
     } else if (filterByBranch) {
       employeeScores = employeeScores.filter(e => e.branch_id === filterByBranch);
+    } else if (selectedBranch) {
+      // Auto-filter by carousel selected branch when no manual filter is applied
+      employeeScores = employeeScores.filter(e => e.branch_id === selectedBranch);
     }
 
     // Filter employees with at least one evaluation and sort
@@ -263,7 +266,7 @@ export default function Dashboard() {
     const { top, worst } = calculateEmployeePerformance();
     setTopEmployees(top);
     setWorstEmployees(worst);
-  }, [selectedPeriod, filterByBranch, filterByDepartment, allEvaluations, users, branches, departments, roles]);
+  }, [selectedPeriod, selectedBranch, filterByBranch, filterByDepartment, allEvaluations, users, branches, departments, roles]);
 
   const accessibleBranches = getAccessibleBranches();
   const accessibleDepartments = getAccessibleDepartments();
