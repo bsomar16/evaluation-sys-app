@@ -89,6 +89,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialLoadHandledRef.current) {
       initialLoadHandledRef.current = true;
+      console.log('[DEBUG] Initial load: setting overlay token');
       setOverlayTokens((prev) => {
         if (!prev.includes(INITIAL_LOAD_TOKEN)) {
           return [...prev, INITIAL_LOAD_TOKEN];
@@ -98,11 +99,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       
       // Set timeout to auto-remove initial token after 15 seconds
       const timeoutId = window.setTimeout(() => {
-        setOverlayTokens((current) => current.filter((t) => t !== INITIAL_LOAD_TOKEN));
+        console.log('[DEBUG] Timeout fired - removing initial load token');
+        setOverlayTokens((current) => {
+          console.log('[DEBUG] Current tokens before filter:', current);
+          const filtered = current.filter((t) => t !== INITIAL_LOAD_TOKEN);
+          console.log('[DEBUG] Tokens after filter:', filtered);
+          return filtered;
+        });
         overlayTimeoutsRef.current.delete(INITIAL_LOAD_TOKEN);
       }, 15000);
       initialLoadTimeoutRef.current = timeoutId;
       overlayTimeoutsRef.current.set(INITIAL_LOAD_TOKEN, timeoutId);
+      console.log('[DEBUG] Timeout set with ID:', timeoutId);
     }
   }, []);
 
