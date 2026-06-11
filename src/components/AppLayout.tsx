@@ -81,33 +81,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [evaluationPeriodOpen, setEvaluationPeriodOpen] = useState(() => isEvaluationPeriodOpen());
   const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
-  const initialLoadTokenRef = useRef<string | null>(null);
+  const INITIAL_LOAD_TOKEN = 'app-initial-load';
 
   // Show loading overlay on app startup
   useEffect(() => {
-    if (!initialLoadTokenRef.current) {
-      const token = `app-initial-load-${Date.now()}`;
-      initialLoadTokenRef.current = token;
-      setOverlayTokens((prev) => [...prev, token]);
-    }
+    setOverlayTokens((prev) => {
+      if (!prev.includes(INITIAL_LOAD_TOKEN)) {
+        return [...prev, INITIAL_LOAD_TOKEN];
+      }
+      return prev;
+    });
   }, []);
 
   // Hide initial loading overlay when isLoading becomes false
   useEffect(() => {
-    if (!isLoading && initialLoadTokenRef.current) {
-      const token = initialLoadTokenRef.current;
-      // Immediately remove from tokens (no wait)
-      setOverlayTokens((prev) => {
-        const filtered = prev.filter((t) => t !== token);
-        return filtered.length !== prev.length ? filtered : prev;
-      });
-      // Clear any timeout that might exist
-      const timeoutId = overlayTimeoutsRef.current.get(token);
-      if (timeoutId) {
-        window.clearTimeout(timeoutId);
-        overlayTimeoutsRef.current.delete(token);
-      }
-      initialLoadTokenRef.current = null;
+    if (!isLoading) {
+      setOverlayTokens((prev) => prev.filter((t) => t !== INITIAL_LOAD_TOKEN));
     }
   }, [isLoading]);
 
