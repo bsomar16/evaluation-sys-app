@@ -85,18 +85,28 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Show loading overlay on app startup
   useEffect(() => {
+    console.log('🟢 MOUNT: Adding initial load token');
     setOverlayTokens((prev) => {
       if (!prev.includes(INITIAL_LOAD_TOKEN)) {
+        console.log('🟢 MOUNT: Token added to overlay array');
         return [...prev, INITIAL_LOAD_TOKEN];
       }
+      console.log('🟢 MOUNT: Token already exists');
       return prev;
     });
   }, []);
 
   // Hide initial loading overlay when isLoading becomes false
   useEffect(() => {
+    console.log('📍 isLoading changed to:', isLoading);
     if (!isLoading) {
-      setOverlayTokens((prev) => prev.filter((t) => t !== INITIAL_LOAD_TOKEN));
+      console.log('🔴 UNLOAD: Removing initial load token from overlay');
+      setOverlayTokens((prev) => {
+        console.log('🔴 UNLOAD: Current tokens before filter:', prev);
+        const filtered = prev.filter((t) => t !== INITIAL_LOAD_TOKEN);
+        console.log('🔴 UNLOAD: Tokens after filter:', filtered);
+        return filtered;
+      });
     }
   }, [isLoading]);
 
