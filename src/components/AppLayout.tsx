@@ -83,6 +83,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
   const INITIAL_LOAD_TOKEN = 'app-initial-load';
   const initialLoadHandledRef = useRef(false);
+  const initialLoadTimeoutRef = useRef<number | null>(null);
 
   // Show loading overlay on app startup
   useEffect(() => {
@@ -90,6 +91,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       initialLoadHandledRef.current = true;
       setOverlayTokens((prev) => {
         if (!prev.includes(INITIAL_LOAD_TOKEN)) {
+          // Set timeout to auto-remove initial token after 15 seconds
+          const timeoutId = window.setTimeout(() => {
+            setOverlayTokens((current) => current.filter((t) => t !== INITIAL_LOAD_TOKEN));
+            overlayTimeoutsRef.current.delete(INITIAL_LOAD_TOKEN);
+          }, 15000);
+          initialLoadTimeoutRef.current = timeoutId;
+          overlayTimeoutsRef.current.set(INITIAL_LOAD_TOKEN, timeoutId);
           return [...prev, INITIAL_LOAD_TOKEN];
         }
         return prev;
