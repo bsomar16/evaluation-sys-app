@@ -327,10 +327,10 @@ export default function Dashboard() {
   };
 
   const handleEvaluationStatusClick = (data: any) => {
-    // Map status to filter types for Evaluation page
+    // Get the status from various possible data structures
     let statusFilter = '';
     if (data.dataKey === 'status') {
-      statusFilter = data.name; // 'submitted', 'approved', or 'pending'
+      statusFilter = data.name;
     } else if (data.payload?.status) {
       statusFilter = data.payload.status;
     } else if (data.name) {
@@ -338,14 +338,8 @@ export default function Dashboard() {
     }
 
     if (statusFilter) {
-      // Handle pending status to include draft and rejected
-      if (statusFilter === 'pending') {
-        navigate('/evaluation', { state: { filterByStatus: ['pending', 'draft', 'rejected'] } });
-      } else if (statusFilter === 'approved') {
-        navigate('/evaluation', { state: { filterByStatus: ['approved', 'completed'] } });
-      } else {
-        navigate('/evaluation', { state: { filterByStatus: [statusFilter] } });
-      }
+      // Navigate to evaluation page with the selected status filter
+      navigate('/evaluation', { state: { filterByStatus: [statusFilter] } });
     }
   };
 
@@ -442,32 +436,39 @@ export default function Dashboard() {
     
     const filteredEvals = getFilteredEvaluationsForPeriod();
     
-    const submittedCount = filteredEvals.filter(e => e.status === 'submitted').length;
-    const approvedCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
-    const pendingCount = filteredEvals.filter(e => e.status === 'pending' || e.status === 'draft' || e.status === 'rejected').length;
+    // Count each distinct status
+    const statusMap = new Map<string, number>();
+    filteredEvals.forEach(e => {
+      const status = e.status || 'pending';
+      statusMap.set(status, (statusMap.get(status) || 0) + 1);
+    });
     
-    const evalStatusArray = [];
-    if (submittedCount > 0) {
-      evalStatusArray.push({
-        status: 'submitted',
-        count: submittedCount,
-        color: '#f59e0b', // amber
-      });
-    }
-    if (approvedCount > 0) {
-      evalStatusArray.push({
-        status: 'approved',
-        count: approvedCount,
-        color: '#10b981', // emerald
-      });
-    }
-    if (pendingCount > 0) {
-      evalStatusArray.push({
-        status: 'pending',
-        count: pendingCount,
-        color: '#ef4444', // red
-      });
-    }
+    // Define colors for each status
+    const statusColors: Record<string, string> = {
+      'pending': '#94a3b8', // slate
+      'draft': '#f59e0b', // amber
+      'submitted': '#f59e0b', // amber
+      'approved': '#10b981', // emerald
+      'completed': '#10b981', // emerald
+      'rejected': '#ef4444', // red
+    };
+    
+    // Define labels for each status
+    const statusLabels: Record<string, string> = {
+      'pending': 'En attente',
+      'draft': 'Brouillon',
+      'submitted': 'Soumise',
+      'approved': 'Approuvée',
+      'completed': 'Complétée',
+      'rejected': 'Rejetée',
+    };
+    
+    // Build array with all statuses that have counts
+    const evalStatusArray = Array.from(statusMap.entries()).map(([status, count]) => ({
+      status,
+      count,
+      color: statusColors[status] || '#6b7280',
+    }));
     
     setEvaluationStatus(evalStatusArray);
   }, [selectedPeriod, allEvaluations, branches, currentUser, roles, users]);
@@ -986,11 +987,14 @@ export default function Dashboard() {
                     outerRadius={100} 
                     paddingAngle={3} 
                     dataKey="count" 
-                    label={({ status, count, percent }) => {
+                    label={({ status, count }) => {
                       const labels: Record<string, string> = {
-                        submitted: 'Soumises',
-                        approved: 'Approuvées',
-                        pending: 'En attente'
+                        pending: 'En attente',
+                        draft: 'Brouillon',
+                        submitted: 'Soumise',
+                        approved: 'Approuvée',
+                        completed: 'Complétée',
+                        rejected: 'Rejetée',
                       };
                       return `${count} ${labels[status] || status}`;
                     }}
@@ -1001,20 +1005,17 @@ export default function Dashboard() {
                   </Pie>
                   <Tooltip 
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} 
-                    formatter={(value: any, name: any, props: any) => {
-                      const labels: Record<string, string> = {
-                        submitted: 'Soumises',
-                        approved: 'Approuvées',
-                        pending: 'En attente'
-                      };
-                      const status = props.payload.status;
+                    formatter={(value: any) => {
                       return `${value} évaluation${value > 1 ? 's' : ''}`;
                     }}
                     labelFormatter={(label) => {
                       const labels: Record<string, string> = {
-                        submitted: 'Soumises',
-                        approved: 'Approuvées',
-                        pending: 'En attente'
+                        pending: 'En attente',
+                        draft: 'Brouillon',
+                        submitted: 'Soumise',
+                        approved: 'Approuvée',
+                        completed: 'Complétée',
+                        rejected: 'Rejetée',
                       };
                       return labels[label] || label;
                     }}
@@ -1024,9 +1025,12 @@ export default function Dashboard() {
                     onClick={(e) => handleEvaluationStatusClick(e)}
                     formatter={(value) => {
                       const labels: Record<string, string> = {
-                        submitted: 'Soumises',
-                        approved: 'Approuvées',
-                        pending: 'En attente'
+                        pending: 'En attente',
+                        draft: 'Brouillon',
+                        submitted: 'Soumise',
+                        approved: 'Approuvée',
+                        completed: 'Complétée',
+                        rejected: 'Rejetée',
                       };
                       return labels[value] || value;
                     }}
