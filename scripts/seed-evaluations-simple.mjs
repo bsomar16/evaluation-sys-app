@@ -9,13 +9,27 @@ async function seedTestData() {
   console.log('🌱 Seeding test evaluation data...');
 
   try {
-    // First, create test users if they don't exist
+    // First, get a branch to assign employees to
+    const { data: branches, error: branchError } = await supabase
+      .from('branches')
+      .select('id, name')
+      .limit(1);
+
+    if (branchError || !branches || branches.length === 0) {
+      console.error('❌ Error getting branches:', branchError);
+      return;
+    }
+
+    const branchId = branches[0].id;
+    console.log(`📍 Using branch: ${branches[0].name} (${branchId})`);
+
+    // Create test users with branch_id assigned
     const testUsers = [
-      { email: 'alice@example.com', name: 'Alice Martin', role_id: null },
-      { email: 'bob@example.com', name: 'Bob Johnson', role_id: null },
-      { email: 'charlie@example.com', name: 'Charlie Brown', role_id: null },
-      { email: 'david@example.com', name: 'David Lee', role_id: null },
-      { email: 'eve@example.com', name: 'Eve Wilson', role_id: null },
+      { email: 'alice@example.com', name: 'Alice Martin', role_id: null, branch_id: branchId },
+      { email: 'bob@example.com', name: 'Bob Johnson', role_id: null, branch_id: branchId },
+      { email: 'charlie@example.com', name: 'Charlie Brown', role_id: null, branch_id: branchId },
+      { email: 'david@example.com', name: 'David Lee', role_id: null, branch_id: branchId },
+      { email: 'eve@example.com', name: 'Eve Wilson', role_id: null, branch_id: branchId },
     ];
 
     console.log('👥 Creating test users...');
