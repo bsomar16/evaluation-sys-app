@@ -550,15 +550,8 @@ export default function Dashboard() {
     try {
       setLoading(true);
 
-      const [
-        { data: usersRaw },
-        { data: evaluations },
-        { data: branchesData },
-        { data: departmentsData },
-        { data: rolesData },
-        { data: trainings },
-        { data: periodsData },
-      ] = await Promise.all([
+      // Load each data source individually to prevent one failure from blocking all
+      const [usersRes, evaluationsRes, branchesRes, departmentsRes, rolesRes, trainingsRes, periodsRes] = await Promise.allSettled([
         supabase.from('users').select('*'),
         supabase.from('evaluations').select('*'),
         supabase.from('branches').select('*'),
@@ -567,6 +560,15 @@ export default function Dashboard() {
         supabase.from('training_requests').select('*'),
         supabase.from('evaluation_periods').select('name').order('created_at', { ascending: false }),
       ]);
+
+      // Extract data from settled promises
+      const usersRaw = usersRes.status === 'fulfilled' ? usersRes.value.data : null;
+      const evaluations = evaluationsRes.status === 'fulfilled' ? evaluationsRes.value.data : null;
+      const branchesData = branchesRes.status === 'fulfilled' ? branchesRes.value.data : null;
+      const departmentsData = departmentsRes.status === 'fulfilled' ? departmentsRes.value.data : null;
+      const rolesData = rolesRes.status === 'fulfilled' ? rolesRes.value.data : null;
+      const trainings = trainingsRes.status === 'fulfilled' ? trainingsRes.value.data : null;
+      const periodsData = periodsRes.status === 'fulfilled' ? periodsRes.value.data : null;
 
       const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
       setUsers(filteredUsers);
