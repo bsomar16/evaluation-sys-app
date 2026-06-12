@@ -81,7 +81,7 @@ export default function Evaluation() {
   const [criteria, setCriteria] = useState<EvaluationCriterionRecord[]>([]);
   const [rules, setRules] = useState<CalculationRuleRecord[]>([]);
   const [scoresByEmployee, setScoresByEmployee] = useState<Record<string, number | null>>({});
-  const [statusByEmployee, setStatusByEmployee] = useState<Record<string, EvaluationStatus | 'completed' | null>>({});
+  const [statusByEmployee, setStatusByEmployee] = useState<Record<string, EvaluationStatus | null>>({});
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [period, setPeriod] = useState(getCurrentEvaluationPeriodCode());
@@ -95,16 +95,14 @@ export default function Evaluation() {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [branchFilter, setBranchFilter] = useState(FILTER_ALL);
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
-  const [statusFilter, setStatusFilter] = useState<EvaluationStatus | 'completed' | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<EvaluationStatus | 'all'>('all');
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
-  const statusFilterOptions: Array<{ value: EvaluationStatus | 'completed'; label: string; colorClass: string }> = [
+  const statusFilterOptions: Array<{ value: EvaluationStatus; label: string; colorClass: string }> = [
     { value: 'pending', label: 'En attente', colorClass: 'bg-slate-400' },
-    { value: 'draft', label: 'Brouillon', colorClass: 'bg-amber-400' },
     { value: 'submitted', label: 'Soumise', colorClass: 'bg-amber-400' },
     { value: 'approved', label: 'Approuvée', colorClass: 'bg-emerald-500' },
-    { value: 'completed', label: 'Complétée', colorClass: 'bg-emerald-500' },
     { value: 'rejected', label: 'Rejetée', colorClass: 'bg-red-500' },
   ];
 
@@ -165,7 +163,11 @@ export default function Evaluation() {
       const byDepartment =
         departmentFilter === FILTER_ALL || emp.department_id === departmentFilter;
       const empStatus = statusByEmployee[emp.id];
-      const byStatus = statusFilter === 'all' || empStatus === statusFilter;
+      const byStatus =
+        statusFilter === 'all' || 
+        empStatus === statusFilter ||
+        (statusFilter === 'approved' && (empStatus === 'completed' || empStatus === 'approved')) ||
+        (statusFilter === 'pending' && (empStatus === 'pending' || empStatus === 'draft' || empStatus === 'rejected'));
       return byBranch && byDepartment && byStatus;
     });
   }, [employees, branchFilter, departmentFilter, statusFilter, statusByEmployee]);
@@ -224,16 +226,19 @@ export default function Evaluation() {
     if (location.state?.filterByStatus) {
       const filterStatus = location.state.filterByStatus;
       if (Array.isArray(filterStatus) && filterStatus.length > 0) {
-        // If single status, use it directly
-        if (filterStatus.length === 1) {
+        // If multiple statuses, set to the first one or map accordingly
+        if ((filterStatus.includes('pending') || filterStatus.includes('draft') || filterStatus.includes('rejected')) && filterStatus.length > 1) {
+          setStatusFilter('pending');
+        } else if ((filterStatus.includes('approved') || filterStatus.includes('completed')) && filterStatus.length > 1) {
+          setStatusFilter('approved');
+        } else if (filterStatus.length === 1) {
           const status = filterStatus[0];
-          setStatusFilter(status as EvaluationStatus | 'completed' | 'all');
-        } else {
-          // Multiple statuses - use first one
-          setStatusFilter(filterStatus[0] as EvaluationStatus | 'completed' | 'all');
+          // Map 'completed' to 'approved' for display
+          setStatusFilter(status === 'completed' ? 'approved' : (status as EvaluationStatus));
         }
       } else if (typeof filterStatus === 'string') {
-        setStatusFilter(filterStatus as EvaluationStatus | 'completed' | 'all');
+        // Map 'completed' to 'approved' for display
+        setStatusFilter(filterStatus === 'completed' ? ('approved' as any) : (filterStatus as EvaluationStatus));
       }
     }
   }, [location.state]);
@@ -278,7 +283,7 @@ export default function Evaluation() {
           setAvailablePeriods(Array.from(periods).sort().reverse());
 
           const scoreMap: Record<string, number | null> = {};
-          const statusMap: Record<string, EvaluationStatus | 'completed' | null> = {};
+          const statusMap: Record<string, EvaluationStatus | null> = {};
           await withTimeout(
             Promise.all(
               emps.map(async (emp) => {
@@ -586,7 +591,7 @@ export default function Evaluation() {
                 </div>
                 <div className="space-y-1">
                   <Label>Statut</Label>
-                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as EvaluationStatus | 'completed' | 'all')}>
+                  <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as EvaluationStatus | 'all')}>
                     <SelectTrigger className="min-w-[160px]">
                       <SelectValue placeholder="Tous les statuts" />
                     </SelectTrigger>
