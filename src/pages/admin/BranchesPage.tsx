@@ -10,8 +10,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Trash2, Edit2, Search, X } from 'lucide-react';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
-import { usePagination } from '@/hooks/usePagination';
-import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import {
   collectAncestorBranchIds,
@@ -204,8 +202,6 @@ export function BranchesPage() {
       b.code?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const pagination = usePagination(filteredBranches, 10);
-
   if (!canRead('branches')) {
     return <ModuleAccessDenied />;
   }
@@ -308,8 +304,7 @@ export function BranchesPage() {
           ) : filteredBranches.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Aucune filiale</p>
           ) : (
-            <>
-              <div className="overflow-x-auto">
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
@@ -322,7 +317,7 @@ export function BranchesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagination.paginatedItems.map((branch) => {
+                  {filteredBranches.map((branch) => {
                     const childBranches = getChildBranches(branch);
                     return (
                       <tr key={branch.id} className="border-b hover:bg-muted/50">
@@ -389,17 +384,6 @@ export function BranchesPage() {
                 </tbody>
               </table>
             </div>
-            <PaginationControls
-              currentPage={pagination.currentPage}
-              totalPages={pagination.totalPages}
-              itemsPerPage={pagination.itemsPerPage}
-              totalItems={pagination.totalItems}
-              onPageChange={pagination.setCurrentPage}
-              onItemsPerPageChange={pagination.setItemsPerPage}
-              canGoPrev={pagination.canGoPrev}
-              canGoNext={pagination.canGoNext}
-            />
-            </>
           )}
         </CardContent>
       </Card>

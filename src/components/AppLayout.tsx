@@ -21,6 +21,7 @@ import {
 import type { RoleRecord } from '@/lib/role-tree';
 import LoadingOverlay from '@/components/ui/loading-overlay';
 import { APP_LOADING_EVENT } from '@/lib/loading-overlay';
+import { hideLoadingOverlay, showLoadingOverlay } from '@/lib/loading-overlay';
 import {
   isEvaluationPeriodOpen,
   subscribeEvaluationPeriodChange,
@@ -57,20 +58,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const canWriteTraining = canWrite('training');
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState<SessionUser | null>(() => {
-    try {
-      const userData = localStorage.getItem('user');
-      if (!userData) return null;
-      let session = repairSiteDeveloperSession() ?? (JSON.parse(userData) as SessionUser);
-      const userRole = localStorage.getItem('userRole');
-      if (!isSiteDeveloper(session)) {
-        session = { ...session, role: userRole ?? session.role };
-      }
-      return session;
-    } catch {
-      return null;
-    }
-  });
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [navItems, setNavItems] = useState<AppNavItem[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -80,11 +68,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { id: 3, message: 'Rapport complété', time: 'Hier' },
   ]);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
-    const stored = localStorage.getItem('appearanceMode');
-    return stored === 'light' || stored === 'dark' || stored === 'standard' ? stored : 'standard';
+    const saved = localStorage.getItem('appearanceMode');
+    return (saved as AppearanceMode) || 'light';
   });
   const [overlayTokens, setOverlayTokens] = useState<string[]>([]);
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
+  const navTokenRef = useRef<string | null>(null);
   const overlayTimeoutsRef = useRef<Map<string, number>>(new Map());
   const [connectionBanner, setConnectionBanner] = useState<ConnectionBannerState | null>(() => {
     if (typeof navigator === 'undefined') return null;
@@ -107,72 +96,86 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         session = { ...session, role: userRole ?? session.role };
       }
 
-      setUser(session);
-
       const { data: rolesData } = await supabase
         .from('roles')
         .select('id, name, code, color, level, child_roles, parent_role_id');
 
+      setUser(session);
       setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
 
-      if (isSiteDeveloper(session)) return;
-
+      // Load appearance from DB for this user
       try {
-        const { data: userAppearanceData } = await supabase
+        const { data: userData } = await supabase
           .from('users')
           .select('appearance_mode')
           .eq('id', session.id)
-          .maybeSingle();
-
-        if (userAppearanceData?.appearance_mode) {
-          const mode = userAppearanceData.appearance_mode as AppearanceMode;
+          .single();
+        
+        if (userData?.appearance_mode) {
+          const mode = userData.appearance_mode as AppearanceMode;
           setAppearanceMode(mode);
-          localStorage.setItem('appearanceMode', mode);
         }
       } catch (error) {
         console.error('Failed to load appearance from DB:', error);
+        // Fallback to localStorage
+        const saved = localStorage.getItem('appearanceMode');
+        if (saved) setAppearanceMode(saved as AppearanceMode);
       }
     };
 
-    void loadSessionAndNav();
+    loadSessionAndNav();
+
+    const paletteKey = appearanceMode === 'standard' ? 'corporate' : getSelectedPaletteKey();
+    applyPaletteToDOM(paletteKey, appearanceMode);
   }, []);
 
   useEffect(() => {
-    // Apply theme immediately on load
+    localStorage.setItem('appearanceMode', appearanceMode);
+    
+    // Save appearance to DB if user is logged in
+    if (user) {
+      supabase
+        .from('users')
+        .update({ appearance_mode: appearanceMode })
+        .eq('id', user.id)
+        .then(() => {
+          console.log('Appearance saved to DB');
+        })
+        .catch((error) => {
+          console.error('Failed to save appearance to DB:', error);
+        });
+    }
+    
+    // Apply theme
     if (appearanceMode === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
     }
 
+    // Get current selected palette
     let paletteKey = getSelectedPaletteKey();
-    
+
+    // For standard mode, force Corporate Blue light palette + gray header
     if (appearanceMode === 'standard') {
       paletteKey = 'corporate';
       saveSelectedPaletteKey(paletteKey);
+      
+      // Set gray header for standard mode
       document.documentElement.style.setProperty('--header-bg', '0 0% 94%');
     } else if (appearanceMode === 'light' && paletteKey === 'corporate') {
+      // For Corporate Blue in light mode, also apply light gray header
       document.documentElement.style.setProperty('--header-bg', '0 0% 94%');
     } else {
+      // Clear header-bg for non-standard modes
       document.documentElement.style.setProperty('--header-bg', 'var(--card)');
     }
 
+    // Apply the palette for the current appearance mode
     applyPaletteToDOM(paletteKey, appearanceMode);
-    window.dispatchEvent(new CustomEvent('appearanceModeChange', { detail: appearanceMode }));
-  }, [appearanceMode]);
 
-  useEffect(() => {
-    localStorage.setItem('appearanceMode', appearanceMode);
-    
-    if (user && !isSiteDeveloper(user)) {
-      supabase
-        .from('users')
-        .update({ appearance_mode: appearanceMode })
-        .eq('id', user.id)
-        .then(({ error }) => {
-          if (error) console.error('Failed to save appearance to DB:', error);
-        });
-    }
+    // Dispatch event to notify other components of appearance change
+    window.dispatchEvent(new CustomEvent('appearanceModeChange', { detail: appearanceMode }));
   }, [appearanceMode, user]);
 
   // Listen for palette changes from UIStudio or other components
@@ -424,7 +427,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const timeoutId = window.setTimeout(() => {
             setOverlayTokens((prev) => prev.filter((token) => token !== detail.token));
             overlayTimeoutsRef.current.delete(detail.token!);
-          }, 8000);
+          }, 12000);
           overlayTimeoutsRef.current.set(detail.token, timeoutId);
         }
         return;
@@ -451,6 +454,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       overlayTimeoutsRef.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    if (!navTokenRef.current) return;
+    const currentToken = navTokenRef.current;
+    const timer = window.setTimeout(() => {
+      hideLoadingOverlay(currentToken);
+      if (navTokenRef.current === currentToken) {
+        navTokenRef.current = null;
+      }
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [location.pathname]);
 
   const handleNavClick = (path: string) => {
     if (path === EVALUATION_PATH) {
@@ -485,6 +501,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (navTokenRef.current) {
+      hideLoadingOverlay(navTokenRef.current);
+    }
+
+    navTokenRef.current = showLoadingOverlay('Chargement...');
     setMobileOpen(false);
     navigate(path);
   };
@@ -548,6 +569,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
             <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
               <p>{user ? getSessionHeaderSubtitle(user) : '—'}</p>
+              {user?.departmentName && (
+                <p className="text-muted-foreground/80">{user.departmentName}</p>
+              )}
             </div>
           </div>
           
