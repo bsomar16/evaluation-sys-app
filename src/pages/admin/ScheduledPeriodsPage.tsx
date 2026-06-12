@@ -65,7 +65,10 @@ function formatIntervalRange(startAt: string, endAt: string): string {
 export default function ScheduledPeriodsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { can } = useRolePermissions();
+  const { canWrite } = useRolePermissions();
+
+  // Check if user can manage periods
+  const canManagePeriods = canWrite('evaluations_management');
 
   // State
   const [scheduledIntervals, setScheduledIntervals] = useState(() =>
@@ -290,7 +293,21 @@ export default function ScheduledPeriodsPage() {
     });
   };
 
-  const canEdit = can('manage_evaluation_periods');
+  // Update period name when month changes
+  useEffect(() => {
+    const code = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    const desc = describeEvaluationPeriodCode(code) || '';
+    setPeriodName(desc);
+  }, [selectedYear, selectedMonth]);
+
+  // Subscribe to period changes
+  useEffect(() => {
+    const unsubscribe = subscribeEvaluationPeriodChange(() => {
+      const schedule = getEvaluationPeriodSchedule();
+      setScheduledIntervals(schedule.intervals ?? []);
+    });
+    return unsubscribe;
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -339,7 +356,7 @@ export default function ScheduledPeriodsPage() {
         </div>
 
         {/* Action Button */}
-        {canEdit && (
+        {canManagePeriods && (
           <div className="mb-6">
             <Button onClick={openCreateMode} className="gap-2">
               + Ajouter une période
@@ -396,7 +413,7 @@ export default function ScheduledPeriodsPage() {
 
                   {/* Action Buttons */}
                   <div className="flex gap-2 justify-end flex-wrap mt-3">
-                    {canEdit ? (
+                    {canManagePeriods ? (
                       phase === 'upcoming' ? (
                         <>
                           <Button size="sm" variant="outline" onClick={() => openEditMode(globalIdx)}>
