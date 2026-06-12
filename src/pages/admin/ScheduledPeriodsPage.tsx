@@ -727,7 +727,6 @@ export default function ScheduledPeriodsPage() {
 
                   {/* Traceability Section */}
                   <div className="border-t pt-4">
-                    <h4 className="text-sm font-semibold mb-3">Traçabilité</h4>
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Créée par:</span>
