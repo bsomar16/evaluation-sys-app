@@ -250,6 +250,7 @@ export default function Evaluation() {
           
           // Extract available periods from evaluations
           const periods = new Set<string>();
+          periods.add(currentPeriod); // Always include current period
           const evaluations = (await supabase.from('evaluations').select('period')).data || [];
           evaluations.forEach(e => {
             if (e.period) periods.add(e.period);
