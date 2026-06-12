@@ -228,49 +228,46 @@ export default function Evaluation() {
     }
     const init = async () => {
       try {
-        await runWithLoadingOverlay(async () => {
-          const currentPeriod = getCurrentEvaluationPeriodCode();
-          const [emps, crit, calcRules, rolesRes, deptsRes] = await withTimeout(
-            Promise.all([
-              fetchEmployeesForEvaluation(),
-              fetchEvaluationCriteria(),
-              fetchCalculationRules(),
-              supabase.from('roles').select('id, name'),
-              supabase.from('departments').select('id, name'),
-            ]),
-            10000,
-            'Délai dépassé pendant le chargement des données.'
-          );
+        const currentPeriod = getCurrentEvaluationPeriodCode();
+        const [emps, crit, calcRules, rolesRes, deptsRes] = await withTimeout(
+          Promise.all([
+            fetchEmployeesForEvaluation(),
+            fetchEvaluationCriteria(),
+            fetchCalculationRules(),
+            supabase.from('roles').select('id, name'),
+            supabase.from('departments').select('id, name'),
+          ]),
+          10000,
+          'Délai dépassé pendant le chargement des données.'
+        );
 
-          setEmployees(emps);
-          setCriteria(crit.filter((c) => c.is_active !== false));
-          setRules(calcRules);
-          setRoles(rolesRes.data ?? []);
-          setDepartments(deptsRes.data ?? []);
-          
-          // Extract available periods from evaluations
-          const periods = new Set<string>();
-          const evaluations = (await supabase.from('evaluations').select('period')).data || [];
-          evaluations.forEach(e => {
-            if (e.period) periods.add(e.period);
-          });
-          setAvailablePeriods(Array.from(periods).sort().reverse());
+        setEmployees(emps);
+        setCriteria(crit.filter((c) => c.is_active !== false));
+        setRules(calcRules);
+        setRoles(rolesRes.data ?? []);
+        setDepartments(deptsRes.data ?? []);
 
-          const scoreMap: Record<string, number | null> = {};
-          const statusMap: Record<string, EvaluationStatus | null> = {};
-          await withTimeout(
-            Promise.all(
-              emps.map(async (emp) => {
-                scoreMap[emp.id] = await getEvaluationScoreForEmployeePeriod(emp.id, currentPeriod);
-                statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
-              })
-            ),
-            10000,
-            'Délai dépassé pendant le chargement des scores.'
-          );
-          setScoresByEmployee(scoreMap);
-          setStatusByEmployee(statusMap);
-        }, 'Chargement des données d’évaluation...');
+        const periods = new Set<string>();
+        const evaluations = (await supabase.from('evaluations').select('period')).data || [];
+        evaluations.forEach((e) => {
+          if (e.period) periods.add(e.period);
+        });
+        setAvailablePeriods(Array.from(periods).sort().reverse());
+
+        const scoreMap: Record<string, number | null> = {};
+        const statusMap: Record<string, EvaluationStatus | null> = {};
+        await withTimeout(
+          Promise.all(
+            emps.map(async (emp) => {
+              scoreMap[emp.id] = await getEvaluationScoreForEmployeePeriod(emp.id, currentPeriod);
+              statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
+            })
+          ),
+          10000,
+          'Délai dépassé pendant le chargement des scores.'
+        );
+        setScoresByEmployee(scoreMap);
+        setStatusByEmployee(statusMap);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Chargement impossible';
         toast({ variant: 'destructive', title: 'Erreur', description: message });

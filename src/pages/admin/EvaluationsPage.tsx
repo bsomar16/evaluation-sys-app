@@ -129,12 +129,7 @@ export function EvaluationsPage() {
 
   const load = async () => {
     try {
-      setRows(
-        await runWithLoadingOverlay(
-          () => fetchEvaluations(),
-          'Chargement de la liste des évaluations...'
-        )
-      );
+      setRows(await fetchEvaluations());
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Chargement impossible';
       toast({ variant: 'destructive', title: 'Erreur', description: message });
