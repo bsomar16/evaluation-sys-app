@@ -7,6 +7,7 @@ export interface EvaluationPeriodSchedule {
   intervals: Array<{
     startAt: string; // ISO
     endAt: string; // ISO
+    isProlongation?: boolean; // Mark period reopened after closure
   }>;
 }
 
@@ -28,6 +29,7 @@ function parseSchedule(raw: string | null): EvaluationPeriodSchedule {
             .map((i) => ({
               startAt: typeof i?.startAt === 'string' ? i.startAt : '',
               endAt: typeof i?.endAt === 'string' ? i.endAt : '',
+              isProlongation: i?.isProlongation === true,
             }))
             .filter((i) => i.startAt && i.endAt)
         : [];

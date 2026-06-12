@@ -448,6 +448,49 @@ export function EvaluationsPage() {
     });
   };
 
+  const handleProlongPeriod = (idx: number) => {
+    const schedule = getEvaluationPeriodSchedule();
+    const target = schedule.intervals?.[idx];
+    if (!target) return;
+
+    const phase = getIntervalPhase(target.startAt, target.endAt);
+    if (phase !== 'ended') {
+      toast({
+        variant: 'destructive',
+        title: 'Prolongation impossible',
+        description: 'Seules les périodes clôturées peuvent être prolongées.',
+      });
+      return;
+    }
+
+    // Créer une nouvelle fin de période : fin actuelle + 1 mois
+    const endDate = new Date(target.endAt);
+    endDate.setMonth(endDate.getMonth() + 1);
+    const newEndAt = endDate.toISOString();
+
+    // Mettre à jour la période avec isProlongation = true
+    const updatedIntervals = [...(schedule.intervals ?? [])];
+    updatedIntervals[idx] = {
+      ...target,
+      endAt: newEndAt,
+      isProlongation: true,
+    };
+
+    setEvaluationPeriodSchedule({
+      enabled: true,
+      intervals: updatedIntervals,
+    });
+    setIsScheduleEnabled(true);
+    setIsPeriodOpen(true);
+    setEvaluationPeriodOpen(true);
+    refreshScheduledIntervals();
+
+    toast({
+      title: 'Période prolongée',
+      description: 'La période a été rouverte et prolongée d\'un mois.',
+    });
+  };
+
   if (!canRead('evaluations_management')) {
     return <ModuleAccessDenied />;
   }
@@ -733,36 +776,51 @@ export function EvaluationsPage() {
                               </p>
                             </div>
                           </div>
-                          <Badge 
-                            variant={phase === 'active' ? 'default' : phase === 'ended' ? 'destructive' : 'outline'}
-                          >
-                            {intervalPhaseLabel(phase)}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            {interval.isProlongation && (
+                              <Badge variant="secondary">
+                                ✓ Prolongation
+                              </Badge>
+                            )}
+                            <Badge 
+                              variant={phase === 'active' ? 'default' : phase === 'ended' ? 'destructive' : 'outline'}
+                            >
+                              {intervalPhaseLabel(phase)}
+                            </Badge>
+                          </div>
                         </div>
 
-                        <div className="flex gap-2 justify-end">
+                        <div className="flex gap-2 justify-end flex-wrap">
                           {canEdit ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openEditMode(idx)}
+                              >
+                                ✎ Modifier
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive"
+                                onClick={() => handleDeleteInterval(idx)}
+                              >
+                                🗑 Supprimer
+                              </Button>
+                            </>
+                          ) : phase === 'ended' ? (
                             <Button
                               size="sm"
-                              variant="outline"
-                              onClick={() => openEditMode(idx)}
+                              variant="default"
+                              onClick={() => handleProlongPeriod(idx)}
                             >
-                              ✎ Modifier
+                              🔄 Prolonger
                             </Button>
                           ) : (
                             <span className="text-xs text-muted-foreground">
                               {phase === 'active' ? 'En cours' : 'Terminée'} - Non modifiable
                             </span>
-                          )}
-                          {canDelete && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive"
-                              onClick={() => handleDeleteInterval(idx)}
-                            >
-                              🗑 Supprimer
-                            </Button>
                           )}
                         </div>
                       </div>
