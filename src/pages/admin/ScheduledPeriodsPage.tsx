@@ -17,9 +17,6 @@ import {
   getCurrentEvaluationPeriodCode,
   getLastDayOfMonth,
   describeEvaluationPeriodCode,
-  formatIntervalRange,
-  getIntervalPhase,
-  intervalPhaseLabel,
 } from '@/lib/evaluation-period-label';
 import { Circle } from 'lucide-react';
 
@@ -33,6 +30,37 @@ const MONTH_LABELS: Record<number, string> = {
   1: 'janvier', 2: 'février', 3: 'mars', 4: 'avril', 5: 'mai', 6: 'juin',
   7: 'juillet', 8: 'août', 9: 'septembre', 10: 'octobre', 11: 'novembre', 12: 'décembre',
 };
+
+// Helper functions
+function getIntervalPhase(startAt: string, endAt: string): 'upcoming' | 'active' | 'ended' {
+  const now = new Date();
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  
+  if (now < start) return 'upcoming';
+  if (now > end) return 'ended';
+  return 'active';
+}
+
+function intervalPhaseLabel(phase: 'upcoming' | 'active' | 'ended'): string {
+  const labels: Record<string, string> = {
+    upcoming: 'À venir',
+    active: 'Actif',
+    ended: 'Clôturé',
+  };
+  return labels[phase] || phase;
+}
+
+function formatIntervalRange(startAt: string, endAt: string): string {
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  
+  const dateFormat = (date: Date) => {
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+  
+  return `${dateFormat(start)} — ${dateFormat(end)}`;
+}
 
 export default function ScheduledPeriodsPage() {
   const navigate = useNavigate();
