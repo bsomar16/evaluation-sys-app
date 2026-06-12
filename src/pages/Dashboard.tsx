@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
+import { getCurrentEvaluationPeriodCode } from '@/lib/evaluation-period-label';
 
 interface DashboardStats {
   totalUsers: number;
@@ -596,6 +597,12 @@ export default function Dashboard() {
           
           return bDate.getTime() - aDate.getTime(); // Most recent first
         });
+      }
+      
+      // Ensure we always have at least the current period (format: YYYY-MM like 2026-06)
+      const currentPeriod = getCurrentEvaluationPeriodCode();
+      if (!sortedPeriods.includes(currentPeriod)) {
+        sortedPeriods.unshift(currentPeriod);
       }
       
       setPeriods(sortedPeriods);
