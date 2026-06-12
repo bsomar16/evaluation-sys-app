@@ -12,6 +12,7 @@ import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { showLoadingOverlay, hideLoadingOverlay } from '@/lib/loading-overlay';
+import { getSessionUser } from '@/lib/session-user';
 import {
   getEvaluationPeriodSchedule,
   setEvaluationPeriodSchedule,
@@ -22,9 +23,9 @@ import {
   getLastDayOfMonth,
   describeEvaluationPeriodCode,
 } from '@/lib/evaluation-period-label';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Info } from 'lucide-react';
 
-type DialogMode = 'none' | 'create' | 'edit' | 'delete';
+type DialogMode = 'none' | 'create' | 'edit' | 'delete' | 'view';
 type FilterState = 'all' | 'upcoming' | 'active' | 'ended';
 type IntervalPhase = 'upcoming' | 'active' | 'ended';
 
@@ -32,6 +33,9 @@ interface Interval {
   startAt: string;
   endAt: string;
   isProlongation?: boolean;
+  createdAt?: string;
+  createdBy?: string;
+  isProlongationClosed?: boolean;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -165,6 +169,31 @@ export default function ScheduledPeriodsPage() {
     return () => unsubscribe?.();
   }, []);
 
+  // Auto-close prolongations at end of month
+  useEffect(() => {
+    const now = new Date();
+    let updated = false;
+    const newIntervals = scheduledIntervals.map((interval) => {
+      // If it's a prolongation that hasn't been manually closed and end date is past, mark as closed
+      if (interval.isProlongation && !interval.isProlongationClosed) {
+        const endDate = new Date(interval.endAt);
+        if (now > endDate) {
+          updated = true;
+          return {
+            ...interval,
+            isProlongationClosed: true,
+          };
+        }
+      }
+      return interval;
+    });
+
+    if (updated) {
+      setEvaluationPeriodSchedule({ intervals: newIntervals });
+      setScheduledIntervals(newIntervals);
+    }
+  }, [scheduledIntervals]);
+
   // Count intervals by phase
   function countByPhase(phase: IntervalPhase): number {
     return scheduledIntervals.filter(
@@ -212,6 +241,11 @@ export default function ScheduledPeriodsPage() {
     setDialogMode('delete');
   }
 
+  function openViewMode(idx: number) {
+    setEditingIntervalIndex(idx);
+    setDialogMode('view');
+  }
+
   async function handleSaveSchedule() {
     try {
       setFormError('');
@@ -249,12 +283,18 @@ export default function ScheduledPeriodsPage() {
       }
 
       let newIntervals = [...scheduledIntervals];
+      const sessionUser = getSessionUser();
+      const currentUser = sessionUser?.name || sessionUser?.email || 'Utilisateur';
 
       if (editingIntervalIndex !== null) {
-        // Update existing
+        // Update existing (preserve createdAt and createdBy)
+        const existing = newIntervals[editingIntervalIndex];
         newIntervals[editingIntervalIndex] = {
           startAt: startAt.toISOString(),
           endAt: endAt.toISOString(),
+          createdAt: existing.createdAt,
+          createdBy: existing.createdBy,
+          isProlongation: existing.isProlongation,
         };
       } else {
         // Create new
@@ -276,6 +316,8 @@ export default function ScheduledPeriodsPage() {
         newIntervals.push({
           startAt: startAt.toISOString(),
           endAt: endAt.toISOString(),
+          createdAt: new Date().toISOString(),
+          createdBy: currentUser,
         });
       }
 
@@ -334,6 +376,8 @@ export default function ScheduledPeriodsPage() {
       
       const interval = scheduledIntervals[idx];
       const endDate = new Date(interval.endAt);
+      const sessionUser = getSessionUser();
+      const currentUser = sessionUser?.name || sessionUser?.email || 'Utilisateur';
       
       // Add 1 month
       endDate.setMonth(endDate.getMonth() + 1);
@@ -343,11 +387,14 @@ export default function ScheduledPeriodsPage() {
         startAt: interval.startAt,
         endAt: endDate.toISOString(),
         isProlongation: true,
+        createdAt: interval.createdAt,
+        createdBy: interval.createdBy,
+        isProlongationClosed: false,
       };
 
       setEvaluationPeriodSchedule({ intervals: newIntervals });
       setScheduledIntervals(newIntervals);
-      toast({ title: 'Succès', description: 'Période prolongée' });
+      toast({ title: 'Succès', description: 'Période prolongée - Sera fermée automatiquement à la fin du mois' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur lors de la prolongation';
       toast({ variant: 'destructive', title: 'Erreur', description: message });
@@ -455,6 +502,14 @@ export default function ScheduledPeriodsPage() {
                             </Badge>
                           </td>
                           <td className="py-3 px-4 text-right whitespace-nowrap space-x-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openViewMode(realIdx)}
+                              title="Voir les détails"
+                            >
+                              <Info className="h-4 w-4" />
+                            </Button>
                             {phase !== 'active' && canManagePeriods && (
                               <>
                                 <Button
@@ -611,6 +666,91 @@ export default function ScheduledPeriodsPage() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View Details Dialog (Traceability) */}
+      {editingIntervalIndex !== null && scheduledIntervals[editingIntervalIndex] && (
+        <Dialog open={dialogMode === 'view'} onOpenChange={(open) => {
+          if (!open) setDialogMode('none');
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Détails de la période</DialogTitle>
+            </DialogHeader>
+
+            {(() => {
+              const interval = scheduledIntervals[editingIntervalIndex!];
+              const phase = getIntervalPhase(interval.startAt, interval.endAt);
+              const createdDate = interval.createdAt ? new Date(interval.createdAt).toLocaleDateString('fr-FR', { 
+                day: '2-digit', 
+                month: 'long', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }) : 'Non disponible';
+
+              return (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">Période</label>
+                    <p className="text-sm py-2 px-3 bg-muted rounded">{getPeriodYearMonth(interval.startAt)}</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Dates</label>
+                    <p className="text-sm py-2 px-3 bg-muted rounded">{formatIntervalRange(interval.startAt, interval.endAt)}</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Durée</label>
+                    <p className="text-sm py-2 px-3 bg-muted rounded">
+                      {Math.ceil((new Date(interval.endAt).getTime() - new Date(interval.startAt).getTime()) / (1000 * 60 * 60 * 24)) + 1} jours
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">État</label>
+                    <div className="py-2">
+                      <Badge variant={phaseBadgeVariant(phase)}>
+                        {intervalPhaseLabel(phase)}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {interval.isProlongation && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                      <p className="text-sm font-medium text-blue-900">⏱️ Période prolongée</p>
+                      <p className="text-xs text-blue-800 mt-1">
+                        {interval.isProlongationClosed ? '✓ Fermée manuellement' : 'Sera fermée automatiquement à la fin du mois'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Traceability Section */}
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-semibold mb-3">Traçabilité</h4>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Créée par:</span>
+                        <span className="font-medium">{interval.createdBy || 'Utilisateur'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Date de création:</span>
+                        <span className="font-medium">{createdDate}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogMode('none')}>
+                Fermer
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
