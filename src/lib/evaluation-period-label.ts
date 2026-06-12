@@ -60,3 +60,13 @@ export function getPeriodDateRange(code: string): { start: Date; end: Date } | n
   const end = new Date(parsed.year, parsed.month - 1, lastDay, 23, 59, 59, 999);
   return { start, end };
 }
+
+/** Get current quarter in format "Q2 2026" (Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec) */
+export function getCurrentQuarterPeriod(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1; // 1-12
+  const quarter = Math.ceil(month / 3); // 1-4
+  return `Q${quarter} ${year}`;
+}
+

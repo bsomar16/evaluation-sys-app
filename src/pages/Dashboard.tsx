@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
-import { getCurrentEvaluationPeriodCode } from '@/lib/evaluation-period-label';
+import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
 
 interface DashboardStats {
   totalUsers: number;
@@ -599,8 +599,8 @@ export default function Dashboard() {
         });
       }
       
-      // Ensure we always have at least the current period (format: YYYY-MM like 2026-06)
-      const currentPeriod = getCurrentEvaluationPeriodCode();
+      // Ensure we always have at least the current quarter (format: "Q2 2026")
+      const currentPeriod = getCurrentQuarterPeriod();
       if (!sortedPeriods.includes(currentPeriod)) {
         sortedPeriods.unshift(currentPeriod);
       }
