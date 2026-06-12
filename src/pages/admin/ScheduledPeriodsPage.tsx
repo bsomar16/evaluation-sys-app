@@ -96,10 +96,9 @@ export default function ScheduledPeriodsPage() {
   const [loading, setLoading] = useState(false);
 
   // Form state
-  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
-  const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
-  const [startDay, setStartDay] = useState(1);
-  const [endDay, setEndDay] = useState(getLastDayOfMonth(CURRENT_YEAR, CURRENT_MONTH));
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [formError, setFormError] = useState<string>('');
   const [periodName, setPeriodName] = useState('');
 
   // Get filtered intervals
@@ -122,12 +121,40 @@ export default function ScheduledPeriodsPage() {
   // Pagination
   const pagination = usePagination(getFilteredIntervals(), 10);
 
-  // Update period name when month changes
+  // Get minimum date (current month start)
+  function getMinDate(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  }
+
+  // Get last day of month for a date
+  function getLastDayForDate(dateStr: string): number {
+    if (!dateStr) return 1;
+    const [year, month] = dateStr.split('-').map(Number);
+    return getLastDayOfMonth(year, month);
+  }
+
+  // Get max date for end date (last day of same month)
+  function getEndDateMax(): string {
+    if (!startDate) return '';
+    const [year, month] = startDate.split('-');
+    const lastDay = getLastDayForDate(startDate);
+    return `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+  }
+
+  // Update period name when start date changes
   useEffect(() => {
-    const code = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    if (!startDate) {
+      setPeriodName('');
+      return;
+    }
+    const [year, month] = startDate.split('-').map(Number);
+    const code = `${year}-${String(month).padStart(2, '0')}`;
     const desc = describeEvaluationPeriodCode(code) || '';
     setPeriodName(desc);
-  }, [selectedYear, selectedMonth]);
+  }, [startDate]);
 
   // Subscribe to period changes
   useEffect(() => {
@@ -156,23 +183,26 @@ export default function ScheduledPeriodsPage() {
 
   // Dialogs
   function openCreateMode() {
-    setSelectedYear(CURRENT_YEAR);
-    setSelectedMonth(CURRENT_MONTH);
-    setStartDay(1);
-    setEndDay(getLastDayOfMonth(CURRENT_YEAR, CURRENT_MONTH));
+    setStartDate('');
+    setEndDate('');
+    setFormError('');
+    setPeriodName('');
     setEditingIntervalIndex(null);
+    setDeleteTargetIndex(null);
     setDialogMode('create');
   }
 
   function openEditMode(idx: number) {
     const interval = scheduledIntervals[idx];
-    const startDate = new Date(interval.startAt);
-    const endDate = new Date(interval.endAt);
+    const start = new Date(interval.startAt);
+    const end = new Date(interval.endAt);
     
-    setSelectedYear(startDate.getFullYear());
-    setSelectedMonth(startDate.getMonth() + 1);
-    setStartDay(startDate.getDate());
-    setEndDay(endDate.getDate());
+    const startStr = start.toISOString().split('T')[0];
+    const endStr = end.toISOString().split('T')[0];
+    
+    setStartDate(startStr);
+    setEndDate(endStr);
+    setFormError('');
     setEditingIntervalIndex(idx);
     setDialogMode('edit');
   }
@@ -184,11 +214,24 @@ export default function ScheduledPeriodsPage() {
 
   async function handleSaveSchedule() {
     try {
+      setFormError('');
+      
+      if (!startDate || !endDate) {
+        setFormError('Veuillez saisir les dates de début et de fin');
+        return;
+      }
+
+      const minDate = getMinDate();
+      if (startDate < minDate) {
+        setFormError(`La date de début doit être >= ${new Date(minDate).toLocaleDateString('fr-FR')}`);
+        return;
+      }
+
       setLoading(true);
       showLoadingOverlay('Enregistrement...');
       
-      const startAt = new Date(selectedYear, selectedMonth - 1, startDay);
-      const endAt = new Date(selectedYear, selectedMonth - 1, endDay);
+      const startAt = new Date(startDate);
+      const endAt = new Date(endDate);
       
       startAt.setHours(0, 0, 0, 0);
       endAt.setHours(23, 59, 59, 999);
@@ -196,6 +239,12 @@ export default function ScheduledPeriodsPage() {
       // Validation
       if (startAt > endAt) {
         toast({ variant: 'destructive', title: 'Erreur', description: 'Date de début doit être avant la fin' });
+        return;
+      }
+
+      // Check same month
+      if (startAt.getMonth() !== endAt.getMonth() || startAt.getFullYear() !== endAt.getFullYear()) {
+        toast({ variant: 'destructive', title: 'Erreur', description: 'Les dates doivent être dans le même mois' });
         return;
       }
 
@@ -215,7 +264,10 @@ export default function ScheduledPeriodsPage() {
           const iStartMonth = iStart.getMonth() + 1;
           const iStartYear = iStart.getFullYear();
           
-          if (iStartYear === selectedYear && iStartMonth === selectedMonth) {
+          const startMonth = startAt.getMonth() + 1;
+          const startYear = startAt.getFullYear();
+          
+          if (iStartYear === startYear && iStartMonth === startMonth) {
             toast({ variant: 'destructive', title: 'Erreur', description: 'Une période existe déjà pour ce mois' });
             return;
           }
@@ -466,67 +518,68 @@ export default function ScheduledPeriodsPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Year Select */}
+            {/* Start Date */}
             <div>
-              <label className="text-sm font-medium">Année</label>
-              <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2].map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">Date de début</label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setFormError('');
+                  // Auto-set end date to same start date initially
+                  if (e.target.value) {
+                    const dayStr = e.target.value.split('-')[2];
+                    if (!endDate) {
+                      // First time: set end date to start date
+                      setEndDate(e.target.value);
+                    }
+                  } else {
+                    setEndDate('');
+                  }
+                }}
+                min={getMinDate()}
+              />
+              {!startDate && formError.includes('début') && (
+                <p className="text-xs text-destructive mt-1">{formError}</p>
+              )}
             </div>
 
-            {/* Month Select */}
+            {/* Month/Year Display (readonly, derived from start date) */}
+            {startDate && (
+              <div>
+                <label className="text-sm font-medium">Mois & Année (Auto)</label>
+                <div className="text-sm bg-muted p-3 rounded border">
+                  {new Date(startDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                </div>
+              </div>
+            )}
+
+            {/* End Date */}
             <div>
-              <label className="text-sm font-medium">Mois</label>
-              <Select value={String(selectedMonth)} onValueChange={(v) => {
-                const month = Number(v);
-                setSelectedMonth(month);
-                setEndDay(getLastDayOfMonth(selectedYear, month));
-              }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {MONTH_LABELS[m]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">Date de fin</label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setFormError('');
+                }}
+                min={startDate || ''}
+                max={getEndDateMax()}
+                disabled={!startDate}
+              />
+              {!endDate && startDate && (
+                <p className="text-xs text-muted-foreground mt-1">Saisir une date de fin dans le même mois</p>
+              )}
             </div>
 
-            {/* Day Range */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium">Jour de début</label>
-                <Input
-                  type="number"
-                  min="1"
-                  max={getLastDayOfMonth(selectedYear, selectedMonth)}
-                  value={startDay}
-                  onChange={(e) => setStartDay(Number(e.target.value))}
-                />
+            {/* Error Message */}
+            {formError && (
+              <div className="text-sm bg-destructive/10 border border-destructive/30 p-3 rounded text-destructive">
+                {formError}
               </div>
-              <div>
-                <label className="text-sm font-medium">Jour de fin</label>
-                <Input
-                  type="number"
-                  min="1"
-                  max={getLastDayOfMonth(selectedYear, selectedMonth)}
-                  value={endDay}
-                  onChange={(e) => setEndDay(Number(e.target.value))}
-                />
-              </div>
-            </div>
+            )}
 
             {/* Period Name Display */}
             {periodName && (
