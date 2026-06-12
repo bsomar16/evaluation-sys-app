@@ -131,7 +131,10 @@ export default function Dashboard() {
     if (!branches.length) return [];
     
     const userRole = roles.find(r => r.id === currentUser?.role_id);
-    if (userRole?.name?.toLowerCase().includes('directeur')) {
+    const roleName = userRole?.name?.toLowerCase() || '';
+    
+    // Admin and Directeur roles have access to all branches
+    if (roleName.includes('directeur') || roleName.includes('admin')) {
       return branches;
     }
     
@@ -169,7 +172,10 @@ export default function Dashboard() {
       if (!branches.length) return [];
       
       const userRole = roles.find(r => r.id === currentUser?.role_id);
-      if (userRole?.name?.toLowerCase().includes('directeur')) {
+      const roleName = userRole?.name?.toLowerCase() || '';
+      
+      // Admin and Directeur roles have access to all branches
+      if (roleName.includes('directeur') || roleName.includes('admin')) {
         return branches.map(b => b.id);
       }
       
@@ -299,7 +305,10 @@ export default function Dashboard() {
       if (!branches.length) return [];
       
       const userRole = roles.find(r => r.id === currentUser?.role_id);
-      if (userRole?.name?.toLowerCase().includes('directeur')) {
+      const roleName = userRole?.name?.toLowerCase() || '';
+      
+      // Admin and Directeur roles have access to all branches
+      if (roleName.includes('directeur') || roleName.includes('admin')) {
         return branches.map(b => b.id);
       }
       
@@ -447,7 +456,10 @@ export default function Dashboard() {
       if (!branches.length) return [];
       
       const userRole = roles.find(r => r.id === currentUser?.role_id);
-      if (userRole?.name?.toLowerCase().includes('directeur')) {
+      const roleName = userRole?.name?.toLowerCase() || '';
+      
+      // Admin and Directeur roles have access to all branches
+      if (roleName.includes('directeur') || roleName.includes('admin')) {
         return branches.map(b => b.id);
       }
       
