@@ -74,6 +74,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [overlayTokens, setOverlayTokens] = useState<string[]>([]);
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
   const navTokenRef = useRef<string | null>(null);
+  const isInitialLoadRef = useRef(true);
   const overlayTimeoutsRef = useRef<Map<string, number>>(new Map());
   const [connectionBanner, setConnectionBanner] = useState<ConnectionBannerState | null>(() => {
     if (typeof navigator === 'undefined') return null;
@@ -448,6 +449,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     };
 
     window.addEventListener(APP_LOADING_EVENT, handleOverlayEvent);
+
+    // Show loading overlay on initial page load/refresh
+    // Call this AFTER the listener is attached synchronously
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      navTokenRef.current = showLoadingOverlay('Chargement...');
+    }
+
     return () => {
       window.removeEventListener(APP_LOADING_EVENT, handleOverlayEvent);
       overlayTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
