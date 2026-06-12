@@ -167,7 +167,7 @@ export default function Evaluation() {
         statusFilter === 'all' || 
         empStatus === statusFilter ||
         (statusFilter === 'approved' && (empStatus === 'completed' || empStatus === 'approved')) ||
-        (statusFilter === 'pending' && (empStatus === 'pending' || empStatus === 'draft' || empStatus === 'rejected'));
+        (statusFilter === 'draft' && (empStatus === 'draft' || !empStatus));
       return byBranch && byDepartment && byStatus;
     });
   }, [employees, branchFilter, departmentFilter, statusFilter, statusByEmployee]);
@@ -226,16 +226,10 @@ export default function Evaluation() {
     if (location.state?.filterByStatus) {
       const filterStatus = location.state.filterByStatus;
       if (Array.isArray(filterStatus) && filterStatus.length > 0) {
-        // If multiple statuses, set to the first one or map accordingly
-        if ((filterStatus.includes('pending') || filterStatus.includes('draft') || filterStatus.includes('rejected')) && filterStatus.length > 1) {
-          setStatusFilter('pending');
-        } else if ((filterStatus.includes('approved') || filterStatus.includes('completed')) && filterStatus.length > 1) {
-          setStatusFilter('approved');
-        } else if (filterStatus.length === 1) {
-          const status = filterStatus[0];
-          // Map 'completed' to 'approved' for display
-          setStatusFilter(status === 'completed' ? 'approved' : (status as EvaluationStatus));
-        }
+        // Single status or handle multiple
+        const status = filterStatus[0];
+        // Map 'completed' to 'approved' for display
+        setStatusFilter(status === 'completed' ? 'approved' : (status as EvaluationStatus));
       } else if (typeof filterStatus === 'string') {
         // Map 'completed' to 'approved' for display
         setStatusFilter(filterStatus === 'completed' ? ('approved' as any) : (filterStatus as EvaluationStatus));

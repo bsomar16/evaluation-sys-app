@@ -36,6 +36,7 @@ interface EvaluationData {
   status: string;
   count: number;
   color: string;
+  label?: string;
 }
 
 interface AgentWithScore {
@@ -330,7 +331,7 @@ export default function Dashboard() {
     // Map status to filter types for Evaluation page
     let statusFilter = '';
     if (data.dataKey === 'status') {
-      statusFilter = data.name; // 'submitted', 'approved', or 'pending'
+      statusFilter = data.name;
     } else if (data.payload?.status) {
       statusFilter = data.payload.status;
     } else if (data.name) {
@@ -338,13 +339,19 @@ export default function Dashboard() {
     }
 
     if (statusFilter) {
-      // Handle pending status to include draft and rejected
-      if (statusFilter === 'pending') {
-        navigate('/evaluation', { state: { filterByStatus: ['pending', 'draft', 'rejected'] } });
+      // Map to evaluation page filter statuses
+      if (statusFilter === 'draft') {
+        // Non Soumis = draft
+        navigate('/evaluation', { state: { filterByStatus: ['draft'] } });
+      } else if (statusFilter === 'submitted') {
+        // Soumis
+        navigate('/evaluation', { state: { filterByStatus: ['submitted'] } });
+      } else if (statusFilter === 'rejected') {
+        // Refus
+        navigate('/evaluation', { state: { filterByStatus: ['rejected'] } });
       } else if (statusFilter === 'approved') {
+        // Approuvé = approved + completed
         navigate('/evaluation', { state: { filterByStatus: ['approved', 'completed'] } });
-      } else {
-        navigate('/evaluation', { state: { filterByStatus: [statusFilter] } });
       }
     }
   };
@@ -442,16 +449,36 @@ export default function Dashboard() {
     
     const filteredEvals = getFilteredEvaluationsForPeriod();
     
+    // Count evaluations by status (showing all statuses)
+    const nonSubmittedCount = filteredEvals.filter(e => !e.status || e.status === 'draft').length;
     const submittedCount = filteredEvals.filter(e => e.status === 'submitted').length;
+    const rejectedCount = filteredEvals.filter(e => e.status === 'rejected').length;
     const approvedCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
-    const pendingCount = filteredEvals.filter(e => e.status === 'pending' || e.status === 'draft' || e.status === 'rejected').length;
     
     const evalStatusArray = [];
+    
+    if (nonSubmittedCount > 0) {
+      evalStatusArray.push({
+        status: 'draft',
+        count: nonSubmittedCount,
+        color: '#9ca3af', // gray
+        label: 'Non Soumis'
+      });
+    }
     if (submittedCount > 0) {
       evalStatusArray.push({
         status: 'submitted',
         count: submittedCount,
         color: '#f59e0b', // amber
+        label: 'Soumis'
+      });
+    }
+    if (rejectedCount > 0) {
+      evalStatusArray.push({
+        status: 'rejected',
+        count: rejectedCount,
+        color: '#ef4444', // red
+        label: 'Refus'
       });
     }
     if (approvedCount > 0) {
@@ -459,13 +486,7 @@ export default function Dashboard() {
         status: 'approved',
         count: approvedCount,
         color: '#10b981', // emerald
-      });
-    }
-    if (pendingCount > 0) {
-      evalStatusArray.push({
-        status: 'pending',
-        count: pendingCount,
-        color: '#ef4444', // red
+        label: 'Approuvé'
       });
     }
     
@@ -986,14 +1007,7 @@ export default function Dashboard() {
                     outerRadius={100} 
                     paddingAngle={3} 
                     dataKey="count" 
-                    label={({ status, count, percent }) => {
-                      const labels: Record<string, string> = {
-                        submitted: 'Soumises',
-                        approved: 'Approuvées',
-                        pending: 'En attente'
-                      };
-                      return `${count} ${labels[status] || status}`;
-                    }}
+                    label={({ label, count }) => `${count} ${label}`}
                   >
                     {evaluationStatus.map((entry, index) => (
                       <Cell key={index} fill={entry.color} cursor="pointer" onClick={() => handleEvaluationStatusClick({ name: entry.status })} />
@@ -1022,14 +1036,7 @@ export default function Dashboard() {
                   <Legend 
                     wrapperStyle={{ fontSize: 12, cursor: 'pointer' }} 
                     onClick={(e) => handleEvaluationStatusClick(e)}
-                    formatter={(value) => {
-                      const labels: Record<string, string> = {
-                        submitted: 'Soumises',
-                        approved: 'Approuvées',
-                        pending: 'En attente'
-                      };
-                      return labels[value] || value;
-                    }}
+                    formatter={(value, entry) => entry.payload.label || value}
                   />
                 </PieChart>
               </ResponsiveContainer>
