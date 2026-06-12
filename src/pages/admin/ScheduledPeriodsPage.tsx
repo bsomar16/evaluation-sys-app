@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogAction, AlertDialogCancel } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
 import { showLoadingOverlay, hideLoadingOverlay } from '@/lib/loading-overlay';
 import {
   getEvaluationPeriodSchedule,
@@ -18,10 +22,17 @@ import {
   getLastDayOfMonth,
   describeEvaluationPeriodCode,
 } from '@/lib/evaluation-period-label';
-import { Circle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 
 type DialogMode = 'none' | 'create' | 'edit' | 'delete';
 type FilterState = 'all' | 'upcoming' | 'active' | 'ended';
+type IntervalPhase = 'upcoming' | 'active' | 'ended';
+
+interface Interval {
+  startAt: string;
+  endAt: string;
+  isProlongation?: boolean;
+}
 
 const CURRENT_YEAR = new Date().getFullYear();
 const CURRENT_MONTH = new Date().getMonth() + 1;
@@ -32,7 +43,7 @@ const MONTH_LABELS: Record<number, string> = {
 };
 
 // Helper functions
-function getIntervalPhase(startAt: string, endAt: string): 'upcoming' | 'active' | 'ended' {
+function getIntervalPhase(startAt: string, endAt: string): IntervalPhase {
   const now = new Date();
   const start = new Date(startAt);
   const end = new Date(endAt);
@@ -42,13 +53,13 @@ function getIntervalPhase(startAt: string, endAt: string): 'upcoming' | 'active'
   return 'active';
 }
 
-function intervalPhaseLabel(phase: 'upcoming' | 'active' | 'ended'): string {
-  const labels: Record<string, string> = {
+function intervalPhaseLabel(phase: IntervalPhase): string {
+  const labels: Record<IntervalPhase, string> = {
     upcoming: 'À venir',
     active: 'Actif',
     ended: 'Clôturé',
   };
-  return labels[phase] || phase;
+  return labels[phase];
 }
 
 function formatIntervalRange(startAt: string, endAt: string): string {
@@ -62,22 +73,27 @@ function formatIntervalRange(startAt: string, endAt: string): string {
   return `${dateFormat(start)} — ${dateFormat(end)}`;
 }
 
+function getPeriodYearMonth(startAt: string): string {
+  const date = new Date(startAt);
+  return `${MONTH_LABELS[date.getMonth() + 1]} ${date.getFullYear()}`;
+}
+
 export default function ScheduledPeriodsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { canWrite } = useRolePermissions();
-
-  // Check if user can manage periods
   const canManagePeriods = canWrite('evaluations_management');
 
   // State
-  const [scheduledIntervals, setScheduledIntervals] = useState(() =>
+  const [scheduledIntervals, setScheduledIntervals] = useState<Interval[]>(() =>
     getEvaluationPeriodSchedule().intervals ?? []
   );
+  const [search, setSearch] = useState('');
   const [filterState, setFilterState] = useState<FilterState>('all');
   const [dialogMode, setDialogMode] = useState<DialogMode>('none');
   const [editingIntervalIndex, setEditingIntervalIndex] = useState<number | null>(null);
   const [deleteTargetIndex, setDeleteTargetIndex] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // Form state
   const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
@@ -86,6 +102,26 @@ export default function ScheduledPeriodsPage() {
   const [endDay, setEndDay] = useState(getLastDayOfMonth(CURRENT_YEAR, CURRENT_MONTH));
   const [periodName, setPeriodName] = useState('');
 
+  // Get filtered intervals
+  function getFilteredIntervals(): Interval[] {
+    return scheduledIntervals.filter((interval) => {
+      if (filterState !== 'all') {
+        const phase = getIntervalPhase(interval.startAt, interval.endAt);
+        if (phase !== filterState) return false;
+      }
+      
+      if (search) {
+        const name = getPeriodYearMonth(interval.startAt);
+        if (!name.toLowerCase().includes(search.toLowerCase())) return false;
+      }
+      
+      return true;
+    });
+  }
+
+  // Pagination
+  const pagination = usePagination(getFilteredIntervals(), 10);
+
   // Update period name when month changes
   useEffect(() => {
     const code = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
@@ -99,352 +135,336 @@ export default function ScheduledPeriodsPage() {
       const schedule = getEvaluationPeriodSchedule();
       setScheduledIntervals(schedule.intervals ?? []);
     });
-    return unsubscribe;
+    return () => unsubscribe?.();
   }, []);
 
-  // Filter periods by state
-  const filteredIntervals = scheduledIntervals.filter((interval, idx) => {
-    const phase = getIntervalPhase(interval.startAt, interval.endAt);
-    if (filterState === 'all') return true;
-    return phase === filterState;
-  });
+  // Count intervals by phase
+  function countByPhase(phase: IntervalPhase): number {
+    return scheduledIntervals.filter(
+      (i) => getIntervalPhase(i.startAt, i.endAt) === phase
+    ).length;
+  }
 
-  // Open create mode
-  const openCreateMode = () => {
-    setDialogMode('create');
-    setEditingIntervalIndex(null);
+  // Phase badge variant
+  function phaseBadgeVariant(phase: IntervalPhase) {
+    switch (phase) {
+      case 'upcoming': return 'secondary';
+      case 'active': return 'default';
+      case 'ended': return 'destructive';
+    }
+  }
+
+  // Dialogs
+  function openCreateMode() {
     setSelectedYear(CURRENT_YEAR);
     setSelectedMonth(CURRENT_MONTH);
     setStartDay(1);
     setEndDay(getLastDayOfMonth(CURRENT_YEAR, CURRENT_MONTH));
-  };
+    setEditingIntervalIndex(null);
+    setDialogMode('create');
+  }
 
-  // Open edit mode
-  const openEditMode = (idx: number) => {
+  function openEditMode(idx: number) {
     const interval = scheduledIntervals[idx];
-    if (!interval) return;
     const startDate = new Date(interval.startAt);
     const endDate = new Date(interval.endAt);
-    setEditingIntervalIndex(idx);
+    
     setSelectedYear(startDate.getFullYear());
     setSelectedMonth(startDate.getMonth() + 1);
     setStartDay(startDate.getDate());
     setEndDay(endDate.getDate());
+    setEditingIntervalIndex(idx);
     setDialogMode('edit');
-  };
+  }
 
-  // Open delete confirmation
-  const openDeleteMode = (idx: number) => {
+  function openDeleteMode(idx: number) {
     setDeleteTargetIndex(idx);
     setDialogMode('delete');
-  };
+  }
 
-  // Save schedule
-  const handleSaveSchedule = () => {
-    const startDate = new Date(selectedYear, selectedMonth - 1, startDay, 0, 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth - 1, endDay, 23, 59, 59, 999);
-    const startAt = startDate.toISOString();
-    const endAt = endDate.toISOString();
+  async function handleSaveSchedule() {
+    try {
+      setLoading(true);
+      showLoadingOverlay('Enregistrement...');
+      
+      const startAt = new Date(selectedYear, selectedMonth - 1, startDay);
+      const endAt = new Date(selectedYear, selectedMonth - 1, endDay);
+      
+      startAt.setHours(0, 0, 0, 0);
+      endAt.setHours(23, 59, 59, 999);
 
-    const currentSchedule = getEvaluationPeriodSchedule();
-    let updatedIntervals = [...(currentSchedule.intervals ?? [])];
+      // Validation
+      if (startAt > endAt) {
+        toast({ variant: 'destructive', title: 'Erreur', description: 'Date de début doit être avant la fin' });
+        return;
+      }
 
-    // Validation: check day ranges
-    const maxDays = getLastDayOfMonth(selectedYear, selectedMonth);
-    if (startDay < 1 || startDay > maxDays || endDay < 1 || endDay > maxDays) {
-      toast({
-        variant: 'destructive',
-        title: 'Erreur de validation',
-        description: `Les jours doivent être entre 1 et ${maxDays}.`,
-      });
-      return;
+      let newIntervals = [...scheduledIntervals];
+
+      if (editingIntervalIndex !== null) {
+        // Update existing
+        newIntervals[editingIntervalIndex] = {
+          startAt: startAt.toISOString(),
+          endAt: endAt.toISOString(),
+        };
+      } else {
+        // Create new
+        // Check for duplicates
+        for (const interval of newIntervals) {
+          const iStart = new Date(interval.startAt);
+          const iStartMonth = iStart.getMonth() + 1;
+          const iStartYear = iStart.getFullYear();
+          
+          if (iStartYear === selectedYear && iStartMonth === selectedMonth) {
+            toast({ variant: 'destructive', title: 'Erreur', description: 'Une période existe déjà pour ce mois' });
+            return;
+          }
+        }
+
+        newIntervals.push({
+          startAt: startAt.toISOString(),
+          endAt: endAt.toISOString(),
+        });
+      }
+
+      // Sort by startAt
+      newIntervals = newIntervals.sort((a, b) => 
+        new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+      );
+
+      setEvaluationPeriodSchedule({ intervals: newIntervals });
+      setScheduledIntervals(newIntervals);
+      setDialogMode('none');
+      toast({ title: 'Succès', description: editingIntervalIndex !== null ? 'Période modifiée' : 'Période créée' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de l\'enregistrement';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    } finally {
+      setLoading(false);
+      hideLoadingOverlay();
     }
+  }
 
-    if (startDay > endDay) {
-      toast({
-        variant: 'destructive',
-        title: 'Erreur de validation',
-        description: 'Le jour de début doit être avant le jour de fin.',
-      });
-      return;
+  async function handleDeleteInterval() {
+    try {
+      setLoading(true);
+      showLoadingOverlay('Suppression...');
+      
+      if (deleteTargetIndex === null) return;
+
+      const interval = scheduledIntervals[deleteTargetIndex];
+      const phase = getIntervalPhase(interval.startAt, interval.endAt);
+
+      if (phase === 'active') {
+        toast({ variant: 'destructive', title: 'Impossible', description: 'Impossible de supprimer une période active' });
+        return;
+      }
+
+      const newIntervals = scheduledIntervals.filter((_, idx) => idx !== deleteTargetIndex);
+      setEvaluationPeriodSchedule({ intervals: newIntervals });
+      setScheduledIntervals(newIntervals);
+      setDialogMode('none');
+      setDeleteTargetIndex(null);
+      toast({ title: 'Succès', description: 'Période supprimée' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la suppression';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    } finally {
+      setLoading(false);
+      hideLoadingOverlay();
     }
+  }
 
-    const periodCode = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+  async function handleProlongPeriod(idx: number) {
+    try {
+      setLoading(true);
+      showLoadingOverlay('Prolongation en cours...');
+      
+      const interval = scheduledIntervals[idx];
+      const endDate = new Date(interval.endAt);
+      
+      // Add 1 month
+      endDate.setMonth(endDate.getMonth() + 1);
 
-    // Check for duplicate month-year (except when editing the same interval)
-    const isDuplicate = updatedIntervals.some((interval, idx) => {
-      if (dialogMode === 'edit' && idx === editingIntervalIndex) return false;
-      const intervalStart = new Date(interval.startAt);
-      const intervalCode = `${intervalStart.getFullYear()}-${String(intervalStart.getMonth() + 1).padStart(2, '0')}`;
-      return intervalCode === periodCode;
-    });
-
-    if (isDuplicate) {
-      toast({
-        variant: 'destructive',
-        title: 'Doublon détecté',
-        description: `Une période pour ${periodName} existe déjà.`,
-      });
-      return;
-    }
-
-    // Check for overlaps (except when editing)
-    const hasOverlap = updatedIntervals.some((interval, idx) => {
-      if (dialogMode === 'edit' && idx === editingIntervalIndex) return false;
-      const existingStart = new Date(interval.startAt).getTime();
-      const existingEnd = new Date(interval.endAt).getTime();
-      return !(endDate.getTime() < existingStart || startDate.getTime() > existingEnd);
-    });
-
-    if (hasOverlap) {
-      toast({
-        variant: 'destructive',
-        title: 'Chevauchement détecté',
-        description: 'Cette période chevauche une autre période existante.',
-      });
-      return;
-    }
-
-    // Create or update interval
-    if (dialogMode === 'create') {
-      updatedIntervals.push({ startAt, endAt });
-    } else if (dialogMode === 'edit' && editingIntervalIndex !== null) {
-      const existing = updatedIntervals[editingIntervalIndex];
-      updatedIntervals[editingIntervalIndex] = {
-        ...existing,
-        startAt,
-        endAt,
+      const newIntervals = [...scheduledIntervals];
+      newIntervals[idx] = {
+        startAt: interval.startAt,
+        endAt: endDate.toISOString(),
+        isProlongation: true,
       };
+
+      setEvaluationPeriodSchedule({ intervals: newIntervals });
+      setScheduledIntervals(newIntervals);
+      toast({ title: 'Succès', description: 'Période prolongée' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erreur lors de la prolongation';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    } finally {
+      setLoading(false);
+      hideLoadingOverlay();
     }
+  }
 
-    // Sort by start date
-    updatedIntervals.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-
-    // Save and update
-    setEvaluationPeriodSchedule({ enabled: true, intervals: updatedIntervals });
-    setScheduledIntervals(updatedIntervals);
-    setDialogMode('none');
-
-    const action = dialogMode === 'create' ? 'créée' : 'modifiée';
-    toast({
-      title: 'Succès',
-      description: `Période ${action} et enregistrée.`,
-    });
-  };
-
-  // Delete interval
-  const handleDeleteInterval = (idx: number) => {
-    const interval = scheduledIntervals[idx];
-    if (!interval) return;
-
-    const phase = getIntervalPhase(interval.startAt, interval.endAt);
-    if (phase !== 'upcoming') {
-      toast({
-        variant: 'destructive',
-        title: 'Suppression impossible',
-        description: 'Seules les périodes à venir peuvent être supprimées.',
-      });
-      return;
-    }
-
-    const currentSchedule = getEvaluationPeriodSchedule();
-    const updatedIntervals = [...(currentSchedule.intervals ?? [])];
-    updatedIntervals.splice(idx, 1);
-
-    setEvaluationPeriodSchedule({ enabled: true, intervals: updatedIntervals });
-    setScheduledIntervals(updatedIntervals);
-    setDialogMode('none');
-
-    toast({
-      title: 'Période supprimée',
-      description: 'La période a été supprimée avec succès.',
-    });
-  };
-
-  // Prolong period
-  const handleProlongPeriod = (idx: number) => {
-    const schedule = getEvaluationPeriodSchedule();
-    const target = schedule.intervals?.[idx];
-    if (!target) return;
-
-    const phase = getIntervalPhase(target.startAt, target.endAt);
-    if (phase !== 'ended') {
-      toast({
-        variant: 'destructive',
-        title: 'Prolongation impossible',
-        description: 'Seules les périodes clôturées peuvent être prolongées.',
-      });
-      return;
-    }
-
-    const endDate = new Date(target.endAt);
-    endDate.setMonth(endDate.getMonth() + 1);
-    const newEndAt = endDate.toISOString();
-
-    const updatedIntervals = [...(schedule.intervals ?? [])];
-    updatedIntervals[idx] = { ...target, endAt: newEndAt, isProlongation: true };
-
-    setEvaluationPeriodSchedule({ enabled: true, intervals: updatedIntervals });
-    setScheduledIntervals(updatedIntervals);
-
-    toast({
-      title: 'Période prolongée',
-      description: 'La période a été rouverte et prolongée d\'un mois.',
-    });
-  };
-
-  // Update period name when month changes
-  useEffect(() => {
-    const code = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
-    const desc = describeEvaluationPeriodCode(code) || '';
-    setPeriodName(desc);
-  }, [selectedYear, selectedMonth]);
-
-  // Subscribe to period changes
-  useEffect(() => {
-    const unsubscribe = subscribeEvaluationPeriodChange(() => {
-      const schedule = getEvaluationPeriodSchedule();
-      setScheduledIntervals(schedule.intervals ?? []);
-    });
-    return unsubscribe;
-  }, []);
+  const filteredIntervals = getFilteredIntervals();
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-6 px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">Périodes Programmées</h1>
-            <p className="text-muted-foreground mt-1">Gestion complète des périodes d'évaluation</p>
-          </div>
-          <Button onClick={() => navigate(-1)} variant="outline">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold">Périodes Programmées</h1>
+          <Button variant="outline" onClick={() => navigate('/admin/evaluations')}>
             ← Retour
           </Button>
         </div>
-
-        {/* Filters */}
-        <div className="flex gap-2 mb-6 flex-wrap">
-          <Button
-            variant={filterState === 'all' ? 'default' : 'outline'}
-            onClick={() => setFilterState('all')}
-            size="sm"
-          >
-            Tous ({scheduledIntervals.length})
-          </Button>
-          <Button
-            variant={filterState === 'upcoming' ? 'default' : 'outline'}
-            onClick={() => setFilterState('upcoming')}
-            size="sm"
-          >
-            À venir ({scheduledIntervals.filter((i) => getIntervalPhase(i.startAt, i.endAt) === 'upcoming').length})
-          </Button>
-          <Button
-            variant={filterState === 'active' ? 'default' : 'outline'}
-            onClick={() => setFilterState('active')}
-            size="sm"
-          >
-            Actives ({scheduledIntervals.filter((i) => getIntervalPhase(i.startAt, i.endAt) === 'active').length})
-          </Button>
-          <Button
-            variant={filterState === 'ended' ? 'default' : 'outline'}
-            onClick={() => setFilterState('ended')}
-            size="sm"
-          >
-            Clôturées ({scheduledIntervals.filter((i) => getIntervalPhase(i.startAt, i.endAt) === 'ended').length})
-          </Button>
-        </div>
-
-        {/* Action Button */}
-        {canManagePeriods && (
-          <div className="mb-6">
-            <Button onClick={openCreateMode} className="gap-2">
-              + Ajouter une période
-            </Button>
-          </div>
-        )}
-
-        {/* Periods List */}
-        <div className="space-y-3">
-          {filteredIntervals.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucune période trouvée pour ce filtre.
-            </div>
-          ) : (
-            filteredIntervals.map((interval, idx) => {
-              const globalIdx = scheduledIntervals.indexOf(interval);
-              const phase = getIntervalPhase(interval.startAt, interval.endAt);
-              const periodDesc = describeEvaluationPeriodCode(
-                `${new Date(interval.startAt).getFullYear()}-${String(new Date(interval.startAt).getMonth() + 1).padStart(2, '0')}`
-              );
-
-              return (
-                <div
-                  key={globalIdx}
-                  className="border rounded-lg p-4 bg-card hover:bg-accent/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3 flex-1">
-                      <Circle
-                        className={`h-4 w-4 shrink-0 fill-current ${
-                          phase === 'active'
-                            ? 'text-green-600'
-                            : phase === 'ended'
-                              ? 'text-red-600'
-                              : 'text-blue-500'
-                        }`}
-                      />
-                      <div className="flex-1">
-                        <p className="font-semibold text-base">{periodDesc}</p>
-                        <p className="text-xs text-muted-foreground">{formatIntervalRange(interval.startAt, interval.endAt)}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {interval.isProlongation && <Badge variant="secondary">✓ Prolongation</Badge>}
-                      <Badge
-                        variant={
-                          phase === 'active' ? 'default' : phase === 'ended' ? 'destructive' : 'outline'
-                        }
-                      >
-                        {intervalPhaseLabel(phase)}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 justify-end flex-wrap mt-3">
-                    {canManagePeriods ? (
-                      phase === 'upcoming' ? (
-                        <>
-                          <Button size="sm" variant="outline" onClick={() => openEditMode(globalIdx)}>
-                            ✎ Modifier
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive"
-                            onClick={() => openDeleteMode(globalIdx)}
-                          >
-                            🗑 Supprimer
-                          </Button>
-                        </>
-                      ) : phase === 'ended' ? (
-                        <Button size="sm" variant="default" onClick={() => handleProlongPeriod(globalIdx)}>
-                          🔄 Prolonger
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">En cours - Non modifiable</span>
-                      )
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Lecture seule</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+        <p className="text-muted-foreground text-sm">
+          Gestion complète des périodes d'évaluation
+        </p>
       </div>
+
+      {/* Periods List Card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Liste des périodes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Filters Row */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Chercher une période..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={filterState} onValueChange={(v) => setFilterState(v as FilterState)}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="État" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  Tous ({scheduledIntervals.length})
+                </SelectItem>
+                <SelectItem value="upcoming">
+                  À venir ({countByPhase('upcoming')})
+                </SelectItem>
+                <SelectItem value="active">
+                  Actives ({countByPhase('active')})
+                </SelectItem>
+                <SelectItem value="ended">
+                  Clôturées ({countByPhase('ended')})
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Table */}
+          {loading ? (
+            <p className="text-center text-muted-foreground py-8">Chargement...</p>
+          ) : filteredIntervals.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">Aucune période trouvée</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4">Période</th>
+                      <th className="text-left py-3 px-4">Dates</th>
+                      <th className="text-left py-3 px-4">État</th>
+                      <th className="text-left py-3 px-4">Statut</th>
+                      <th className="text-right py-3 px-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagination.paginatedItems.map((interval) => {
+                      const phase = getIntervalPhase(interval.startAt, interval.endAt);
+                      const periodName = getPeriodYearMonth(interval.startAt);
+                      const realIdx = scheduledIntervals.indexOf(interval);
+
+                      return (
+                        <tr key={realIdx} className="border-b hover:bg-muted/50">
+                          <td className="py-3 px-4 font-medium">{periodName}</td>
+                          <td className="py-3 px-4 text-sm">{formatIntervalRange(interval.startAt, interval.endAt)}</td>
+                          <td className="py-3 px-4">
+                            <Badge variant={phaseBadgeVariant(phase)}>
+                              {intervalPhaseLabel(phase)}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-sm">
+                            {phase === 'active' ? (
+                              <span className="text-primary font-medium">En cours - Non modifiable</span>
+                            ) : phase === 'ended' && !interval.isProlongation ? (
+                              <span className="text-muted-foreground">Clôturée</span>
+                            ) : phase === 'ended' && interval.isProlongation ? (
+                              <span className="text-blue-600 font-medium">Prolongée</span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap space-x-1">
+                            {phase !== 'active' && canManagePeriods && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openEditMode(realIdx)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => openDeleteMode(realIdx)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {phase === 'ended' && !interval.isProlongation && canManagePeriods && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleProlongPeriod(realIdx)}
+                              >
+                                Prolonger
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <PaginationControls
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                itemsPerPage={pagination.itemsPerPage}
+                totalItems={pagination.totalItems}
+                onPageChange={pagination.setCurrentPage}
+                onItemsPerPageChange={pagination.setItemsPerPage}
+                canGoPrev={pagination.canGoPrev}
+                canGoNext={pagination.canGoNext}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add Button Below Card */}
+      {canManagePeriods && (
+        <div className="flex justify-end">
+          <Button onClick={openCreateMode} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Ajouter une période
+          </Button>
+        </div>
+      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogMode === 'create' || dialogMode === 'edit'} onOpenChange={(open) => {
@@ -453,58 +473,56 @@ export default function ScheduledPeriodsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {dialogMode === 'create' ? 'Ajouter une période' : 'Modifier une période'}
+              {dialogMode === 'create' ? 'Créer une période' : 'Modifier la période'}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Year and Month Selection */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium">Année</label>
-                <Select value={String(selectedYear)} onValueChange={(val) => setSelectedYear(Number(val))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[2024, 2025, 2026, 2027, 2028].map((year) => (
-                      <SelectItem key={year} value={String(year)}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Mois</label>
-                <Select value={String(selectedMonth)} onValueChange={(val) => setSelectedMonth(Number(val))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(MONTH_LABELS).map(([num, label]) => (
-                      <SelectItem key={num} value={num}>
-                        {label.charAt(0).toUpperCase() + label.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Period Name (Read-only) */}
+            {/* Year Select */}
             <div>
-              <label className="text-sm font-medium">Période</label>
-              <Input value={periodName} readOnly className="bg-muted" />
+              <label className="text-sm font-medium">Année</label>
+              <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2].map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Day Range Selection */}
+            {/* Month Select */}
+            <div>
+              <label className="text-sm font-medium">Mois</label>
+              <Select value={String(selectedMonth)} onValueChange={(v) => {
+                const month = Number(v);
+                setSelectedMonth(month);
+                setEndDay(getLastDayOfMonth(selectedYear, month));
+              }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      {MONTH_LABELS[m]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Day Range */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Jour de début</label>
                 <Input
                   type="number"
-                  min={1}
+                  min="1"
                   max={getLastDayOfMonth(selectedYear, selectedMonth)}
                   value={startDay}
                   onChange={(e) => setStartDay(Number(e.target.value))}
@@ -514,54 +532,50 @@ export default function ScheduledPeriodsPage() {
                 <label className="text-sm font-medium">Jour de fin</label>
                 <Input
                   type="number"
-                  min={1}
+                  min="1"
                   max={getLastDayOfMonth(selectedYear, selectedMonth)}
                   value={endDay}
                   onChange={(e) => setEndDay(Number(e.target.value))}
                 />
               </div>
             </div>
+
+            {/* Period Name Display */}
+            {periodName && (
+              <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
+                Période: <span className="font-medium">{periodName}</span>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogMode('none')}>
               Annuler
             </Button>
-            <Button onClick={handleSaveSchedule}>
-              {dialogMode === 'create' ? '✓ Enregistrer' : '💾 Mettre à jour'}
+            <Button onClick={handleSaveSchedule} disabled={loading}>
+              {dialogMode === 'create' ? 'Créer' : 'Modifier'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={dialogMode === 'delete'} onOpenChange={(open) => {
+      <AlertDialog open={dialogMode === 'delete'} onOpenChange={(open) => {
         if (!open) setDialogMode('none');
       }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirmer la suppression</DialogTitle>
-          </DialogHeader>
-          <p className="text-muted-foreground">
-            Êtes-vous sûr de vouloir supprimer cette période ? Cette action est irréversible.
+        <AlertDialogContent>
+          <AlertDialogTitle>Supprimer la période</AlertDialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Êtes-vous sûr ? Cette action est irréversible.
           </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogMode('none')}>
-              Annuler
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (deleteTargetIndex !== null) {
-                  handleDeleteInterval(deleteTargetIndex);
-                }
-              }}
-            >
+          <div className="flex gap-2 justify-end">
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteInterval} className="bg-destructive text-destructive-foreground">
               Supprimer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
