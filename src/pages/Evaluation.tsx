@@ -162,8 +162,12 @@ export default function Evaluation() {
       const byBranch = branchFilter === FILTER_ALL || emp.branch_id === branchFilter;
       const byDepartment =
         departmentFilter === FILTER_ALL || emp.department_id === departmentFilter;
+      const empStatus = statusByEmployee[emp.id];
       const byStatus =
-        statusFilter === 'all' || statusByEmployee[emp.id] === statusFilter;
+        statusFilter === 'all' || 
+        empStatus === statusFilter ||
+        (statusFilter === 'approved' && (empStatus === 'completed' || empStatus === 'approved')) ||
+        (statusFilter === 'pending' && (empStatus === 'pending' || empStatus === 'draft' || empStatus === 'rejected'));
       return byBranch && byDepartment && byStatus;
     });
   }, [employees, branchFilter, departmentFilter, statusFilter, statusByEmployee]);
@@ -222,14 +226,19 @@ export default function Evaluation() {
     if (location.state?.filterByStatus) {
       const filterStatus = location.state.filterByStatus;
       if (Array.isArray(filterStatus) && filterStatus.length > 0) {
-        // If multiple statuses (like ['pending', 'draft', 'rejected']), keep using 'pending' as filter
-        if (filterStatus.includes('pending') && filterStatus.length > 1) {
+        // If multiple statuses, set to the first one or map accordingly
+        if ((filterStatus.includes('pending') || filterStatus.includes('draft') || filterStatus.includes('rejected')) && filterStatus.length > 1) {
           setStatusFilter('pending');
+        } else if ((filterStatus.includes('approved') || filterStatus.includes('completed')) && filterStatus.length > 1) {
+          setStatusFilter('approved');
         } else if (filterStatus.length === 1) {
-          setStatusFilter(filterStatus[0] as EvaluationStatus);
+          const status = filterStatus[0];
+          // Map 'completed' to 'approved' for display
+          setStatusFilter(status === 'completed' ? 'approved' : (status as EvaluationStatus));
         }
       } else if (typeof filterStatus === 'string') {
-        setStatusFilter(filterStatus as EvaluationStatus);
+        // Map 'completed' to 'approved' for display
+        setStatusFilter(filterStatus === 'completed' ? ('approved' as any) : (filterStatus as EvaluationStatus));
       }
     }
   }, [location.state]);

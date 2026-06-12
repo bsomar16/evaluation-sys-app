@@ -302,6 +302,8 @@ export default function Dashboard() {
       // Handle pending status to include draft and rejected
       if (statusFilter === 'pending') {
         navigate('/evaluation', { state: { filterByStatus: ['pending', 'draft', 'rejected'] } });
+      } else if (statusFilter === 'approved') {
+        navigate('/evaluation', { state: { filterByStatus: ['approved', 'completed'] } });
       } else {
         navigate('/evaluation', { state: { filterByStatus: [statusFilter] } });
       }
@@ -468,7 +470,7 @@ export default function Dashboard() {
 
       // Calculate evaluation statuses for charts
       const submittedCount = evaluations?.filter(e => e.status === 'submitted').length || 0;
-      const approvedCount = evaluations?.filter(e => e.status === 'approved').length || 0;
+      const approvedCount = evaluations?.filter(e => e.status === 'approved' || e.status === 'completed').length || 0;
       const pendingCount = evaluations?.filter(e => e.status === 'pending' || e.status === 'draft' || e.status === 'rejected').length || 0;
       
       const evalStatusArray = [];
