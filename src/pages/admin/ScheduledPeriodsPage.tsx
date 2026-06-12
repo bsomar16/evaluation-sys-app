@@ -538,12 +538,12 @@ export default function ScheduledPeriodsPage() {
               )}
             </div>
 
-            {/* Month/Year Display (readonly, derived from start date) */}
+            {/* Period Name Display (readonly, derived from start date) */}
             {startDate && (
               <div>
-                <label className="text-sm font-medium">Mois & Année (Auto)</label>
-                <div className="text-sm bg-muted p-3 rounded border">
-                  {new Date(startDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                <label className="text-sm font-medium">Période</label>
+                <div className="text-sm bg-background border border-input p-3 rounded cursor-default text-foreground font-semibold">
+                  {new Date(startDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).charAt(0).toUpperCase() + new Date(startDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).slice(1)}
                 </div>
               </div>
             )}
@@ -574,12 +574,7 @@ export default function ScheduledPeriodsPage() {
               </div>
             )}
 
-            {/* Period Name Display */}
-            {periodName && (
-              <div className="text-sm text-muted-foreground bg-muted p-3 rounded">
-                Période: <span className="font-medium">{periodName}</span>
-              </div>
-            )}
+            {/* Removed: Period name already displayed above */}
           </div>
 
           <DialogFooter>
