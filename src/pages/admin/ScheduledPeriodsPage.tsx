@@ -431,6 +431,7 @@ export default function ScheduledPeriodsPage() {
                     <tr className="border-b">
                       <th className="text-left py-3 px-4">Période</th>
                       <th className="text-left py-3 px-4">Dates</th>
+                      <th className="text-left py-3 px-4">Durée</th>
                       <th className="text-left py-3 px-4">État</th>
                       <th className="text-right py-3 px-4">Actions</th>
                     </tr>
@@ -445,6 +446,9 @@ export default function ScheduledPeriodsPage() {
                         <tr key={realIdx} className="border-b hover:bg-muted/50">
                           <td className="py-3 px-4 font-medium">{periodName}</td>
                           <td className="py-3 px-4 text-sm">{formatIntervalRange(interval.startAt, interval.endAt)}</td>
+                          <td className="py-3 px-4 text-sm">
+                            {Math.ceil((new Date(interval.endAt).getTime() - new Date(interval.startAt).getTime()) / (1000 * 60 * 60 * 24)) + 1} jours
+                          </td>
                           <td className="py-3 px-4">
                             <Badge variant={phaseBadgeVariant(phase)}>
                               {intervalPhaseLabel(phase)}
