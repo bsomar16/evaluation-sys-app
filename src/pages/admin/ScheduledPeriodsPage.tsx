@@ -525,16 +525,13 @@ export default function ScheduledPeriodsPage() {
                 type="date"
                 value={startDate}
                 onChange={(e) => {
-                  setStartDate(e.target.value);
+                  const value = e.target.value;
+                  setStartDate(value);
                   setFormError('');
                   // Auto-set end date to same start date initially
-                  if (e.target.value) {
-                    const dayStr = e.target.value.split('-')[2];
-                    if (!endDate) {
-                      // First time: set end date to start date
-                      setEndDate(e.target.value);
-                    }
-                  } else {
+                  if (value && !endDate) {
+                    setEndDate(value);
+                  } else if (!value) {
                     setEndDate('');
                   }
                 }}
