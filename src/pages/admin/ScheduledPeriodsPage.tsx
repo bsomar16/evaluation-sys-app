@@ -376,8 +376,14 @@ export default function ScheduledPeriodsPage() {
 
       {/* Periods List Card */}
       <Card>
-        <CardHeader className="pb-2">
+        <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-lg">Liste des périodes</CardTitle>
+          {canManagePeriods && (
+            <Button onClick={openCreateMode} size="sm" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Ajouter une période
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Filters Row */}
@@ -495,16 +501,6 @@ export default function ScheduledPeriodsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Add Button Below Card */}
-      {canManagePeriods && (
-        <div className="flex justify-end">
-          <Button onClick={openCreateMode} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Ajouter une période
-          </Button>
-        </div>
-      )}
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogMode === 'create' || dialogMode === 'edit'} onOpenChange={(open) => {
