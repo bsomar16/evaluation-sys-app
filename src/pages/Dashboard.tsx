@@ -552,6 +552,7 @@ export default function Dashboard() {
         { data: departmentsData },
         { data: rolesData },
         { data: trainings },
+        { data: periodsData },
       ] = await Promise.all([
         supabase.from('users').select('*'),
         supabase.from('evaluations').select('*'),
@@ -559,6 +560,7 @@ export default function Dashboard() {
         supabase.from('departments').select('*'),
         supabase.from('roles').select('*'),
         supabase.from('training_requests').select('*'),
+        supabase.from('evaluation_periods').select('name').order('created_at', { ascending: false }),
       ]);
 
       const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
@@ -568,26 +570,33 @@ export default function Dashboard() {
       setDepartments(departmentsData || []);
       setRoles(rolesData || []);
 
-      // Extract periods from evaluations
-      const uniquePeriods = [...new Set((evaluations || []).map(e => e.period).filter(Boolean))];
-      // Parse periods in "Q2 2026" or "2026-Q2" format and sort by actual date
-      const sortedPeriods = Array.from(uniquePeriods).sort((a, b) => {
-        // Extract year and quarter from "Q2 2026" format
-        const aMatch = a.match(/Q(\d+)\s(\d{4})/i);
-        const bMatch = b.match(/Q(\d+)\s(\d{4})/i);
-        
-        if (!aMatch || !bMatch) {
-          // Fallback: string comparison if format doesn't match
-          return b.localeCompare(a);
-        }
-        
-        const [, aQuarter, aYear] = aMatch;
-        const [, bQuarter, bYear] = bMatch;
-        const aDate = new Date(parseInt(aYear), (parseInt(aQuarter) - 1) * 3, 1);
-        const bDate = new Date(parseInt(bYear), (parseInt(bQuarter) - 1) * 3, 1);
-        
-        return bDate.getTime() - aDate.getTime(); // Most recent first
-      });
+      // Get periods from evaluation_periods table, fall back to evaluations if table is empty
+      let sortedPeriods: string[] = [];
+      
+      if (periodsData && periodsData.length > 0) {
+        // Use periods from evaluation_periods table
+        sortedPeriods = periodsData.map((p: any) => p.name).filter(Boolean);
+      } else {
+        // Fall back to extracting periods from evaluations
+        const uniquePeriods = [...new Set((evaluations || []).map(e => e.period).filter(Boolean))];
+        sortedPeriods = Array.from(uniquePeriods).sort((a, b) => {
+          // Extract year and quarter from "Q2 2026" format
+          const aMatch = a.match(/Q(\d+)\s(\d{4})/i);
+          const bMatch = b.match(/Q(\d+)\s(\d{4})/i);
+          
+          if (!aMatch || !bMatch) {
+            // Fallback: string comparison if format doesn't match
+            return b.localeCompare(a);
+          }
+          
+          const [, aQuarter, aYear] = aMatch;
+          const [, bQuarter, bYear] = bMatch;
+          const aDate = new Date(parseInt(aYear), (parseInt(aQuarter) - 1) * 3, 1);
+          const bDate = new Date(parseInt(bYear), (parseInt(bQuarter) - 1) * 3, 1);
+          
+          return bDate.getTime() - aDate.getTime(); // Most recent first
+        });
+      }
       
       setPeriods(sortedPeriods);
       if (sortedPeriods.length > 0) {
