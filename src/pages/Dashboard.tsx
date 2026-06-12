@@ -287,6 +287,45 @@ export default function Dashboard() {
     };
   };
 
+  // Helper to get filtered evaluations for the currently open period and accessible branches
+  const getFilteredEvaluationsForPeriod = () => {
+    if (!selectedPeriod || allEvaluations.length === 0) return [];
+    
+    // Get accessible branch IDs
+    const getAccessibleBranchIds = (): string[] => {
+      if (!branches.length) return [];
+      
+      const userRole = roles.find(r => r.id === currentUser?.role_id);
+      if (userRole?.name?.toLowerCase().includes('directeur')) {
+        return branches.map(b => b.id);
+      }
+      
+      if (currentUser?.branch_id) {
+        const userBranch = branches.find(b => b.id === currentUser.branch_id);
+        if (!userBranch) return [];
+        
+        const childBranchIds = userBranch.child_branches || [];
+        return [currentUser.branch_id, ...childBranchIds];
+      }
+      
+      return [];
+    };
+    
+    const accessibleBranchIds = getAccessibleBranchIds();
+    
+    // Filter evaluations for selected period and accessible branches
+    return allEvaluations.filter(e => {
+      // Check period match
+      if (e.period !== selectedPeriod) return false;
+      
+      // Check if employee is in accessible branch
+      const evaluatee = users.find(u => u.email === e.employee_email);
+      if (!evaluatee) return false;
+      
+      return accessibleBranchIds.includes(evaluatee.branch_id);
+    });
+  };
+
   const handleEvaluationStatusClick = (data: any) => {
     // Map status to filter types for Evaluation page
     let statusFilter = '';
@@ -394,6 +433,45 @@ export default function Dashboard() {
     }
   }, [branches, currentUser, getAccessibleBranches]);
 
+  // Recalculate evaluation statuses when period or user context changes
+  useEffect(() => {
+    if (!selectedPeriod || allEvaluations.length === 0 || branches.length === 0) {
+      setEvaluationStatus([]);
+      return;
+    }
+    
+    const filteredEvals = getFilteredEvaluationsForPeriod();
+    
+    const submittedCount = filteredEvals.filter(e => e.status === 'submitted').length;
+    const approvedCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
+    const pendingCount = filteredEvals.filter(e => e.status === 'pending' || e.status === 'draft' || e.status === 'rejected').length;
+    
+    const evalStatusArray = [];
+    if (submittedCount > 0) {
+      evalStatusArray.push({
+        status: 'submitted',
+        count: submittedCount,
+        color: '#f59e0b', // amber
+      });
+    }
+    if (approvedCount > 0) {
+      evalStatusArray.push({
+        status: 'approved',
+        count: approvedCount,
+        color: '#10b981', // emerald
+      });
+    }
+    if (pendingCount > 0) {
+      evalStatusArray.push({
+        status: 'pending',
+        count: pendingCount,
+        color: '#ef4444', // red
+      });
+    }
+    
+    setEvaluationStatus(evalStatusArray);
+  }, [selectedPeriod, allEvaluations, branches, currentUser, roles, users]);
+
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
@@ -468,34 +546,9 @@ export default function Dashboard() {
         totalTrainings: trainings?.length || 0,
       });
 
-      // Calculate evaluation statuses for charts
-      const submittedCount = evaluations?.filter(e => e.status === 'submitted').length || 0;
-      const approvedCount = evaluations?.filter(e => e.status === 'approved' || e.status === 'completed').length || 0;
-      const pendingCount = evaluations?.filter(e => e.status === 'pending' || e.status === 'draft' || e.status === 'rejected').length || 0;
-      
-      const evalStatusArray = [];
-      if (submittedCount > 0) {
-        evalStatusArray.push({
-          status: 'submitted',
-          count: submittedCount,
-          color: '#f59e0b', // amber
-        });
-      }
-      if (approvedCount > 0) {
-        evalStatusArray.push({
-          status: 'approved',
-          count: approvedCount,
-          color: '#10b981', // emerald
-        });
-      }
-      if (pendingCount > 0) {
-        evalStatusArray.push({
-          status: 'pending',
-          count: pendingCount,
-          color: '#ef4444', // red
-        });
-      }
-      setEvaluationStatus(evalStatusArray);
+      // Evaluation status will be calculated in useEffect when period/user changes
+      // Initialize empty for now, will be populated once data loads
+      setEvaluationStatus([]);
 
       // Calculate training statuses for charts
       const trainingMap = new Map<string, number>();
@@ -933,20 +986,39 @@ export default function Dashboard() {
                     outerRadius={100} 
                     paddingAngle={3} 
                     dataKey="count" 
-                    label={({ status, percent }) => {
+                    label={({ status, count, percent }) => {
                       const labels: Record<string, string> = {
                         submitted: 'Soumises',
                         approved: 'Approuvées',
                         pending: 'En attente'
                       };
-                      return `${labels[status] || status} ${(percent * 100).toFixed(0)}%`;
+                      return `${count} ${labels[status] || status}`;
                     }}
                   >
                     {evaluationStatus.map((entry, index) => (
                       <Cell key={index} fill={entry.color} cursor="pointer" onClick={() => handleEvaluationStatusClick({ name: entry.status })} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value) => value.toString()} />
+                  <Tooltip 
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} 
+                    formatter={(value: any, name: any, props: any) => {
+                      const labels: Record<string, string> = {
+                        submitted: 'Soumises',
+                        approved: 'Approuvées',
+                        pending: 'En attente'
+                      };
+                      const status = props.payload.status;
+                      return `${value} évaluation${value > 1 ? 's' : ''}`;
+                    }}
+                    labelFormatter={(label) => {
+                      const labels: Record<string, string> = {
+                        submitted: 'Soumises',
+                        approved: 'Approuvées',
+                        pending: 'En attente'
+                      };
+                      return labels[label] || label;
+                    }}
+                  />
                   <Legend 
                     wrapperStyle={{ fontSize: 12, cursor: 'pointer' }} 
                     onClick={(e) => handleEvaluationStatusClick(e)}
