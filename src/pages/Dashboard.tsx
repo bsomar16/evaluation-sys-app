@@ -437,9 +437,59 @@ export default function Dashboard() {
     }
   }, [branches, currentUser, getAccessibleBranches]);
 
+  // Helper: Get eligible employees for evaluation (in accessible branches, not archived)
+  const getEligibleEmployees = (): any[] => {
+    if (branches.length === 0 || users.length === 0) return [];
+    
+    const getAccessibleBranchIds = (): string[] => {
+      if (!branches.length) return [];
+      
+      const userRole = roles.find(r => r.id === currentUser?.role_id);
+      if (userRole?.name?.toLowerCase().includes('directeur')) {
+        return branches.map(b => b.id);
+      }
+      
+      if (currentUser?.branch_id) {
+        const userBranch = branches.find(b => b.id === currentUser.branch_id);
+        if (!userBranch) return [];
+        
+        const childBranchIds = userBranch.child_branches || [];
+        return [currentUser.branch_id, ...childBranchIds];
+      }
+      
+      return [];
+    };
+    
+    const accessibleBranchIds = getAccessibleBranchIds();
+    
+    // Return employees in accessible branches (not archived)
+    return users.filter(u => 
+      u.branch_id && 
+      accessibleBranchIds.includes(u.branch_id) && 
+      !u.archived_at
+    );
+  };
+
+  // Helper: Count eligible employees WITHOUT an evaluation for current period
+  const getEligibleEmployeesWithoutEvaluation = (): number => {
+    if (!selectedPeriod) return 0;
+    
+    const eligibleEmployees = getEligibleEmployees();
+    
+    // Get emails of employees with evaluations for this period
+    const evaluatedEmails = new Set(
+      allEvaluations
+        .filter(e => e.period === selectedPeriod)
+        .map(e => e.employee_email)
+    );
+    
+    // Count eligible employees NOT in the evaluated set
+    return eligibleEmployees.filter(emp => !evaluatedEmails.has(emp.email)).length;
+  };
+
   // Recalculate evaluation statuses when period or user context changes
   useEffect(() => {
-    if (!selectedPeriod || allEvaluations.length === 0 || branches.length === 0) {
+    if (!selectedPeriod || branches.length === 0) {
       setEvaluationStatus([]);
       return;
     }
@@ -452,8 +502,11 @@ export default function Dashboard() {
     const submittedCount = filteredEvals.filter(e => e.status === 'submitted').length;
     const completeCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
     
-    // Group into 3 categories: En attente (draft+rejected), Soumis, Complet
-    const enAttenteCount = notSubmittedCount + rejectedCount;
+    // Add eligible employees without evaluation to "En attente"
+    const eligibleWithoutEval = getEligibleEmployeesWithoutEvaluation();
+    
+    // Group into 3 categories: En attente (draft+rejected+eligible without eval), Soumis, Complet
+    const enAttenteCount = notSubmittedCount + rejectedCount + eligibleWithoutEval;
     
     // Always show all 3 categories (even with 0), so legend displays all options
     const evalStatusArray = [
