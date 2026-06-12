@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -66,6 +66,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: 
 
 export default function Evaluation() {
   const FILTER_ALL = '__all__';
+  const location = useLocation();
   const { toast } = useToast();
   const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation } = useRolePermissions();
   const canReadEvaluations = canRead('evaluations');
@@ -216,7 +217,22 @@ export default function Evaluation() {
       .map(([key, emps]) => ({ key, label: toLabel(key), employees: emps }))
       .sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '', 'fr'));
   }, [pagination.paginatedItems, groupBy, departments]);
-
+  // Initialize filter from navigation state
+  useEffect(() => {
+    if (location.state?.filterByStatus) {
+      const filterStatus = location.state.filterByStatus;
+      if (Array.isArray(filterStatus) && filterStatus.length > 0) {
+        // If multiple statuses (like ['pending', 'draft', 'rejected']), keep using 'pending' as filter
+        if (filterStatus.includes('pending') && filterStatus.length > 1) {
+          setStatusFilter('pending');
+        } else if (filterStatus.length === 1) {
+          setStatusFilter(filterStatus[0] as EvaluationStatus);
+        }
+      } else if (typeof filterStatus === 'string') {
+        setStatusFilter(filterStatus as EvaluationStatus);
+      }
+    }
+  }, [location.state]);
   useEffect(() => {
     pagination.setCurrentPage(1);
   }, [filteredEmployees, pagination.itemsPerPage, groupBy]);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import useEmblaCarousel from 'embla-carousel-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -119,6 +120,8 @@ export default function Dashboard() {
 
   const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
   const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
+
+  const navigate = useNavigate();
 
   // Helper functions to get accessible data
   function getAccessibleBranches() {
@@ -284,6 +287,27 @@ export default function Dashboard() {
     };
   };
 
+  const handleEvaluationStatusClick = (data: any) => {
+    // Map status to filter types for Evaluation page
+    let statusFilter = '';
+    if (data.dataKey === 'status') {
+      statusFilter = data.name; // 'submitted', 'approved', or 'pending'
+    } else if (data.payload?.status) {
+      statusFilter = data.payload.status;
+    } else if (data.name) {
+      statusFilter = data.name;
+    }
+
+    if (statusFilter) {
+      // Handle pending status to include draft and rejected
+      if (statusFilter === 'pending') {
+        navigate('/evaluation', { state: { filterByStatus: ['pending', 'draft', 'rejected'] } });
+      } else {
+        navigate('/evaluation', { state: { filterByStatus: [statusFilter] } });
+      }
+    }
+  };
+
   // Update TOP/WORST employees when filter changes
   useEffect(() => {
     const { top, worst } = calculateEmployeePerformance();
@@ -442,23 +466,31 @@ export default function Dashboard() {
         totalTrainings: trainings?.length || 0,
       });
 
-      // Calculate evaluation statuses for charts - count completed evaluations
-      const completedCount = evaluations?.filter(e => e.status === 'completed').length || 0;
-      const pendingCount = evaluations?.filter(e => e.status === 'pending').length || 0;
+      // Calculate evaluation statuses for charts
+      const submittedCount = evaluations?.filter(e => e.status === 'submitted').length || 0;
+      const approvedCount = evaluations?.filter(e => e.status === 'approved').length || 0;
+      const pendingCount = evaluations?.filter(e => e.status === 'pending' || e.status === 'draft' || e.status === 'rejected').length || 0;
       
       const evalStatusArray = [];
-      if (completedCount > 0) {
+      if (submittedCount > 0) {
         evalStatusArray.push({
-          status: 'completed',
-          count: completedCount,
-          color: 'hsl(var(--primary))',
+          status: 'submitted',
+          count: submittedCount,
+          color: '#f59e0b', // amber
+        });
+      }
+      if (approvedCount > 0) {
+        evalStatusArray.push({
+          status: 'approved',
+          count: approvedCount,
+          color: '#10b981', // emerald
         });
       }
       if (pendingCount > 0) {
         evalStatusArray.push({
           status: 'pending',
           count: pendingCount,
-          color: 'hsl(var(--chart-2))',
+          color: '#ef4444', // red
         });
       }
       setEvaluationStatus(evalStatusArray);
@@ -891,13 +923,40 @@ export default function Dashboard() {
             {evaluationStatus.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={evaluationStatus} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="count" label={({ status, percent }) => `${status} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie 
+                    data={evaluationStatus} 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius={60} 
+                    outerRadius={100} 
+                    paddingAngle={3} 
+                    dataKey="count" 
+                    label={({ status, percent }) => {
+                      const labels: Record<string, string> = {
+                        submitted: 'Soumises',
+                        approved: 'Approuvées',
+                        pending: 'En attente'
+                      };
+                      return `${labels[status] || status} ${(percent * 100).toFixed(0)}%`;
+                    }}
+                  >
                     {evaluationStatus.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
+                      <Cell key={index} fill={entry.color} cursor="pointer" onClick={() => handleEvaluationStatusClick({ name: entry.status })} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} formatter={(value) => value.toString()} />
+                  <Legend 
+                    wrapperStyle={{ fontSize: 12, cursor: 'pointer' }} 
+                    onClick={(e) => handleEvaluationStatusClick(e)}
+                    formatter={(value) => {
+                      const labels: Record<string, string> = {
+                        submitted: 'Soumises',
+                        approved: 'Approuvées',
+                        pending: 'En attente'
+                      };
+                      return labels[value] || value;
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
