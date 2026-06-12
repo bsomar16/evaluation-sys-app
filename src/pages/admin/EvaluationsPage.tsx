@@ -50,6 +50,12 @@ import {
   setEvaluationPeriodSchedule,
   subscribeEvaluationPeriodChange,
 } from '@/lib/evaluation-period-storage';
+import {
+  dateToPeriodCode,
+  describeEvaluationPeriodCode,
+  parsePeriodCode,
+  getLastDayOfMonth,
+} from '@/lib/evaluation-period-label';
 import { runWithLoadingOverlay } from '@/lib/loading-overlay';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 
@@ -60,6 +66,13 @@ function toIsoValue(localValue: string): string | null {
   const date = new Date(localValue);
   if (!Number.isFinite(date.getTime())) return null;
   return date.toISOString();
+}
+
+/** Extraire année/mois d'une période (YYYY-MM) pour validation */
+function getPeriodYearMonth(code: string): string | null {
+  const parsed = parsePeriodCode(code);
+  if (!parsed) return null;
+  return `${parsed.year}-${String(parsed.month).padStart(2, '0')}`;
 }
 
 type IntervalPhase = 'active' | 'ended' | 'upcoming';
@@ -114,6 +127,18 @@ export function EvaluationsPage() {
   const [deleteTarget, setDeleteTarget] = useState<EvaluationRecord | null>(null);
   const [isPeriodOpen, setIsPeriodOpen] = useState<boolean>(() => isEvaluationPeriodOpen());
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  
+  // Nouveaux états pour les périodes mensuelles
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [startDay, setStartDay] = useState(1);
+  const [endDay, setEndDay] = useState(getLastDayOfMonth(currentYear, currentMonth));
+  const [periodName, setPeriodName] = useState<string>('');
+  
+  // États pour compatibilité avec programmation
   const [scheduleStart, setScheduleStart] = useState('');
   const [scheduleEnd, setScheduleEnd] = useState('');
   const [scheduledIntervals, setScheduledIntervals] = useState(
@@ -127,6 +152,19 @@ export function EvaluationsPage() {
   const refreshScheduledIntervals = () => {
     setScheduledIntervals(getEvaluationPeriodSchedule().intervals ?? []);
   };
+
+  // Mettre à jour periodName quand année/mois change
+  useEffect(() => {
+    const code = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    const description = describeEvaluationPeriodCode(code) || code;
+    setPeriodName(description);
+  }, [selectedYear, selectedMonth]);
+
+  // Mettre à jour endDay quand le mois change
+  useEffect(() => {
+    const lastDay = getLastDayOfMonth(selectedYear, selectedMonth);
+    setEndDay(Math.min(endDay, lastDay));
+  }, [selectedYear, selectedMonth]);
 
   const load = async () => {
     try {
@@ -218,6 +256,10 @@ export function EvaluationsPage() {
   };
 
   const openScheduleDialog = () => {
+    setSelectedYear(currentYear);
+    setSelectedMonth(currentMonth);
+    setStartDay(1);
+    setEndDay(getLastDayOfMonth(currentYear, currentMonth));
     setScheduleStart('');
     setScheduleEnd('');
     refreshScheduledIntervals();
@@ -225,27 +267,59 @@ export function EvaluationsPage() {
   };
 
   const handleSaveSchedule = () => {
-    const startAt = toIsoValue(scheduleStart);
-    const endAt = toIsoValue(scheduleEnd);
-    if (!startAt || !endAt) {
+    // Valider les jours
+    if (startDay < 1 || startDay > 31 || endDay < 1 || endDay > 31) {
       toast({
         variant: 'destructive',
         title: 'Erreur',
-        description: 'Choisissez une date de début et de fin valides.',
-      });
-      return;
-    }
-    if (new Date(startAt).getTime() >= new Date(endAt).getTime()) {
-      toast({
-        variant: 'destructive',
-        title: 'Erreur',
-        description: 'La fin doit être après le début.',
+        description: 'Les jours doivent être entre 1 et 31.',
       });
       return;
     }
 
+    const lastDay = getLastDayOfMonth(selectedYear, selectedMonth);
+    if (startDay > lastDay || endDay > lastDay) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: `Le mois a seulement ${lastDay} jours.`,
+      });
+      return;
+    }
+
+    if (startDay > endDay) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: 'La date de fin doit être après ou égale à la date de début.',
+      });
+      return;
+    }
+
+    // Créer les dates de début/fin
+    const startAt = new Date(selectedYear, selectedMonth - 1, startDay, 0, 0, 0, 0).toISOString();
+    const endAt = new Date(selectedYear, selectedMonth - 1, endDay, 23, 59, 59, 999).toISOString();
+
+    // Vérifier les doublons de mois-année
     const schedule = getEvaluationPeriodSchedule();
     const existing = schedule.intervals ?? [];
+    const newYearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+
+    const hasDuplicateMonth = existing.some((i) => {
+      const existingStart = new Date(i.startAt);
+      const existingMonth = `${existingStart.getFullYear()}-${String(existingStart.getMonth() + 1).padStart(2, '0')}`;
+      return existingMonth === newYearMonth;
+    });
+
+    if (hasDuplicateMonth) {
+      toast({
+        variant: 'destructive',
+        title: 'Erreur',
+        description: `Une période pour ${periodName} existe déjà. Une seule période par mois-année est autorisée.`,
+      });
+      return;
+    }
+
     const newStart = new Date(startAt).getTime();
     const newEnd = new Date(endAt).getTime();
 
@@ -278,11 +352,18 @@ export function EvaluationsPage() {
     setIsScheduleEnabled(true);
     setIsPeriodOpen(isEvaluationPeriodOpen());
     refreshScheduledIntervals();
+    
+    // Réinitialiser les champs
+    setStartDay(1);
+    setEndDay(getLastDayOfMonth(currentYear, currentMonth));
+    setSelectedYear(currentYear);
+    setSelectedMonth(currentMonth);
     setScheduleStart('');
     setScheduleEnd('');
+    
     toast({
-      title: 'Programmation enregistrée',
-      description: "La période s'ouvrira et se fermera automatiquement selon le calendrier programmé.",
+      title: 'Période enregistrée',
+      description: `La période ${periodName} s'ouvrira et se fermera automatiquement selon le calendrier programmé.`,
     });
   };
 
@@ -547,42 +628,122 @@ export function EvaluationsPage() {
       </AlertDialog>
 
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Programmer la période d&apos;évaluation</DialogTitle>
+            <DialogTitle>Programmer une période d&apos;évaluation mensuelle</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 text-sm">
             <p className="text-xs text-muted-foreground">
-              Ajoutez une période. Les chevauchements sont interdits.
+              Créez une période d&apos;évaluation pour un mois spécifique. Une seule période par mois-année est autorisée.
             </p>
 
-            <div className="space-y-2">
-              <label className="text-muted-foreground">Début</label>
-              <Input
-                type="datetime-local"
-                value={scheduleStart}
-                onChange={(e) => setScheduleStart(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-muted-foreground">Fin</label>
-              <Input
-                type="datetime-local"
-                value={scheduleEnd}
-                onChange={(e) => setScheduleEnd(e.target.value)}
-              />
+            {/* Section Sélection Mois/Année */}
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <p className="text-sm font-medium">1. Sélectionnez le mois et l&apos;année</p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Année</label>
+                  <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                        <SelectItem key={y} value={String(y)}>
+                          {y}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Mois</label>
+                  <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => {
+                        const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+                        return (
+                          <SelectItem key={m} value={String(m)}>
+                            {monthNames[m - 1]}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Nom de la période (lecture seule)</label>
+                <Input type="text" value={periodName} disabled className="bg-background" />
+              </div>
             </div>
 
-            <div className="space-y-2 pt-1">
+            {/* Section Sélection Dates */}
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <p className="text-sm font-medium">2. Sélectionnez les dates de début et fin du mois</p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Jour de début</label>
+                  <Select value={String(startDay)} onValueChange={(v) => setStartDay(Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: getLastDayOfMonth(selectedYear, selectedMonth) }, (_, i) => i + 1).map((d) => (
+                        <SelectItem key={d} value={String(d)}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Jour de fin</label>
+                  <Select value={String(endDay)} onValueChange={(v) => setEndDay(Number(v))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: getLastDayOfMonth(selectedYear, selectedMonth) }, (_, i) => i + 1).map((d) => (
+                        <SelectItem key={d} value={String(d)} disabled={d < startDay}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded p-2 text-xs">
+                <p className="text-blue-900 dark:text-blue-100">
+                  📅 Période : <strong>{startDay} – {endDay} {String(selectedMonth).padStart(2, '0')}/{selectedYear}</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Liste des périodes programmées */}
+            <div className="space-y-2">
               <p className="text-sm font-medium">Périodes programmées</p>
               {scheduledIntervals.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Aucune période programmée.</p>
               ) : (
-                <ul className="space-y-2 max-h-40 overflow-auto pr-1">
+                <ul className="space-y-2 max-h-48 overflow-auto pr-1">
                   {scheduledIntervals.map((interval, idx) => {
                     const phase = getIntervalPhase(interval.startAt, interval.endAt);
                     const canDelete = phase === 'upcoming';
+                    const startDate = new Date(interval.startAt);
+                    const periodCode = dateToPeriodCode(startDate);
+                    const periodDesc = describeEvaluationPeriodCode(periodCode) || periodCode;
+                    
                     return (
                       <li
                         key={`${interval.startAt}-${interval.endAt}-${idx}`}
@@ -601,9 +762,12 @@ export function EvaluationsPage() {
                           />
                           <div className="min-w-0">
                             <p className="text-xs font-medium">{intervalPhaseLabel(phase)}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {formatIntervalRange(interval.startAt, interval.endAt)}
-                            </p>
+                            <div className="flex flex-col gap-0.5">
+                              <p className="text-xs font-semibold text-foreground">{periodDesc}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {formatIntervalRange(interval.startAt, interval.endAt)}
+                              </p>
+                            </div>
                           </div>
                         </div>
                         {canDelete ? (
@@ -640,11 +804,11 @@ export function EvaluationsPage() {
               </p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex justify-end gap-2 pt-2 border-t">
               <Button variant="ghost" onClick={() => setScheduleOpen(false)}>
                 Annuler
               </Button>
-              <Button onClick={handleSaveSchedule}>Enregistrer</Button>
+              <Button onClick={handleSaveSchedule}>Enregistrer la période</Button>
             </div>
           </div>
         </DialogContent>
