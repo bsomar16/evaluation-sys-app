@@ -514,6 +514,18 @@ export default function ScheduledPeriodsPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Period Name Display (readonly, derived from start date) - FIRST FIELD */}
+            <div>
+              <label className="text-sm font-medium">Période</label>
+              <div className="text-sm bg-background border border-input p-3 rounded cursor-default text-foreground font-semibold">
+                {startDate ? (
+                  new Date(startDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).charAt(0).toUpperCase() + new Date(startDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).slice(1)
+                ) : (
+                  <span className="text-muted-foreground">Sélectionnez une date de début</span>
+                )}
+              </div>
+            </div>
+
             {/* Start Date */}
             <div>
               <label className="text-sm font-medium">Date de début</label>
@@ -537,16 +549,6 @@ export default function ScheduledPeriodsPage() {
                 <p className="text-xs text-destructive mt-1">{formError}</p>
               )}
             </div>
-
-            {/* Period Name Display (readonly, derived from start date) */}
-            {startDate && (
-              <div>
-                <label className="text-sm font-medium">Période</label>
-                <div className="text-sm bg-background border border-input p-3 rounded cursor-default text-foreground font-semibold">
-                  {new Date(startDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).charAt(0).toUpperCase() + new Date(startDate).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).slice(1)}
-                </div>
-              </div>
-            )}
 
             {/* End Date */}
             <div>
