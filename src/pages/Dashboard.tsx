@@ -339,18 +339,15 @@ export default function Dashboard() {
     }
 
     if (statusFilter) {
-      // Map to evaluation page filter statuses
-      if (statusFilter === 'draft') {
-        // Non Soumis = draft
-        navigate('/evaluation', { state: { filterByStatus: ['draft'] } });
-      } else if (statusFilter === 'submitted') {
+      // Map to evaluation page filter statuses (3 grouped categories)
+      if (statusFilter === 'en-attente') {
+        // En attente = draft + rejected
+        navigate('/evaluation', { state: { filterByStatus: ['draft', 'rejected'] } });
+      } else if (statusFilter === 'soumis') {
         // Soumis
         navigate('/evaluation', { state: { filterByStatus: ['submitted'] } });
-      } else if (statusFilter === 'rejected') {
-        // Refus
-        navigate('/evaluation', { state: { filterByStatus: ['rejected'] } });
-      } else if (statusFilter === 'approved') {
-        // Approuvé = approved + completed
+      } else if (statusFilter === 'complet') {
+        // Complet = approved + completed
         navigate('/evaluation', { state: { filterByStatus: ['approved', 'completed'] } });
       }
     }
@@ -449,47 +446,36 @@ export default function Dashboard() {
     
     const filteredEvals = getFilteredEvaluationsForPeriod();
     
-    // Count evaluations by status (showing all statuses)
-    const nonSubmittedCount = filteredEvals.filter(e => !e.status || e.status === 'draft').length;
-    const submittedCount = filteredEvals.filter(e => e.status === 'submitted').length;
+    // Count evaluations by status and group into 3 categories
+    const notSubmittedCount = filteredEvals.filter(e => !e.status || e.status === 'draft').length;
     const rejectedCount = filteredEvals.filter(e => e.status === 'rejected').length;
-    const approvedCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
+    const submittedCount = filteredEvals.filter(e => e.status === 'submitted').length;
+    const completeCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
     
-    // Show only statuses with count > 0
-    const evalStatusArray = [];
+    // Group into 3 categories: En attente (draft+rejected), Soumis, Complet
+    const enAttenteCount = notSubmittedCount + rejectedCount;
     
-    if (nonSubmittedCount > 0) {
-      evalStatusArray.push({
-        status: 'draft',
-        count: nonSubmittedCount,
+    // Always show all 3 categories (even with 0), so legend displays all options
+    const evalStatusArray = [
+      {
+        status: 'en-attente',
+        count: enAttenteCount,
         color: '#9ca3af', // gray
-        label: 'Non Soumis'
-      });
-    }
-    if (submittedCount > 0) {
-      evalStatusArray.push({
-        status: 'submitted',
+        label: 'En attente'
+      },
+      {
+        status: 'soumis',
         count: submittedCount,
         color: '#f59e0b', // amber
         label: 'Soumis'
-      });
-    }
-    if (rejectedCount > 0) {
-      evalStatusArray.push({
-        status: 'rejected',
-        count: rejectedCount,
-        color: '#ef4444', // red
-        label: 'Refus'
-      });
-    }
-    if (approvedCount > 0) {
-      evalStatusArray.push({
-        status: 'approved',
-        count: approvedCount,
+      },
+      {
+        status: 'complet',
+        count: completeCount,
         color: '#10b981', // emerald
-        label: 'Approuvé'
-      });
-    }
+        label: 'Complet'
+      }
+    ];
     
     setEvaluationStatus(evalStatusArray);
   }, [selectedPeriod, allEvaluations, branches, currentUser, roles, users]);

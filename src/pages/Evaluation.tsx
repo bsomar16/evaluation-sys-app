@@ -95,15 +95,22 @@ export default function Evaluation() {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [branchFilter, setBranchFilter] = useState(FILTER_ALL);
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
-  const [statusFilter, setStatusFilter] = useState<EvaluationStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'en-attente' | 'soumis' | 'complet'>('all');
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
 
-  const statusFilterOptions: Array<{ value: EvaluationStatus; label: string; colorClass: string }> = [
-    { value: 'pending', label: 'En attente', colorClass: 'bg-slate-400' },
-    { value: 'submitted', label: 'Soumise', colorClass: 'bg-amber-400' },
-    { value: 'approved', label: 'Approuvée', colorClass: 'bg-emerald-500' },
-    { value: 'rejected', label: 'Rejetée', colorClass: 'bg-red-500' },
+  // Map grouped categories to database statuses
+  const mapStatusGroupToDb = (group: string): EvaluationStatus[] => {
+    if (group === 'en-attente') return ['draft', 'rejected'];
+    if (group === 'soumis') return ['submitted'];
+    if (group === 'complet') return ['approved', 'completed'];
+    return [];
+  };
+
+  const statusFilterOptions: Array<{ value: string; label: string; colorClass: string }> = [
+    { value: 'en-attente', label: 'En attente', colorClass: 'bg-slate-400' },
+    { value: 'soumis', label: 'Soumis', colorClass: 'bg-amber-400' },
+    { value: 'complet', label: 'Complet', colorClass: 'bg-emerald-500' },
   ];
 
   const selectedStatusOption = statusFilterOptions.find((option) => option.value === statusFilter);
@@ -163,11 +170,11 @@ export default function Evaluation() {
       const byDepartment =
         departmentFilter === FILTER_ALL || emp.department_id === departmentFilter;
       const empStatus = statusByEmployee[emp.id];
-      const byStatus =
-        statusFilter === 'all' || 
-        empStatus === statusFilter ||
-        (statusFilter === 'approved' && (empStatus === 'completed' || empStatus === 'approved')) ||
-        (statusFilter === 'draft' && (empStatus === 'draft' || !empStatus));
+      let byStatus = statusFilter === 'all';
+      if (!byStatus && statusFilter !== 'all') {
+        const allowedStatuses = mapStatusGroupToDb(statusFilter);
+        byStatus = allowedStatuses.includes(empStatus as EvaluationStatus) || (empStatus === null && allowedStatuses.includes('draft'));
+      }
       return byBranch && byDepartment && byStatus;
     });
   }, [employees, branchFilter, departmentFilter, statusFilter, statusByEmployee]);
@@ -226,13 +233,27 @@ export default function Evaluation() {
     if (location.state?.filterByStatus) {
       const filterStatus = location.state.filterByStatus;
       if (Array.isArray(filterStatus) && filterStatus.length > 0) {
-        // Single status or handle multiple
-        const status = filterStatus[0];
-        // Map 'completed' to 'approved' for display
-        setStatusFilter(status === 'completed' ? 'approved' : (status as EvaluationStatus));
+        // Map database statuses to category
+        if (filterStatus.includes('draft') || filterStatus.includes('rejected')) {
+          setStatusFilter('en-attente');
+        } else if (filterStatus.includes('submitted')) {
+          setStatusFilter('soumis');
+        } else if (filterStatus.includes('approved') || filterStatus.includes('completed')) {
+          setStatusFilter('complet');
+        } else {
+          setStatusFilter('all');
+        }
       } else if (typeof filterStatus === 'string') {
-        // Map 'completed' to 'approved' for display
-        setStatusFilter(filterStatus === 'completed' ? ('approved' as any) : (filterStatus as EvaluationStatus));
+        // Single string status
+        if (filterStatus === 'draft' || filterStatus === 'rejected') {
+          setStatusFilter('en-attente');
+        } else if (filterStatus === 'submitted') {
+          setStatusFilter('soumis');
+        } else if (filterStatus === 'approved' || filterStatus === 'completed') {
+          setStatusFilter('complet');
+        } else {
+          setStatusFilter('all');
+        }
       }
     }
   }, [location.state]);
