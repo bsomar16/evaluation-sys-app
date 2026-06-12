@@ -127,6 +127,7 @@ export function EvaluationsPage() {
   const [deleteTarget, setDeleteTarget] = useState<EvaluationRecord | null>(null);
   const [isPeriodOpen, setIsPeriodOpen] = useState<boolean>(() => isEvaluationPeriodOpen());
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState<'list' | 'create' | 'edit'>('list');
   
   // Nouveaux états pour les périodes mensuelles
   const currentYear = new Date().getFullYear();
@@ -137,6 +138,7 @@ export function EvaluationsPage() {
   const [startDay, setStartDay] = useState(1);
   const [endDay, setEndDay] = useState(getLastDayOfMonth(currentYear, currentMonth));
   const [periodName, setPeriodName] = useState<string>('');
+  const [editingIntervalIndex, setEditingIntervalIndex] = useState<number | null>(null);
   
   // États pour compatibilité avec programmation
   const [scheduleStart, setScheduleStart] = useState('');
@@ -256,14 +258,46 @@ export function EvaluationsPage() {
   };
 
   const openScheduleDialog = () => {
+    setScheduleMode('list');
     setSelectedYear(currentYear);
     setSelectedMonth(currentMonth);
     setStartDay(1);
     setEndDay(getLastDayOfMonth(currentYear, currentMonth));
     setScheduleStart('');
     setScheduleEnd('');
+    setEditingIntervalIndex(null);
     refreshScheduledIntervals();
     setScheduleOpen(true);
+  };
+
+  const openCreateMode = () => {
+    setScheduleMode('create');
+    setEditingIntervalIndex(null);
+    setSelectedYear(currentYear);
+    setSelectedMonth(currentMonth);
+    setStartDay(1);
+    setEndDay(getLastDayOfMonth(currentYear, currentMonth));
+  };
+
+  const openEditMode = (idx: number) => {
+    const interval = scheduledIntervals[idx];
+    if (!interval) return;
+    
+    const startDate = new Date(interval.startAt);
+    const endDate = new Date(interval.endAt);
+    
+    setEditingIntervalIndex(idx);
+    setSelectedYear(startDate.getFullYear());
+    setSelectedMonth(startDate.getMonth() + 1);
+    setStartDay(startDate.getDate());
+    setEndDay(endDate.getDate());
+    setScheduleMode('edit');
+  };
+
+  const backToList = () => {
+    setScheduleMode('list');
+    setEditingIntervalIndex(null);
+    refreshScheduledIntervals();
   };
 
   const handleSaveSchedule = () => {
@@ -305,66 +339,80 @@ export function EvaluationsPage() {
     const existing = schedule.intervals ?? [];
     const newYearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 
-    const hasDuplicateMonth = existing.some((i) => {
-      const existingStart = new Date(i.startAt);
-      const existingMonth = `${existingStart.getFullYear()}-${String(existingStart.getMonth() + 1).padStart(2, '0')}`;
-      return existingMonth === newYearMonth;
-    });
-
-    if (hasDuplicateMonth) {
-      toast({
-        variant: 'destructive',
-        title: 'Erreur',
-        description: `Une période pour ${periodName} existe déjà. Une seule période par mois-année est autorisée.`,
+    // Si on est en mode création, vérifier les doublons
+    if (scheduleMode === 'create') {
+      const hasDuplicateMonth = existing.some((i) => {
+        const existingStart = new Date(i.startAt);
+        const existingMonth = `${existingStart.getFullYear()}-${String(existingStart.getMonth() + 1).padStart(2, '0')}`;
+        return existingMonth === newYearMonth;
       });
-      return;
+
+      if (hasDuplicateMonth) {
+        toast({
+          variant: 'destructive',
+          title: 'Erreur',
+          description: `Une période pour ${periodName} existe déjà. Une seule période par mois-année est autorisée.`,
+        });
+        return;
+      }
+
+      const newStart = new Date(startAt).getTime();
+      const newEnd = new Date(endAt).getTime();
+
+      const overlaps = existing.some((i) => {
+        const s = new Date(i.startAt).getTime();
+        const e = new Date(i.endAt).getTime();
+        if (!Number.isFinite(s) || !Number.isFinite(e) || s >= e) return false;
+        return newStart < e && newEnd > s;
+      });
+
+      if (overlaps) {
+        toast({
+          variant: 'destructive',
+          title: 'Chevauchement',
+          description: 'Le nouvel intervalle chevauche une période déjà programmée.',
+        });
+        return;
+      }
+
+      const nextIntervals = [
+        ...existing,
+        { startAt, endAt },
+      ].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
+      setEvaluationPeriodSchedule({
+        enabled: true,
+        intervals: nextIntervals,
+      });
+      
+      toast({
+        title: 'Période enregistrée',
+        description: `La période ${periodName} s'ouvrira et se fermera automatiquement selon le calendrier programmé.`,
+      });
+    } 
+    // Mode édition
+    else if (scheduleMode === 'edit' && editingIntervalIndex !== null) {
+      const updatedIntervals = [...existing];
+      updatedIntervals[editingIntervalIndex] = { startAt, endAt };
+      updatedIntervals.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
+      setEvaluationPeriodSchedule({
+        enabled: true,
+        intervals: updatedIntervals,
+      });
+      
+      toast({
+        title: 'Période mise à jour',
+        description: `La période ${periodName} a été modifiée.`,
+      });
     }
 
-    const newStart = new Date(startAt).getTime();
-    const newEnd = new Date(endAt).getTime();
-
-    const overlaps = existing.some((i) => {
-      const s = new Date(i.startAt).getTime();
-      const e = new Date(i.endAt).getTime();
-      if (!Number.isFinite(s) || !Number.isFinite(e) || s >= e) return false;
-      // Chevauchement si : newStart < existingEnd && newEnd > existingStart
-      return newStart < e && newEnd > s;
-    });
-
-    if (overlaps) {
-      toast({
-        variant: 'destructive',
-        title: 'Chevauchement',
-        description: 'Le nouvel intervalle chevauche une période déjà programmée.',
-      });
-      return;
-    }
-
-    const nextIntervals = [
-      ...existing,
-      { startAt, endAt },
-    ].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-
-    setEvaluationPeriodSchedule({
-      enabled: true,
-      intervals: nextIntervals,
-    });
     setIsScheduleEnabled(true);
     setIsPeriodOpen(isEvaluationPeriodOpen());
     refreshScheduledIntervals();
     
-    // Réinitialiser les champs
-    setStartDay(1);
-    setEndDay(getLastDayOfMonth(currentYear, currentMonth));
-    setSelectedYear(currentYear);
-    setSelectedMonth(currentMonth);
-    setScheduleStart('');
-    setScheduleEnd('');
-    
-    toast({
-      title: 'Période enregistrée',
-      description: `La période ${periodName} s'ouvrira et se fermera automatiquement selon le calendrier programmé.`,
-    });
+    // Retourner à la liste
+    backToList();
   };
 
   const handleDeleteInterval = (idx: number) => {
@@ -393,6 +441,7 @@ export function EvaluationsPage() {
     setIsScheduleEnabled(nextIntervals.length > 0);
     setIsPeriodOpen(isEvaluationPeriodOpen());
     refreshScheduledIntervals();
+    
     toast({
       title: 'Intervalle supprimé',
       description: 'La programmation a été mise à jour.',
@@ -628,188 +677,233 @@ export function EvaluationsPage() {
       </AlertDialog>
 
       <Dialog open={scheduleOpen} onOpenChange={setScheduleOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Programmer une période d&apos;évaluation mensuelle</DialogTitle>
+            <DialogTitle>
+              {scheduleMode === 'list' 
+                ? 'Périodes d\'évaluation programmées' 
+                : scheduleMode === 'edit'
+                  ? 'Modifier la période'
+                  : 'Créer une nouvelle période'}
+            </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 text-sm">
-            <p className="text-xs text-muted-foreground">
-              Créez une période d&apos;évaluation pour un mois spécifique. Une seule période par mois-année est autorisée.
-            </p>
+          {/* MODE 1: AFFICHER LA LISTE DES PÉRIODES */}
+          {scheduleMode === 'list' && (
+            <div className="space-y-4 text-sm">
+              <p className="text-xs text-muted-foreground">
+                Consultez toutes les périodes programmées. Seules les périodes à venir peuvent être modifiées ou supprimées.
+              </p>
 
-            {/* Section Sélection Mois/Année */}
-            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-              <p className="text-sm font-medium">1. Sélectionnez le mois et l&apos;année</p>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Année</label>
-                  <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[2024, 2025, 2026, 2027, 2028].map((y) => (
-                        <SelectItem key={y} value={String(y)}>
-                          {y}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Mois</label>
-                  <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => {
-                        const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
-                        return (
-                          <SelectItem key={m} value={String(m)}>
-                            {monthNames[m - 1]}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Nom de la période (lecture seule)</label>
-                <Input type="text" value={periodName} disabled className="bg-background" />
-              </div>
-            </div>
-
-            {/* Section Sélection Dates */}
-            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-              <p className="text-sm font-medium">2. Sélectionnez les dates de début et fin du mois</p>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Jour de début</label>
-                  <Select value={String(startDay)} onValueChange={(v) => setStartDay(Number(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: getLastDayOfMonth(selectedYear, selectedMonth) }, (_, i) => i + 1).map((d) => (
-                        <SelectItem key={d} value={String(d)}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Jour de fin</label>
-                  <Select value={String(endDay)} onValueChange={(v) => setEndDay(Number(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: getLastDayOfMonth(selectedYear, selectedMonth) }, (_, i) => i + 1).map((d) => (
-                        <SelectItem key={d} value={String(d)} disabled={d < startDay}>
-                          {d}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded p-2 text-xs">
-                <p className="text-blue-900 dark:text-blue-100">
-                  📅 Période : <strong>{startDay} – {endDay} {String(selectedMonth).padStart(2, '0')}/{selectedYear}</strong>
-                </p>
-              </div>
-            </div>
-
-            {/* Liste des périodes programmées */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Périodes programmées</p>
               {scheduledIntervals.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Aucune période programmée.</p>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">Aucune période programmée.</p>
+                </div>
               ) : (
-                <ul className="space-y-2 max-h-48 overflow-auto pr-1">
+                <div className="space-y-3 max-h-96 overflow-auto">
                   {scheduledIntervals.map((interval, idx) => {
                     const phase = getIntervalPhase(interval.startAt, interval.endAt);
+                    const canEdit = phase === 'upcoming';
                     const canDelete = phase === 'upcoming';
                     const startDate = new Date(interval.startAt);
                     const periodCode = dateToPeriodCode(startDate);
                     const periodDesc = describeEvaluationPeriodCode(periodCode) || periodCode;
                     
                     return (
-                      <li
+                      <div
                         key={`${interval.startAt}-${interval.endAt}-${idx}`}
-                        className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2"
+                        className="rounded-lg border p-4 space-y-3"
                       >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Circle
-                            className={`h-3.5 w-3.5 shrink-0 fill-current ${
-                              phase === 'active'
-                                ? 'text-green-600'
-                                : phase === 'ended'
-                                  ? 'text-red-600'
-                                  : 'text-foreground'
-                            }`}
-                            aria-hidden
-                          />
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium">{intervalPhaseLabel(phase)}</p>
-                            <div className="flex flex-col gap-0.5">
-                              <p className="text-xs font-semibold text-foreground">{periodDesc}</p>
-                              <p className="text-xs text-muted-foreground truncate">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <Circle
+                              className={`h-4 w-4 shrink-0 fill-current ${
+                                phase === 'active'
+                                  ? 'text-green-600'
+                                  : phase === 'ended'
+                                    ? 'text-red-600'
+                                    : 'text-blue-500'
+                              }`}
+                              aria-hidden
+                            />
+                            <div>
+                              <p className="font-semibold text-base">{periodDesc}</p>
+                              <p className="text-xs text-muted-foreground">
                                 {formatIntervalRange(interval.startAt, interval.endAt)}
                               </p>
                             </div>
                           </div>
-                        </div>
-                        {canDelete ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 text-foreground"
-                            title="Supprimer cette période à venir"
-                            onClick={() => handleDeleteInterval(idx)}
+                          <Badge 
+                            variant={phase === 'active' ? 'default' : phase === 'ended' ? 'destructive' : 'outline'}
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <span className="h-8 w-8 shrink-0" aria-hidden />
-                        )}
-                      </li>
+                            {intervalPhaseLabel(phase)}
+                          </Badge>
+                        </div>
+
+                        <div className="flex gap-2 justify-end">
+                          {canEdit ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEditMode(idx)}
+                            >
+                              ✎ Modifier
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {phase === 'active' ? 'En cours' : 'Terminée'} - Non modifiable
+                            </span>
+                          )}
+                          {canDelete && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              onClick={() => handleDeleteInterval(idx)}
+                            >
+                              🗑 Supprimer
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
-                </ul>
+                </div>
               )}
-              <p className="text-[11px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Circle className="h-2.5 w-2.5 fill-green-600 text-green-600" /> Active
-                </span>
-                {' · '}
-                <span className="inline-flex items-center gap-1">
-                  <Circle className="h-2.5 w-2.5 fill-red-600 text-red-600" /> Terminée
-                </span>
-                {' · '}
-                <span className="inline-flex items-center gap-1">
-                  <Circle className="h-2.5 w-2.5 fill-foreground text-foreground" /> À venir
-                </span>
-              </p>
-            </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t">
-              <Button variant="ghost" onClick={() => setScheduleOpen(false)}>
-                Annuler
-              </Button>
-              <Button onClick={handleSaveSchedule}>Enregistrer la période</Button>
+              <div className="border-t pt-4 flex justify-between">
+                <Button onClick={openCreateMode}>+ Ajouter une période</Button>
+                <Button variant="ghost" onClick={() => setScheduleOpen(false)}>
+                  Fermer
+                </Button>
+              </div>
             </div>
+          )}
+
+          {/* MODE 2: CRÉER OU ÉDITER UNE PÉRIODE */}
+          {(scheduleMode === 'create' || scheduleMode === 'edit') && (
+            <div className="space-y-4 text-sm">
+              <p className="text-xs text-muted-foreground">
+                {scheduleMode === 'edit' 
+                  ? 'Modifiez les dates de cette période.'
+                  : 'Créez une nouvelle période d\'évaluation pour un mois spécifique.'}
+              </p>
+
+              {/* Section Sélection Mois/Année */}
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <p className="text-sm font-medium">1. Sélectionnez le mois et l'année</p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Année</label>
+                    <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                          <SelectItem key={y} value={String(y)}>
+                            {y}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Mois</label>
+                    <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => {
+                          const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+                          return (
+                            <SelectItem key={m} value={String(m)}>
+                              {monthNames[m - 1]}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Nom de la période (lecture seule)</label>
+                  <Input type="text" value={periodName} disabled className="bg-background" />
+                </div>
+              </div>
+
+              {/* Section Sélection Dates */}
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <p className="text-sm font-medium">2. Sélectionnez les dates de début et fin du mois</p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Jour de début</label>
+                    <Select value={String(startDay)} onValueChange={(v) => setStartDay(Number(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: getLastDayOfMonth(selectedYear, selectedMonth) }, (_, i) => i + 1).map((d) => (
+                          <SelectItem key={d} value={String(d)}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Jour de fin</label>
+                    <Select value={String(endDay)} onValueChange={(v) => setEndDay(Number(v))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: getLastDayOfMonth(selectedYear, selectedMonth) }, (_, i) => i + 1).map((d) => (
+                          <SelectItem key={d} value={String(d)} disabled={d < startDay}>
+                            {d}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded p-2 text-xs">
+                  <p className="text-blue-900 dark:text-blue-100">
+                    📅 Période : <strong>{startDay} – {endDay} {String(selectedMonth).padStart(2, '0')}/{selectedYear}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="ghost" onClick={backToList}>
+                  ← Retour
+                </Button>
+                <Button onClick={handleSaveSchedule}>
+                  {scheduleMode === 'edit' ? '💾 Mettre à jour' : '✓ Enregistrer'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="text-[11px] text-muted-foreground mt-4 pt-2 border-t">
+            <span className="inline-flex items-center gap-1">
+              <Circle className="h-2 w-2 fill-blue-500 text-blue-500" /> À venir
+            </span>
+            {' · '}
+            <span className="inline-flex items-center gap-1">
+              <Circle className="h-2 w-2 fill-green-600 text-green-600" /> Active
+            </span>
+            {' · '}
+            <span className="inline-flex items-center gap-1">
+              <Circle className="h-2 w-2 fill-red-600 text-red-600" /> Clôturée
+            </span>
           </div>
         </DialogContent>
       </Dialog>
