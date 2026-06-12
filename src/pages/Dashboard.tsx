@@ -131,10 +131,7 @@ export default function Dashboard() {
     if (!branches.length) return [];
     
     const userRole = roles.find(r => r.id === currentUser?.role_id);
-    const roleName = userRole?.name?.toLowerCase() || '';
-    
-    // Admin and Directeur roles have access to all branches
-    if (roleName.includes('directeur') || roleName.includes('admin')) {
+    if (userRole?.name?.toLowerCase().includes('directeur')) {
       return branches;
     }
     
@@ -172,10 +169,7 @@ export default function Dashboard() {
       if (!branches.length) return [];
       
       const userRole = roles.find(r => r.id === currentUser?.role_id);
-      const roleName = userRole?.name?.toLowerCase() || '';
-      
-      // Admin and Directeur roles have access to all branches
-      if (roleName.includes('directeur') || roleName.includes('admin')) {
+      if (userRole?.name?.toLowerCase().includes('directeur')) {
         return branches.map(b => b.id);
       }
       
@@ -305,10 +299,7 @@ export default function Dashboard() {
       if (!branches.length) return [];
       
       const userRole = roles.find(r => r.id === currentUser?.role_id);
-      const roleName = userRole?.name?.toLowerCase() || '';
-      
-      // Admin and Directeur roles have access to all branches
-      if (roleName.includes('directeur') || roleName.includes('admin')) {
+      if (userRole?.name?.toLowerCase().includes('directeur')) {
         return branches.map(b => b.id);
       }
       
@@ -456,10 +447,7 @@ export default function Dashboard() {
       if (!branches.length) return [];
       
       const userRole = roles.find(r => r.id === currentUser?.role_id);
-      const roleName = userRole?.name?.toLowerCase() || '';
-      
-      // Admin and Directeur roles have access to all branches
-      if (roleName.includes('directeur') || roleName.includes('admin')) {
+      if (userRole?.name?.toLowerCase().includes('directeur')) {
         return branches.map(b => b.id);
       }
       
@@ -503,7 +491,7 @@ export default function Dashboard() {
 
   // Recalculate evaluation statuses when period or user context changes
   useEffect(() => {
-    if (!selectedPeriod) {
+    if (!selectedPeriod || branches.length === 0) {
       setEvaluationStatus([]);
       return;
     }
@@ -516,11 +504,8 @@ export default function Dashboard() {
     const submittedCount = filteredEvals.filter(e => e.status === 'submitted').length;
     const completeCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
     
-    // Add eligible employees without evaluation to "En attente" (if branches are loaded)
-    let eligibleWithoutEval = 0;
-    if (branches.length > 0) {
-      eligibleWithoutEval = getEligibleEmployeesWithoutEvaluation();
-    }
+    // Add eligible employees without evaluation to "En attente"
+    const eligibleWithoutEval = getEligibleEmployeesWithoutEvaluation();
     
     // Group into 3 categories: En attente (draft+rejected+eligible without eval), Soumis, Complet
     const enAttenteCount = notSubmittedCount + rejectedCount + eligibleWithoutEval;
@@ -562,8 +547,15 @@ export default function Dashboard() {
     try {
       setLoading(true);
 
-      // Load each data source individually to prevent one failure from blocking all
-      const [usersRes, evaluationsRes, branchesRes, departmentsRes, rolesRes, trainingsRes, periodsRes] = await Promise.allSettled([
+      const [
+        { data: usersRaw },
+        { data: evaluations },
+        { data: branchesData },
+        { data: departmentsData },
+        { data: rolesData },
+        { data: trainings },
+        { data: periodsData },
+      ] = await Promise.all([
         supabase.from('users').select('*'),
         supabase.from('evaluations').select('*'),
         supabase.from('branches').select('*'),
@@ -572,15 +564,6 @@ export default function Dashboard() {
         supabase.from('training_requests').select('*'),
         supabase.from('evaluation_periods').select('name').order('created_at', { ascending: false }),
       ]);
-
-      // Extract data from settled promises
-      const usersRaw = usersRes.status === 'fulfilled' ? usersRes.value.data : null;
-      const evaluations = evaluationsRes.status === 'fulfilled' ? evaluationsRes.value.data : null;
-      const branchesData = branchesRes.status === 'fulfilled' ? branchesRes.value.data : null;
-      const departmentsData = departmentsRes.status === 'fulfilled' ? departmentsRes.value.data : null;
-      const rolesData = rolesRes.status === 'fulfilled' ? rolesRes.value.data : null;
-      const trainings = trainingsRes.status === 'fulfilled' ? trainingsRes.value.data : null;
-      const periodsData = periodsRes.status === 'fulfilled' ? periodsRes.value.data : null;
 
       const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
       setUsers(filteredUsers);
