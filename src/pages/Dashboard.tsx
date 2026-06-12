@@ -994,7 +994,7 @@ export default function Dashboard() {
                     outerRadius={100} 
                     paddingAngle={3} 
                     dataKey="count" 
-                    label={({ label, count }) => `${count} ${label}`}
+                    label={({ label, count }) => count > 0 ? `${count} ${label}` : ''}
                   >
                     {evaluationStatus.map((entry, index) => (
                       <Cell key={index} fill={entry.color} cursor="pointer" onClick={() => handleEvaluationStatusClick({ name: entry.status })} />
