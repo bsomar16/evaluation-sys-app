@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import { canAccessTrainingAnalytics } from '@/lib/training-access';
 import { fetchTrainingRequests } from '@/lib/training-storage';
@@ -27,6 +28,7 @@ export default function TrainingPlanningAnalytics() {
       const data = await fetchTrainingRequests({ scope: 'all' });
       setRows(data);
       setLoading(false);
+      hideLoadingOverlay();
     })();
   }, []);
 

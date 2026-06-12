@@ -27,6 +27,7 @@ import { isUserArchived } from '@/lib/user-archive';
 import { EmployeeUserFormDialog } from '@/components/EmployeeUserFormDialog';
 import { UsersService } from '@/services/admin/users';
 import { archiveUser } from '@/services/userArchiveService';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 
 export default function TeamPage() {
   const { roleId } = useParams<{ roleId?: string }>();
@@ -72,6 +73,7 @@ export default function TeamPage() {
       });
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   };
 

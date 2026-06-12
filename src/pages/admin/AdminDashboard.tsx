@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Users, Shield, Building2, BarChart3, Plus, ArrowRight, GraduationCap, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 
 interface DashboardStats {
   totalUsers: number;
@@ -72,6 +73,7 @@ export function AdminDashboard() {
       console.error('Erreur chargement stats:', error);
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   };
 

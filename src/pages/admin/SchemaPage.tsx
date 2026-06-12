@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import {
   EXPECTED_DB_SCHEMA,
   EXPECTED_TABLE_NAMES,
@@ -111,6 +112,7 @@ export default function AdminSchemaPage() {
     setTables(results);
     setLastCheckedAt(new Date());
     setLoading(false);
+    hideLoadingOverlay();
   }, []);
 
   useEffect(() => {

@@ -8,6 +8,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 
 interface DashboardStats {
   totalUsers: number;
@@ -517,6 +518,7 @@ export default function Dashboard() {
       console.error('Error loading initial dashboard data:', error);
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   };
 

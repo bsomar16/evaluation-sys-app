@@ -55,6 +55,7 @@ import {
   getTrainingStatusDotClass,
 } from '@/lib/training-types';
 import type { TrainingRequestDetails } from '@/lib/training-types';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 
 type TrainingFormState = TrainingRequestDetails & { intitule: string };
 
@@ -199,6 +200,7 @@ export default function Training() {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les demandes.' });
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   }, [canValidate, isDeveloper, toast]);
 

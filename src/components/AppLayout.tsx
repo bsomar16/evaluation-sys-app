@@ -456,16 +456,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Each page is responsible for hiding the loading overlay when done.
+    // Fallback: auto-hide after 15 seconds if a page forgets to hide it.
     if (!navTokenRef.current) return;
+    
     const currentToken = navTokenRef.current;
-    const timer = window.setTimeout(() => {
+    const fallbackTimer = window.setTimeout(() => {
+      // Safety net: hide overlay if page didn't hide it within 15 seconds
       hideLoadingOverlay(currentToken);
       if (navTokenRef.current === currentToken) {
         navTokenRef.current = null;
       }
-    }, 120);
+    }, 15000); // 15 second fallback timeout
 
-    return () => window.clearTimeout(timer);
+    return () => window.clearTimeout(fallbackTimer);
   }, [location.pathname]);
 
   const handleNavClick = (path: string) => {

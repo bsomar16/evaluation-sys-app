@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -283,6 +284,7 @@ export function EvaluationCriteriaPage() {
       toast({ variant: 'destructive', title: 'Erreur', description: message });
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   };
 

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
@@ -64,6 +65,7 @@ export function UsersPage() {
       toast({ variant: 'destructive', title: 'Erreur', description: message });
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   };
 

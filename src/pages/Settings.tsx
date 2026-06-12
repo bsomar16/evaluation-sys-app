@@ -11,6 +11,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
 import { SITE_DEVELOPER } from '@/types/roles';
 import { roleBadgeClassName, getRoleBadgeStyleFromColor } from '@/lib/role-colors';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 
 interface UserProfile {
   name: string;
@@ -58,6 +59,7 @@ export default function Settings() {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger le profil' });
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   };
 

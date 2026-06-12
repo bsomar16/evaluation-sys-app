@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -93,6 +94,7 @@ export default function TrainingPlanningPage() {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Chargement impossible.' });
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   }, [toast]);
 

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -58,6 +59,7 @@ export function CalculationSystemPage() {
       toast({ variant: 'destructive', title: 'Erreur', description: message });
     } finally {
       setLoading(false);
+      hideLoadingOverlay();
     }
   };
 
