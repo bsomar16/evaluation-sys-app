@@ -120,3 +120,34 @@ export function subscribeEvaluationPeriodChange(onChange: (isOpen: boolean) => v
     window.removeEventListener(EVENT_NAME, onCustom);
   };
 }
+
+/** Get the name of currently open evaluation period (e.g., "juin 2026"), or null if none */
+export function getOpenEvaluationPeriodName(): string | null {
+  const schedule = getEvaluationPeriodSchedule();
+  const now = Date.now();
+  
+  if (!schedule.enabled || !schedule.intervals || schedule.intervals.length === 0) {
+    return null;
+  }
+  
+  // Find the interval that contains current time
+  for (const interval of schedule.intervals) {
+    const start = new Date(interval.startAt).getTime();
+    const end = new Date(interval.endAt).getTime();
+    
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) continue;
+    if (now >= start && now <= end) {
+      // Return period name based on start date
+      const startDate = new Date(interval.startAt);
+      const monthLabels: Record<number, string> = {
+        0: 'janvier', 1: 'février', 2: 'mars', 3: 'avril', 4: 'mai', 5: 'juin',
+        6: 'juillet', 7: 'août', 8: 'septembre', 9: 'octobre', 10: 'novembre', 11: 'décembre',
+      };
+      const month = monthLabels[startDate.getMonth()];
+      const year = startDate.getFullYear();
+      return `${month} ${year}`;
+    }
+  }
+  
+  return null;
+}

@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
+import { getOpenEvaluationPeriodName } from '@/lib/evaluation-period-storage';
 
 interface DashboardStats {
   totalUsers: number;
@@ -599,10 +600,12 @@ export default function Dashboard() {
         });
       }
       
-      // Ensure we always have at least the current quarter (format: "Q2 2026")
-      const currentPeriod = getCurrentQuarterPeriod();
-      if (!sortedPeriods.includes(currentPeriod)) {
-        sortedPeriods.unshift(currentPeriod);
+      // Ensure we always have the currently open period if it exists
+      const openPeriodName = getOpenEvaluationPeriodName();
+      const periodToUse = openPeriodName || getCurrentQuarterPeriod();
+      
+      if (!sortedPeriods.includes(periodToUse)) {
+        sortedPeriods.unshift(periodToUse);
       }
       
       setPeriods(sortedPeriods);

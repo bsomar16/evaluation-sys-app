@@ -490,7 +490,15 @@ export default function ScheduledPeriodsPage() {
                       const realIdx = scheduledIntervals.indexOf(interval);
 
                       return (
-                        <tr key={realIdx} className="border-b hover:bg-muted/50">
+                        <tr 
+                          key={realIdx} 
+                          className="border-b hover:bg-muted/50 cursor-pointer"
+                          onClick={() => {
+                            if (realIdx !== null && realIdx !== undefined) {
+                              openViewMode(realIdx);
+                            }
+                          }}
+                        >
                           <td className="py-3 px-4 font-medium">{periodName}</td>
                           <td className="py-3 px-4 text-sm">{formatIntervalRange(interval.startAt, interval.endAt)}</td>
                           <td className="py-3 px-4 text-sm">
@@ -501,15 +509,7 @@ export default function ScheduledPeriodsPage() {
                               {intervalPhaseLabel(phase)}
                             </Badge>
                           </td>
-                          <td className="py-3 px-4 text-right whitespace-nowrap space-x-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openViewMode(realIdx)}
-                              title="Voir les détails"
-                            >
-                              <Info className="h-4 w-4" />
-                            </Button>
+                          <td className="py-3 px-4 text-right whitespace-nowrap space-x-1" onClick={(e) => e.stopPropagation()}>
                             {phase !== 'active' && canManagePeriods && (
                               <>
                                 <Button
