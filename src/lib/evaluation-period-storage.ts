@@ -126,7 +126,7 @@ export function getOpenEvaluationPeriodName(): string | null {
   const schedule = getEvaluationPeriodSchedule();
   const now = Date.now();
   
-  if (!schedule.enabled || !schedule.intervals || schedule.intervals.length === 0) {
+  if (!schedule.intervals || schedule.intervals.length === 0) {
     return null;
   }
   
