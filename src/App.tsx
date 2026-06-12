@@ -22,6 +22,7 @@ import DepartmentsPage from "@/pages/admin/ServicesPage";
 import EvaluationCriteriaPage from "@/pages/admin/EvaluationCriteriaPage";
 import CalculationSystemPage from "@/pages/admin/CalculationSystemPage";
 import EvaluationsPage from "@/pages/admin/EvaluationsPage";
+import ScheduledPeriodsPage from "@/pages/admin/ScheduledPeriodsPage";
 import TrainingPlanningPage from "@/pages/admin/TrainingPlanningPage";
 import TrainingPlanningAnalytics from "@/pages/admin/TrainingPlanningAnalytics";
 import { EvaluationPeriodGuard } from "@/components/EvaluationPeriodGuard";
@@ -205,6 +206,16 @@ const App = () => {
                 <ProtectedRoute>
                   <EvaluationManagementGuard>
                     <EvaluationsPage />
+                  </EvaluationManagementGuard>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/scheduled-periods"
+              element={
+                <ProtectedRoute>
+                  <EvaluationManagementGuard>
+                    <ScheduledPeriodsPage />
                   </EvaluationManagementGuard>
                 </ProtectedRoute>
               }
