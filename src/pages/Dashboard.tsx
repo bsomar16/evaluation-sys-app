@@ -455,40 +455,33 @@ export default function Dashboard() {
     const rejectedCount = filteredEvals.filter(e => e.status === 'rejected').length;
     const approvedCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
     
-    const evalStatusArray = [];
-    
-    if (nonSubmittedCount > 0) {
-      evalStatusArray.push({
+    // Always show all four statuses, even if count is 0
+    const evalStatusArray = [
+      {
         status: 'draft',
         count: nonSubmittedCount,
         color: '#9ca3af', // gray
         label: 'Non Soumis'
-      });
-    }
-    if (submittedCount > 0) {
-      evalStatusArray.push({
+      },
+      {
         status: 'submitted',
         count: submittedCount,
         color: '#f59e0b', // amber
         label: 'Soumis'
-      });
-    }
-    if (rejectedCount > 0) {
-      evalStatusArray.push({
+      },
+      {
         status: 'rejected',
         count: rejectedCount,
         color: '#ef4444', // red
         label: 'Refus'
-      });
-    }
-    if (approvedCount > 0) {
-      evalStatusArray.push({
+      },
+      {
         status: 'approved',
         count: approvedCount,
         color: '#10b981', // emerald
         label: 'Approuvé'
-      });
-    }
+      }
+    ];
     
     setEvaluationStatus(evalStatusArray);
   }, [selectedPeriod, allEvaluations, branches, currentUser, roles, users]);
