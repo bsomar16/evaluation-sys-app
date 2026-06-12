@@ -310,33 +310,24 @@ export default function Dashboard() {
     }
   }, [departmentEmblaApi, accessibleDepartments]);
 
-  // Listen to scroll events on branch carousel for dynamic selection
+  // Listen to carousel selection (not scroll — scroll fights with explicit clicks)
   useEffect(() => {
     if (!branchEmblaApi) return;
 
-    branchEmblaApi.on('scroll', updateBranchSelection);
     branchEmblaApi.on('select', updateBranchSelection);
-    branchEmblaApi.on('slidesInView', updateBranchSelection);
-    
+
     return () => {
-      branchEmblaApi.off('scroll', updateBranchSelection);
       branchEmblaApi.off('select', updateBranchSelection);
-      branchEmblaApi.off('slidesInView', updateBranchSelection);
     };
   }, [branchEmblaApi, updateBranchSelection]);
 
-  // Listen to scroll events on department carousel for dynamic selection
   useEffect(() => {
     if (!departmentEmblaApi) return;
 
-    departmentEmblaApi.on('scroll', updateDepartmentSelection);
     departmentEmblaApi.on('select', updateDepartmentSelection);
-    departmentEmblaApi.on('slidesInView', updateDepartmentSelection);
-    
+
     return () => {
-      departmentEmblaApi.off('scroll', updateDepartmentSelection);
       departmentEmblaApi.off('select', updateDepartmentSelection);
-      departmentEmblaApi.off('slidesInView', updateDepartmentSelection);
     };
   }, [departmentEmblaApi, updateDepartmentSelection]);
 
@@ -387,31 +378,29 @@ export default function Dashboard() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Loading initial dashboard data...');
 
-      // Load base data
-      const { data: usersRaw } = await supabase.from('users').select('*');
-      console.log('👥 Users loaded:', usersRaw?.length ?? 0);
+      const [
+        { data: usersRaw },
+        { data: evaluations },
+        { data: branchesData },
+        { data: departmentsData },
+        { data: rolesData },
+        { data: trainings },
+      ] = await Promise.all([
+        supabase.from('users').select('*'),
+        supabase.from('evaluations').select('*'),
+        supabase.from('branches').select('*'),
+        supabase.from('departments').select('*'),
+        supabase.from('roles').select('*'),
+        supabase.from('training_requests').select('*'),
+      ]);
+
       const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
       setUsers(filteredUsers);
-
-      const { data: evaluations } = await supabase.from('evaluations').select('*');
-      console.log('📊 Evaluations loaded:', evaluations?.length ?? 0);
       setAllEvaluations(evaluations || []);
-
-      const { data: branchesData } = await supabase.from('branches').select('*');
-      console.log('🏢 Branches loaded:', branchesData?.length ?? 0);
       setBranches(branchesData || []);
-
-      const { data: departmentsData } = await supabase.from('departments').select('*');
-      console.log('📋 Departments loaded:', departmentsData?.length ?? 0);
       setDepartments(departmentsData || []);
-
-      const { data: rolesData } = await supabase.from('roles').select('*');
-      console.log('👔 Roles loaded:', rolesData?.length ?? 0);
       setRoles(rolesData || []);
-
-      const { data: trainings } = await supabase.from('training_requests').select('*');
 
       // Extract periods from evaluations
       const uniquePeriods = [...new Set((evaluations || []).map(e => e.period).filter(Boolean))];
@@ -434,7 +423,6 @@ export default function Dashboard() {
         return bDate.getTime() - aDate.getTime(); // Most recent first
       });
       
-      console.log('📅 Periods extracted:', sortedPeriods);
       setPeriods(sortedPeriods);
       if (sortedPeriods.length > 0) {
         setSelectedPeriod(sortedPeriods[0]);
@@ -525,11 +513,8 @@ export default function Dashboard() {
       }));
       setRoleData(roleDataArray);
 
-      console.log('✅ Dashboard data loaded successfully');
-      console.log('📈 Stats:', { usersCount: filteredUsers.length, branchesCount: branchesData?.length, evalsCount: evaluations?.length, periods: sortedPeriods });
-
     } catch (error) {
-      console.error('❌ Error loading initial data:', error);
+      console.error('Error loading initial dashboard data:', error);
     } finally {
       setLoading(false);
     }

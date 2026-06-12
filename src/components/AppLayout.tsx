@@ -21,7 +21,6 @@ import {
 import type { RoleRecord } from '@/lib/role-tree';
 import LoadingOverlay from '@/components/ui/loading-overlay';
 import { APP_LOADING_EVENT } from '@/lib/loading-overlay';
-import { hideLoadingOverlay, showLoadingOverlay } from '@/lib/loading-overlay';
 import {
   isEvaluationPeriodOpen,
   subscribeEvaluationPeriodChange,
@@ -58,7 +57,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const canWriteTraining = canWrite('training');
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [user, setUser] = useState<SessionUser | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(() => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (!userData) return null;
+      let session = repairSiteDeveloperSession() ?? (JSON.parse(userData) as SessionUser);
+      const userRole = localStorage.getItem('userRole');
+      if (!isSiteDeveloper(session)) {
+        session = { ...session, role: userRole ?? session.role };
+      }
+      return session;
+    } catch {
+      return null;
+    }
+  });
   const [navItems, setNavItems] = useState<AppNavItem[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -67,11 +79,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { id: 2, message: 'Formation assignée avec succès', time: 'Il y a 5h' },
     { id: 3, message: 'Rapport complété', time: 'Hier' },
   ]);
-  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>('standard');
-  const [isLoading, setIsLoading] = useState(true);
+  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
+    const stored = localStorage.getItem('appearanceMode');
+    return stored === 'light' || stored === 'dark' || stored === 'standard' ? stored : 'standard';
+  });
   const [overlayTokens, setOverlayTokens] = useState<string[]>([]);
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
-  const navTokenRef = useRef<string | null>(null);
   const overlayTimeoutsRef = useRef<Map<string, number>>(new Map());
   const [connectionBanner, setConnectionBanner] = useState<ConnectionBannerState | null>(() => {
     if (typeof navigator === 'undefined') return null;
@@ -81,77 +94,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [evaluationPeriodOpen, setEvaluationPeriodOpen] = useState(() => isEvaluationPeriodOpen());
   const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
-  const INITIAL_LOAD_TOKEN = 'app-initial-load';
-
-  // Show loading overlay on app startup
-  useEffect(() => {
-    setOverlayTokens((prev) => {
-      if (!prev.includes(INITIAL_LOAD_TOKEN)) {
-        return [...prev, INITIAL_LOAD_TOKEN];
-      }
-      return prev;
-    });
-  }, []);
-
-  // Hide initial loading overlay when isLoading becomes false
-  useEffect(() => {
-    if (!isLoading) {
-      setOverlayTokens((prev) => prev.filter((t) => t !== INITIAL_LOAD_TOKEN));
-    }
-  }, [isLoading]);
 
   useEffect(() => {
     const loadSessionAndNav = async () => {
+      const userData = localStorage.getItem("user");
+      const userRole = localStorage.getItem("userRole");
+      if (!userData) return;
+
+      let session = repairSiteDeveloperSession() ?? (JSON.parse(userData) as SessionUser);
+
+      if (!isSiteDeveloper(session)) {
+        session = { ...session, role: userRole ?? session.role };
+      }
+
+      setUser(session);
+
+      const { data: rolesData } = await supabase
+        .from('roles')
+        .select('id, name, code, color, level, child_roles, parent_role_id');
+
+      setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
+
+      if (isSiteDeveloper(session)) return;
+
       try {
-        const userData = localStorage.getItem("user");
-        const userRole = localStorage.getItem("userRole");
-        if (!userData) {
-          setIsLoading(false);
-          return;
+        const { data: userAppearanceData } = await supabase
+          .from('users')
+          .select('appearance_mode')
+          .eq('id', session.id)
+          .maybeSingle();
+
+        if (userAppearanceData?.appearance_mode) {
+          const mode = userAppearanceData.appearance_mode as AppearanceMode;
+          setAppearanceMode(mode);
+          localStorage.setItem('appearanceMode', mode);
         }
-
-        let session = repairSiteDeveloperSession() ?? (JSON.parse(userData) as SessionUser);
-
-        if (!isSiteDeveloper(session)) {
-          session = { ...session, role: userRole ?? session.role };
-        }
-
-        const { data: rolesData } = await supabase
-          .from('roles')
-          .select('id, name, code, color, level, child_roles, parent_role_id');
-
-        setUser(session);
-        setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
-
-        // Load appearance from DB for this user
-        try {
-          const { data: userAppearanceData } = await supabase
-            .from('users')
-            .select('appearance_mode')
-            .eq('id', session.id)
-            .single();
-          
-          if (userAppearanceData?.appearance_mode) {
-            const mode = userAppearanceData.appearance_mode as AppearanceMode;
-            setAppearanceMode(mode);
-            localStorage.setItem('appearanceMode', mode);
-          } else {
-            // If no mode in DB, use standard as default
-            setAppearanceMode('standard');
-            localStorage.setItem('appearanceMode', 'standard');
-          }
-        } catch (error) {
-          console.error('Failed to load appearance from DB:', error);
-          // Fallback to standard
-          setAppearanceMode('standard');
-          localStorage.setItem('appearanceMode', 'standard');
-        }
-      } finally {
-        setIsLoading(false);
+      } catch (error) {
+        console.error('Failed to load appearance from DB:', error);
       }
     };
 
-    loadSessionAndNav();
+    void loadSessionAndNav();
   }, []);
 
   useEffect(() => {
@@ -181,20 +164,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('appearanceMode', appearanceMode);
     
-    // Save appearance to DB if user is logged in
-    if (user && !isLoading) {
+    if (user && !isSiteDeveloper(user)) {
       supabase
         .from('users')
         .update({ appearance_mode: appearanceMode })
         .eq('id', user.id)
-        .then(() => {
-          console.log('Appearance saved to DB:', appearanceMode);
-        })
-        .catch((error) => {
-          console.error('Failed to save appearance to DB:', error);
+        .then(({ error }) => {
+          if (error) console.error('Failed to save appearance to DB:', error);
         });
     }
-  }, [appearanceMode, user, isLoading]);
+  }, [appearanceMode, user]);
 
   // Listen for palette changes from UIStudio or other components
   // BUT: ignore palette changes in standard mode (standard is independent)
@@ -473,19 +452,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!navTokenRef.current) return;
-    const currentToken = navTokenRef.current;
-    const timer = window.setTimeout(() => {
-      hideLoadingOverlay(currentToken);
-      if (navTokenRef.current === currentToken) {
-        navTokenRef.current = null;
-      }
-    }, 120);
-
-    return () => window.clearTimeout(timer);
-  }, [location.pathname]);
-
   const handleNavClick = (path: string) => {
     if (path === EVALUATION_PATH) {
       if (
@@ -519,11 +485,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (navTokenRef.current) {
-      hideLoadingOverlay(navTokenRef.current);
-    }
-
-    navTokenRef.current = showLoadingOverlay('Chargement...');
     setMobileOpen(false);
     navigate(path);
   };
