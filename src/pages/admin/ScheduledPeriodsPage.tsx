@@ -374,7 +374,6 @@ export default function ScheduledPeriodsPage() {
                       <th className="text-left py-3 px-4">Période</th>
                       <th className="text-left py-3 px-4">Dates</th>
                       <th className="text-left py-3 px-4">État</th>
-                      <th className="text-left py-3 px-4">Statut</th>
                       <th className="text-right py-3 px-4">Actions</th>
                     </tr>
                   </thead>
@@ -392,17 +391,6 @@ export default function ScheduledPeriodsPage() {
                             <Badge variant={phaseBadgeVariant(phase)}>
                               {intervalPhaseLabel(phase)}
                             </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-sm">
-                            {phase === 'active' ? (
-                              <span className="text-primary font-medium">En cours - Non modifiable</span>
-                            ) : phase === 'ended' && !interval.isProlongation ? (
-                              <span className="text-muted-foreground">Clôturée</span>
-                            ) : phase === 'ended' && interval.isProlongation ? (
-                              <span className="text-blue-600 font-medium">Prolongée</span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
                           </td>
                           <td className="py-3 px-4 text-right whitespace-nowrap space-x-1">
                             {phase !== 'active' && canManagePeriods && (
