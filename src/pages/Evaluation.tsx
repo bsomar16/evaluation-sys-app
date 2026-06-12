@@ -593,12 +593,7 @@ export default function Evaluation() {
                   <Label>Statut</Label>
                   <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as EvaluationStatus | 'all')}>
                     <SelectTrigger className="min-w-[160px]">
-                      <div className="flex items-center gap-2">
-                        {selectedStatusOption ? (
-                          <span className={`${selectedStatusOption.colorClass} inline-block h-2.5 w-2.5 rounded-full`} />
-                        ) : null}
-                        <SelectValue placeholder="Tous les statuts" />
-                      </div>
+                      <SelectValue placeholder="Tous les statuts" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tous les statuts</SelectItem>
