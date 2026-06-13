@@ -11,8 +11,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
-import { getOpenEvaluationPeriodName } from '@/lib/evaluation-period-storage';
-import { useActivePeriods, useEvaluationPeriods } from '@/hooks/useEvaluationPeriod';
+import { getEvaluationPeriodSchedule } from '@/lib/evaluation-period-storage';
 
 interface DashboardStats {
   totalUsers: number;
@@ -74,9 +73,6 @@ interface BranchHierarchy {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  
-  // Database periods hook - synced from Supabase (all periods)
-  const { periods: dbPeriods, loading: periodsLoading } = useEvaluationPeriods();
   
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
@@ -563,17 +559,6 @@ export default function Dashboard() {
     loadInitialData();
   }, []);
 
-  // Sync periods from database hook
-  useEffect(() => {
-    if (dbPeriods && dbPeriods.length > 0) {
-      const periodNames = dbPeriods.map(p => p.name).filter(Boolean);
-      setPeriods(periodNames);
-      if (!selectedPeriod && periodNames.length > 0) {
-        setSelectedPeriod(periodNames[0]);
-      }
-    }
-  }, [dbPeriods]);
-
   const loadInitialData = async () => {
     try {
       setLoading(true);
@@ -603,6 +588,31 @@ export default function Dashboard() {
       setBranches(branchesData || []);
       setDepartments(departmentsData || []);
       setRoles(rolesData || []);
+
+      // Load periods from localStorage (same as ScheduledPeriodsPage)
+      const schedule = getEvaluationPeriodSchedule();
+      let periodNamesFromStorage: string[] = [];
+      
+      if (schedule && schedule.intervals && schedule.intervals.length > 0) {
+        // Extract unique period names from intervals
+        const periodSet = new Set<string>();
+        schedule.intervals.forEach((interval: any) => {
+          const date = new Date(interval.startAt);
+          const monthNum = date.getMonth() + 1;
+          const year = date.getFullYear();
+          const months: Record<number, string> = {
+            1: 'janvier', 2: 'février', 3: 'mars', 4: 'avril', 5: 'mai', 6: 'juin',
+            7: 'juillet', 8: 'août', 9: 'septembre', 10: 'octobre', 11: 'novembre', 12: 'décembre',
+          };
+          periodSet.add(`${months[monthNum]} ${year}`);
+        });
+        periodNamesFromStorage = Array.from(periodSet);
+      }
+      
+      setPeriods(periodNamesFromStorage);
+      if (periodNamesFromStorage.length > 0 && !selectedPeriod) {
+        setSelectedPeriod(periodNamesFromStorage[0]);
+      }
 
       // Calculate stats
       const activeCount = filteredUsers.filter(u => u.is_active).length;
