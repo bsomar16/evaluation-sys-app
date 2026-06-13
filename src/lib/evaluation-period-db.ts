@@ -34,6 +34,8 @@ export async function getAllEvaluationPeriods(): Promise<EvaluationPeriod[]> {
       .select('*')
       .order('start_date', { ascending: false });
 
+    console.log('getAllEvaluationPeriods - Supabase response:', { data, error });
+
     if (error) {
       console.error('Error fetching evaluation periods:', error);
       return [];

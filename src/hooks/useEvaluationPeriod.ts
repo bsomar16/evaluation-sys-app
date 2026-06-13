@@ -18,10 +18,12 @@ export function useEvaluationPeriods() {
     const init = async () => {
       try {
         const allPeriods = await getAllEvaluationPeriods();
+        console.log('useEvaluationPeriods - Fetched periods:', allPeriods);
         setPeriods(allPeriods);
 
         // Subscribe to real-time changes
         unsubscribe = subscribeToAllPeriodChanges((updatedPeriods) => {
+          console.log('useEvaluationPeriods - Updated periods:', updatedPeriods);
           setPeriods(updatedPeriods);
         });
       } catch (error) {
