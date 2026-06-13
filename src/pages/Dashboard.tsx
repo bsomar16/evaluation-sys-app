@@ -572,7 +572,7 @@ export default function Dashboard() {
         setSelectedPeriod(periodNames[0]);
       }
     }
-  }, [dbPeriods, selectedPeriod]);
+  }, [dbPeriods]);
 
   const loadInitialData = async () => {
     try {
