@@ -11,7 +11,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
-import { getEvaluationPeriodSchedule } from '@/lib/evaluation-period-storage';
+import { getEvaluationPeriodSchedule, subscribeEvaluationPeriodChange } from '@/lib/evaluation-period-storage';
 
 interface DashboardStats {
   totalUsers: number;
@@ -94,7 +94,27 @@ export default function Dashboard() {
   
   // Selector data states
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [periods, setPeriods] = useState<string[]>([]);
+  // Get initial periods from localStorage
+  const getInitialPeriods = (): string[] => {
+    const schedule = getEvaluationPeriodSchedule();
+    if (schedule && schedule.intervals && schedule.intervals.length > 0) {
+      const periodSet = new Set<string>();
+      const months: Record<number, string> = {
+        1: 'janvier', 2: 'février', 3: 'mars', 4: 'avril', 5: 'mai', 6: 'juin',
+        7: 'juillet', 8: 'août', 9: 'septembre', 10: 'octobre', 11: 'novembre', 12: 'décembre',
+      };
+      schedule.intervals.forEach((interval: any) => {
+        const date = new Date(interval.startAt);
+        const monthNum = date.getMonth() + 1;
+        const year = date.getFullYear();
+        periodSet.add(`${months[monthNum]} ${year}`);
+      });
+      return Array.from(periodSet);
+    }
+    return [];
+  };
+
+  const [periods, setPeriods] = useState<string[]>(getInitialPeriods());
   const [branches, setBranches] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -556,7 +576,18 @@ export default function Dashboard() {
     if (userData) {
       setCurrentUser(JSON.parse(userData));
     }
+    
+    // Subscribe to period changes
+    const unsubscribe = subscribeEvaluationPeriodChange(() => {
+      const newPeriods = getInitialPeriods();
+      setPeriods(newPeriods);
+    });
+    
     loadInitialData();
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const loadInitialData = async () => {
@@ -588,31 +619,6 @@ export default function Dashboard() {
       setBranches(branchesData || []);
       setDepartments(departmentsData || []);
       setRoles(rolesData || []);
-
-      // Load periods from localStorage (same as ScheduledPeriodsPage)
-      const schedule = getEvaluationPeriodSchedule();
-      let periodNamesFromStorage: string[] = [];
-      
-      if (schedule && schedule.intervals && schedule.intervals.length > 0) {
-        // Extract unique period names from intervals
-        const periodSet = new Set<string>();
-        schedule.intervals.forEach((interval: any) => {
-          const date = new Date(interval.startAt);
-          const monthNum = date.getMonth() + 1;
-          const year = date.getFullYear();
-          const months: Record<number, string> = {
-            1: 'janvier', 2: 'février', 3: 'mars', 4: 'avril', 5: 'mai', 6: 'juin',
-            7: 'juillet', 8: 'août', 9: 'septembre', 10: 'octobre', 11: 'novembre', 12: 'décembre',
-          };
-          periodSet.add(`${months[monthNum]} ${year}`);
-        });
-        periodNamesFromStorage = Array.from(periodSet);
-      }
-      
-      setPeriods(periodNamesFromStorage);
-      if (periodNamesFromStorage.length > 0 && !selectedPeriod) {
-        setSelectedPeriod(periodNamesFromStorage[0]);
-      }
 
       // Calculate stats
       const activeCount = filteredUsers.filter(u => u.is_active).length;
