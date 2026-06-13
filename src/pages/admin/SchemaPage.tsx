@@ -291,79 +291,86 @@ export default function AdminSchemaPage() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {tables.map((table) => {
-            const missingCount = table.columns.filter((c) => !c.exists).length;
-            const tableOk = table.exists && missingCount === 0;
-
-            return (
-              <Card key={table.name}>
-                <CardHeader>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-lg font-mono">{table.name}</CardTitle>
-                    <div className="flex gap-2">
-                      <Badge variant={table.exists ? 'outline' : 'destructive'}>
-                        {table.exists ? 'Table OK' : 'Table absente'}
-                      </Badge>
-                      <Badge variant={tableOk ? 'default' : 'destructive'}>
-                        {tableOk
-                          ? `${table.columns.length} colonnes`
-                          : table.exists
-                            ? `${missingCount} manquante(s)`
-                            : '—'}
-                      </Badge>
-                    </div>
+          {/* Show section for missing tables first */}
+          {missingTables.length > 0 && (
+            <Card className="border-red-500 bg-red-50 dark:bg-red-950">
+              <CardHeader>
+                <CardTitle className="text-lg text-red-700 dark:text-red-300">
+                  ⚠️ Tables absentes ({missingTables.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {missingTables.map((table) => (
+                  <div key={table.name} className="space-y-2">
+                    <p className="font-mono font-semibold">{table.name}</p>
+                    <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-48">
+                      {buildCreateTableSql(table.name)}
+                    </pre>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {!table.exists ? (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Table absente — SQL de création inclus dans la migration ci-dessous :
-                      </p>
-                      <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-48">
-                        {buildCreateTableSql(table.name)}
-                      </pre>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {table.columns.map((status) => (
-                          <div
-                            key={`${status.table}-${status.column}`}
-                            className="flex items-center justify-between p-2 bg-muted rounded gap-2"
-                          >
-                            <div className="min-w-0">
-                              <span className="text-sm font-mono block truncate">{status.column}</span>
-                              <span className="text-xs text-muted-foreground">{status.type}</span>
-                            </div>
-                            {status.exists ? (
-                              <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-                            ) : (
-                              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
-                            )}
-                          </div>
-                        ))}
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Show only existing tables */}
+          {tables
+            .filter((t) => t.exists)
+            .map((table) => {
+              const missingCount = table.columns.filter((c) => !c.exists).length;
+              const tableOk = missingCount === 0;
+
+              return (
+                <Card key={table.name}>
+                  <CardHeader>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="text-lg font-mono">{table.name}</CardTitle>
+                      <div className="flex gap-2">
+                        <Badge variant="outline">Table OK</Badge>
+                        <Badge variant={tableOk ? 'default' : 'destructive'}>
+                          {tableOk
+                            ? `${table.columns.length} colonnes`
+                            : `${missingCount} manquante(s)`}
+                        </Badge>
                       </div>
-                      {table.extraColumns.length > 0 && (
-                        <div className="pt-2 border-t">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">
-                            Colonnes en base non listées dans le schéma attendu :
-                          </p>
-                          <div className="flex flex-wrap gap-1">
-                            {table.extraColumns.map((col) => (
-                              <Badge key={col} variant="secondary" className="font-mono text-xs">
-                                {col}
-                              </Badge>
-                            ))}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {table.columns.map((status) => (
+                        <div
+                          key={`${status.table}-${status.column}`}
+                          className="flex items-center justify-between p-2 bg-muted rounded gap-2"
+                        >
+                          <div className="min-w-0">
+                            <span className="text-sm font-mono block truncate">{status.column}</span>
+                            <span className="text-xs text-muted-foreground">{status.type}</span>
                           </div>
+                          {status.exists ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+                          )}
                         </div>
-                      )}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                      ))}
+                    </div>
+                    {table.extraColumns.length > 0 && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs font-medium text-muted-foreground mb-1">
+                          Colonnes en base non listées dans le schéma attendu :
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {table.extraColumns.map((col) => (
+                            <Badge key={col} variant="secondary" className="font-mono text-xs">
+                              {col}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
         </div>
       )}
 
