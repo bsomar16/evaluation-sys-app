@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
 import { getOpenEvaluationPeriodName } from '@/lib/evaluation-period-storage';
+import { useActivePeriods } from '@/hooks/useEvaluationPeriod';
 
 interface DashboardStats {
   totalUsers: number;
@@ -72,6 +73,11 @@ interface BranchHierarchy {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  
+  // Database periods hook - synced from Supabase
+  const { periods: dbPeriods, loading: periodsLoading } = useActivePeriods();
+  
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     activeUsers: 0,
@@ -123,8 +129,6 @@ export default function Dashboard() {
 
   const [branchEmblaRef, branchEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
   const [departmentEmblaRef, departmentEmblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' });
-
-  const navigate = useNavigate();
 
   // Helper functions to get accessible data
   function getAccessibleBranches() {
@@ -559,6 +563,17 @@ export default function Dashboard() {
     loadInitialData();
   }, []);
 
+  // Sync periods from database hook
+  useEffect(() => {
+    if (dbPeriods && dbPeriods.length > 0) {
+      const periodNames = dbPeriods.map(p => p.name).filter(Boolean);
+      setPeriods(periodNames);
+      if (!selectedPeriod && periodNames.length > 0) {
+        setSelectedPeriod(periodNames[0]);
+      }
+    }
+  }, [dbPeriods, selectedPeriod]);
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
@@ -570,11 +585,10 @@ export default function Dashboard() {
         supabase.from('departments').select('*'),
         supabase.from('roles').select('*'),
         supabase.from('training_requests').select('*'),
-        supabase.from('evaluation_periods').select('name').order('created_at', { ascending: false }),
       ]);
 
       // Extract successful results with defaults
-      const [usersResult, evaluationsResult, branchesResult, departmentsResult, rolesResult, trainingsResult, periodsResult] = results;
+      const [usersResult, evaluationsResult, branchesResult, departmentsResult, rolesResult, trainingsResult] = results;
       
       const { data: usersRaw } = usersResult.status === 'fulfilled' ? usersResult.value : { data: [] };
       const { data: evaluations } = evaluationsResult.status === 'fulfilled' ? evaluationsResult.value : { data: [] };
@@ -582,7 +596,6 @@ export default function Dashboard() {
       const { data: departmentsData } = departmentsResult.status === 'fulfilled' ? departmentsResult.value : { data: [] };
       const { data: rolesData } = rolesResult.status === 'fulfilled' ? rolesResult.value : { data: [] };
       const { data: trainings } = trainingsResult.status === 'fulfilled' ? trainingsResult.value : { data: [] };
-      const { data: periodsData } = periodsResult.status === 'fulfilled' ? periodsResult.value : { data: [] };
 
       const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
       setUsers(filteredUsers);
@@ -590,68 +603,6 @@ export default function Dashboard() {
       setBranches(branchesData || []);
       setDepartments(departmentsData || []);
       setRoles(rolesData || []);
-
-      // Get periods from evaluation_periods table, fall back to evaluations if table is empty
-      let sortedPeriods: string[] = [];
-      
-      if (periodsData && periodsData.length > 0) {
-        // Use periods from evaluation_periods table
-        sortedPeriods = periodsData.map((p: any) => p.name).filter(Boolean);
-      } else {
-        // Fall back to extracting periods from evaluations
-        const uniquePeriods = [...new Set((evaluations || []).map(e => e.period).filter(Boolean))];
-        sortedPeriods = Array.from(uniquePeriods).sort((a, b) => {
-          // Sort by month or quarter format
-          // For "juin 2026", "juillet 2026", etc.
-          const monthNames: Record<string, number> = {
-            'janvier': 0, 'février': 1, 'mars': 2, 'avril': 3, 'mai': 4, 'juin': 5,
-            'juillet': 6, 'août': 7, 'septembre': 8, 'octobre': 9, 'novembre': 10, 'décembre': 11
-          };
-          
-          // Try to extract month/year from "mois année" format
-          const aMatch = a.match(/(\w+)\s+(\d{4})/i);
-          const bMatch = b.match(/(\w+)\s+(\d{4})/i);
-          
-          if (aMatch && bMatch) {
-            const [, aMonth, aYear] = aMatch;
-            const [, bMonth, bYear] = bMatch;
-            const aMonthNum = monthNames[aMonth.toLowerCase()] ?? -1;
-            const bMonthNum = monthNames[bMonth.toLowerCase()] ?? -1;
-            
-            const aDate = new Date(parseInt(aYear), aMonthNum, 1);
-            const bDate = new Date(parseInt(bYear), bMonthNum, 1);
-            return bDate.getTime() - aDate.getTime(); // Most recent first
-          }
-          
-          // Try Q format (Q2 2026)
-          const qAMatch = a.match(/Q(\d+)\s(\d{4})/i);
-          const qBMatch = b.match(/Q(\d+)\s(\d{4})/i);
-          
-          if (qAMatch && qBMatch) {
-            const [, aQuarter, aYear] = qAMatch;
-            const [, bQuarter, bYear] = qBMatch;
-            const aDate = new Date(parseInt(aYear), (parseInt(aQuarter) - 1) * 3, 1);
-            const bDate = new Date(parseInt(bYear), (parseInt(bQuarter) - 1) * 3, 1);
-            return bDate.getTime() - aDate.getTime(); // Most recent first
-          }
-          
-          // Fallback: string comparison if format doesn't match
-          return b.localeCompare(a);
-        });
-      }
-      
-      // Ensure we always have the currently open period if it exists
-      const openPeriodName = getOpenEvaluationPeriodName();
-      const periodToUse = openPeriodName || getCurrentQuarterPeriod();
-      
-      if (periodToUse && !sortedPeriods.includes(periodToUse)) {
-        sortedPeriods.unshift(periodToUse);
-      }
-      
-      setPeriods(sortedPeriods);
-      if (sortedPeriods.length > 0) {
-        setSelectedPeriod(sortedPeriods[0]);
-      }
 
       // Calculate stats
       const activeCount = filteredUsers.filter(u => u.is_active).length;
