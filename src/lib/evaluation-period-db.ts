@@ -506,9 +506,9 @@ export function subscribeToPeriodChanges(
  */
 export function subscribeToAllPeriodChanges(
   callback: (periods: EvaluationPeriod[]) => void
-) {
-  return supabase
-    .channel('evaluation_periods_all')
+): (() => void) {
+  const channel = supabase
+    .channel('evaluation_periods_changes_' + Date.now())
     .on(
       'postgres_changes',
       {
@@ -517,9 +517,18 @@ export function subscribeToAllPeriodChanges(
         table: 'evaluation_periods',
       },
       async () => {
-        const periods = await getAllEvaluationPeriods();
-        callback(periods);
+        try {
+          const periods = await getAllEvaluationPeriods();
+          callback(periods);
+        } catch (error) {
+          console.error('Error in subscription callback:', error);
+        }
       }
     )
     .subscribe();
+
+  // Return unsubscribe function
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }
