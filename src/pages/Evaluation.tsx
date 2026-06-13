@@ -571,10 +571,10 @@ export default function Evaluation() {
               <div className="space-y-1">
                 <Label>Période</Label>
                 <Select value={period} onValueChange={setPeriod}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une période">
-                      {availablePeriods.find((p) => p.code === period)?.name || period || 'Sélectionner une période'}
-                    </SelectValue>
+                  <SelectTrigger className="w-full">
+                    <span>
+                      {availablePeriods.find((p) => p.code === period)?.name || (period ? period : 'Sélectionner une période')}
+                    </span>
                   </SelectTrigger>
                   <SelectContent>
                     {availablePeriods.length === 0 ? (
