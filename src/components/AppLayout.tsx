@@ -78,7 +78,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return navigator.onLine ? null : 'offline';
   });
   const connectionBannerTimeoutRef = useRef<number | null>(null);
-  const { isOpen: evaluationPeriodOpen } = useCurrentOpenPeriod();
+  const { period: activePeriod, isOpen: evaluationPeriodOpen } = useCurrentOpenPeriod();
   const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
 
@@ -214,6 +214,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // If no active period, no evaluations to count
+    if (!activePeriod?.id) {
+      setPendingEvaluationsCount(0);
+      return;
+    }
+
     try {
       let totalCount = 0;
 
@@ -248,12 +254,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           const childUserIds = childUsers?.map(u => u.id) ?? [];
 
-          // Count pending evaluations for child role users
+          // Count pending evaluations for child role users in active period
           if (childUserIds.length > 0) {
             const { count: childCount, error: childError } = await supabase
               .from('evaluations')
               .select('id', { count: 'exact', head: true })
-              .in('status', ['submitted', 'pending'])
+              .eq('period_id', activePeriod.id)
+              .in('status', ['submitted', 'pending', 'rejected', 'draft'])
               .in('evaluated_user_id', childUserIds);
 
             if (!childError) {
@@ -263,11 +270,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Also get current user's pending evaluations
+      // Also get current user's pending evaluations in active period
       const { count, error } = await supabase
         .from('evaluations')
         .select('id', { count: 'exact', head: true })
-        .in('status', ['submitted', 'pending']);
+        .eq('period_id', activePeriod.id)
+        .in('status', ['submitted', 'pending', 'rejected', 'draft']);
 
       if (error) throw error;
       totalCount += (count ?? 0);
@@ -278,13 +286,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       try {
         const rows = await fetchEvaluations();
         setPendingEvaluationsCount(
-          rows.filter((e) => e.status === 'submitted' || e.status === 'pending').length
+          rows.filter((e) => 
+            e.period_id === activePeriod?.id && 
+            (e.status === 'submitted' || e.status === 'pending' || e.status === 'rejected' || e.status === 'draft')
+          ).length
         );
       } catch {
         setPendingEvaluationsCount(0);
       }
     }
-  }, [isDeveloper, canReadEvaluations, canWriteEvaluations, user?.role_id]);
+  }, [isDeveloper, canReadEvaluations, canWriteEvaluations, user?.role_id, activePeriod?.id]);
 
   useEffect(() => {
     void loadPendingEvaluationsCount();
