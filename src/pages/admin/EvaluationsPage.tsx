@@ -248,7 +248,7 @@ export function EvaluationsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_STATUS}>Tous les statuts</SelectItem>
-                {(Object.keys(EVALUATION_STATUS_LABELS) as EvaluationStatus[]).map((s) => (
+                {(Object.keys(EVALUATION_STATUS_LABELS) as EvaluationStatus[]).filter(s => s !== 'pending').map((s) => (
                   <SelectItem key={s} value={s}>
                     {EVALUATION_STATUS_LABELS[s]}
                   </SelectItem>
