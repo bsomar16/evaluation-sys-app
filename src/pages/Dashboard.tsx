@@ -491,7 +491,7 @@ export default function Dashboard() {
 
   // Recalculate evaluation statuses when period or user context changes
   useEffect(() => {
-    if (!selectedPeriod || branches.length === 0) {
+    if (!selectedPeriod) {
       setEvaluationStatus([]);
       return;
     }
@@ -505,6 +505,7 @@ export default function Dashboard() {
     const completeCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
     
     // Add eligible employees without evaluation to "En attente"
+    // Even if branches are not loaded, this will return 0 or the actual count
     const eligibleWithoutEval = getEligibleEmployeesWithoutEvaluation();
     
     // Group into 3 categories: En attente (draft+rejected+eligible without eval), Soumis, Complet
