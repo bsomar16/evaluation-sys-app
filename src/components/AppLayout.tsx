@@ -22,10 +22,7 @@ import type { RoleRecord } from '@/lib/role-tree';
 import LoadingOverlay from '@/components/ui/loading-overlay';
 import { APP_LOADING_EVENT } from '@/lib/loading-overlay';
 import { hideLoadingOverlay, showLoadingOverlay } from '@/lib/loading-overlay';
-import {
-  isEvaluationPeriodOpen,
-  subscribeEvaluationPeriodChange,
-} from '@/lib/evaluation-period-storage';
+import { useCurrentOpenPeriod } from '@/hooks/useEvaluationPeriod';
 import {
   canAccessEvaluationManagement,
   canAccessEvaluationPage,
@@ -81,7 +78,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return navigator.onLine ? null : 'offline';
   });
   const connectionBannerTimeoutRef = useRef<number | null>(null);
-  const [evaluationPeriodOpen, setEvaluationPeriodOpen] = useState(() => isEvaluationPeriodOpen());
+  const { isOpen: evaluationPeriodOpen } = useCurrentOpenPeriod();
   const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
 
@@ -210,11 +207,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [dropdownOpen]);
-
-  useEffect(() => {
-    setEvaluationPeriodOpen(isEvaluationPeriodOpen());
-    return subscribeEvaluationPeriodChange(setEvaluationPeriodOpen);
-  }, []);
 
   const loadPendingEvaluationsCount = useCallback(async () => {
     if (!hasEvaluationModuleAccess(isDeveloper, canReadEvaluations, canWriteEvaluations)) {

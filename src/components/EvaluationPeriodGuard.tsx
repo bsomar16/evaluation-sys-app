@@ -1,32 +1,28 @@
-import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { useCurrentOpenPeriod } from '@/hooks/useEvaluationPeriod';
 import {
   canAccessEvaluationManagement,
   canAccessEvaluationPage,
   hasEvaluationModuleAccess,
 } from '@/lib/evaluation-access';
-import {
-  isEvaluationPeriodOpen,
-  subscribeEvaluationPeriodChange,
-} from '@/lib/evaluation-period-storage';
 
 export function EvaluationPeriodGuard({ children }: { children: React.ReactNode }) {
   const { isDeveloper, canRead, canWrite } = useRolePermissions();
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canReadEvaluationsManagement = canRead('evaluations_management');
-  const [periodOpen, setPeriodOpen] = useState(() => isEvaluationPeriodOpen());
-
-  useEffect(() => {
-    setPeriodOpen(isEvaluationPeriodOpen());
-    return subscribeEvaluationPeriodChange(setPeriodOpen);
-  }, []);
+  const { isOpen: periodOpen, loading } = useCurrentOpenPeriod();
 
   if (!hasEvaluationModuleAccess(isDeveloper, canReadEvaluations, canWriteEvaluations)) {
     return <Navigate to="/" replace />;
+  }
+
+  if (loading) {
+    // Show loading state or children while loading
+    return <>{children}</>;
   }
 
   if (

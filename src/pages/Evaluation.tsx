@@ -46,10 +46,7 @@ import {
   describeEvaluationPeriodCode,
   getCurrentEvaluationPeriodCode,
 } from '@/lib/evaluation-period-label';
-import {
-  isEvaluationPeriodOpen,
-  subscribeEvaluationPeriodChange,
-} from '@/lib/evaluation-period-storage';
+import { useCurrentOpenPeriod } from '@/hooks/useEvaluationPeriod';
 import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evaluation-types';
 import { getSessionUser } from '@/lib/session-user';
 import { supabase } from '@/integrations/supabase/client';
@@ -87,7 +84,7 @@ export default function Evaluation() {
   const [period, setPeriod] = useState(getCurrentEvaluationPeriodCode());
   const [formValues, setFormValues] = useState<Record<string, number | boolean>>({});
   const [notes, setNotes] = useState('');
-  const [isPeriodOpen, setIsPeriodOpen] = useState<boolean>(() => isEvaluationPeriodOpen());
+  const { isOpen: isPeriodOpen } = useCurrentOpenPeriod();
   const [currentEvaluationId, setCurrentEvaluationId] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<EvaluationStatus | null>(null);
   const [activityLog, setActivityLog] = useState<EvaluationAuditEntry[]>([]);
@@ -320,10 +317,6 @@ export default function Evaluation() {
     };
     init();
   }, [canReadEvaluations]);
-
-  useEffect(() => {
-    return subscribeEvaluationPeriodChange(setIsPeriodOpen);
-  }, []);
 
   const startEvaluation = async (empId: string) => {
     if (!isPeriodOpen) {
