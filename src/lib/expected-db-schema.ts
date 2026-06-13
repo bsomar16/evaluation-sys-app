@@ -105,6 +105,17 @@ export const EXPECTED_DB_SCHEMA: ExpectedDbSchema = {
     { name: 'created_at', type: 'timestamp', default: 'now()', nullable: true },
     { name: 'updated_at', type: 'timestamp', default: 'now()', nullable: true },
   ],
+  evaluation_period_intervals: [
+    { name: 'id', type: 'uuid', default: 'gen_random_uuid()', nullable: false },
+    { name: 'period_id', type: 'uuid', nullable: false },
+    { name: 'start_at', type: 'timestamp', nullable: false },
+    { name: 'end_at', type: 'timestamp', nullable: false },
+    { name: 'is_prolongation', type: 'boolean', default: 'false', nullable: true },
+    { name: 'is_prolongation_closed', type: 'boolean', default: 'false', nullable: true },
+    { name: 'created_by', type: 'varchar(255)', nullable: true },
+    { name: 'created_at', type: 'timestamp', default: 'now()', nullable: true },
+    { name: 'updated_at', type: 'timestamp', default: 'now()', nullable: true },
+  ],
   evaluations: [
     { name: 'id', type: 'uuid', default: 'gen_random_uuid()', nullable: false },
     { name: 'employee_id', type: 'uuid', nullable: true },
@@ -151,6 +162,7 @@ export const TABLE_CREATION_ORDER: string[] = [
   'departments',
   'users',
   'evaluation_periods',
+  'evaluation_period_intervals',
   'evaluation_criteria',
   'calculation_rules',
   'evaluations',
@@ -176,9 +188,13 @@ const COLUMN_FOREIGN_KEYS: Record<string, Record<string, string>> = {
   departments: {
     parent_department_id: 'departments(id) ON DELETE SET NULL',
   },
+  evaluation_period_intervals: {
+    period_id: 'evaluation_periods(id) ON DELETE CASCADE',
+  },
   evaluations: {
     employee_id: 'users(id) ON DELETE CASCADE',
     manager_id: 'users(id) ON DELETE SET NULL',
+    period_id: 'evaluation_periods(id) ON DELETE SET NULL',
   },
   training_requests: {
     employee_id: 'users(id) ON DELETE CASCADE',
