@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
 import { getOpenEvaluationPeriodName } from '@/lib/evaluation-period-storage';
-import { useActivePeriods } from '@/hooks/useEvaluationPeriod';
+import { useActivePeriods, useEvaluationPeriods } from '@/hooks/useEvaluationPeriod';
 
 interface DashboardStats {
   totalUsers: number;
@@ -75,8 +75,8 @@ interface BranchHierarchy {
 export default function Dashboard() {
   const navigate = useNavigate();
   
-  // Database periods hook - synced from Supabase
-  const { periods: dbPeriods, loading: periodsLoading } = useActivePeriods();
+  // Database periods hook - synced from Supabase (all periods)
+  const { periods: dbPeriods, loading: periodsLoading } = useEvaluationPeriods();
   
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
