@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { EXPECTED_DB_SCHEMA, buildAddColumnSql } from '@/lib/expected-db-schema';
+import { EXPECTED_DB_SCHEMA, buildAddColumnSql, buildCreateTableSql, TABLE_CREATION_ORDER } from '@/lib/expected-db-schema';
 
 const EXECUTE_SQL_UNAVAILABLE_KEY = 'execute_sql_unavailable_v1';
 
@@ -21,16 +21,33 @@ export async function autoMigrateSchema() {
     return;
   }
 
-  for (const [tableName, columns] of Object.entries(EXPECTED_DB_SCHEMA)) {
+  const missingTables: string[] = [];
+
+  // First, create any missing tables
+  for (const tableName of TABLE_CREATION_ORDER) {
     try {
       const { error: tableCheckError } = await supabase.from(tableName).select('*').limit(1);
 
       if (tableCheckError && tableCheckError.code === 'PGRST116') {
-        console.warn(`⚠️  Table ${tableName} n'existe pas encore`);
+        console.log(`📝 Table ${tableName} n'existe pas, en train de la créer...`);
+        missingTables.push(tableName);
+
+        // Create the missing table
+        const createSql = buildCreateTableSql(tableName);
+        console.log(`📝 Exécution: ${createSql.substring(0, 50)}...`);
+
+        const { error: createError } = await supabase.rpc('execute_sql', { sql: createSql });
+
+        if (createError) {
+          console.warn(`⚠️  Impossible de créer la table ${tableName}: ${createError.message}`);
+        } else {
+          console.log(`✅ Table ${tableName} créée avec succès`);
+        }
         continue;
       }
 
-      for (const column of columns) {
+      // Then check columns for existing tables
+      for (const column of EXPECTED_DB_SCHEMA[tableName] || []) {
         try {
           const { error: columnCheckError } = await supabase
             .from(tableName)
