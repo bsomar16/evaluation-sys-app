@@ -54,6 +54,10 @@ import {
   setEvaluationPeriodOpen,
   subscribeEvaluationPeriodChange,
 } from '@/lib/evaluation-period-storage';
+import {
+  getAllEvaluationPeriods,
+  type EvaluationPeriod,
+} from '@/lib/evaluation-period-db';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 
 const ALL_STATUS = '__all__';
@@ -87,6 +91,8 @@ export function EvaluationsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(ALL_STATUS);
+  const [periodFilter, setPeriodFilter] = useState('');
+  const [periods, setPeriods] = useState<EvaluationPeriod[]>([]);
   const [viewTarget, setViewTarget] = useState<EvaluationRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EvaluationRecord | null>(null);
   const [isPeriodOpen, setIsPeriodOpen] = useState<boolean>(() => isEvaluationPeriodOpen());
@@ -107,6 +113,31 @@ export function EvaluationsPage() {
       hideLoadingOverlay();
     }
   };
+
+  // Load periods from database and initialize period filter
+  useEffect(() => {
+    async function loadPeriods() {
+      try {
+        const dbPeriods = await getAllEvaluationPeriods();
+        setPeriods(dbPeriods);
+
+        // Initialize period filter: prioritize active period, else last closed
+        if (dbPeriods.length > 0) {
+          const activePeriod = dbPeriods.find((p) => p.is_active);
+          if (activePeriod) {
+            setPeriodFilter(activePeriod.id);
+          } else {
+            // No active period: use last one (latest by start_date)
+            setPeriodFilter(dbPeriods[0].id);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading periods:', error);
+      }
+    }
+
+    loadPeriods();
+  }, []);
 
   useEffect(() => {
     load();
@@ -129,7 +160,15 @@ export function EvaluationsPage() {
       (e.period ?? '').toLowerCase().includes(q) ||
       (e.employee_email ?? '').toLowerCase().includes(q);
     const matchStatus = statusFilter === ALL_STATUS || e.status === statusFilter;
-    return matchSearch && matchStatus;
+
+    // Filter by period: find period name by ID and compare
+    let matchPeriod = true;
+    if (periodFilter && rows.length > 0) {
+      const selectedPeriod = periods.find((p) => p.id === periodFilter);
+      matchPeriod = selectedPeriod ? e.period === selectedPeriod.name : true;
+    }
+
+    return matchSearch && matchStatus && matchPeriod;
   });
 
   const pagination = usePagination(filtered, 10);
@@ -242,6 +281,24 @@ export function EvaluationsPage() {
                 className="pl-10"
               />
             </div>
+            {/* Period filter */}
+            <Select
+              value={periodFilter}
+              onValueChange={setPeriodFilter}
+              disabled={rows.length === 0}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Période" />
+              </SelectTrigger>
+              <SelectContent>
+                {periods.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Status filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue placeholder="Statut" />
