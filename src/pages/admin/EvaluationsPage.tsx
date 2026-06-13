@@ -295,11 +295,15 @@ export function EvaluationsPage() {
                 <SelectValue placeholder="Période" />
               </SelectTrigger>
               <SelectContent>
-                {periods.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
+                {periods.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">Aucune période</div>
+                ) : (
+                  periods.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
             {/* Status filter */}
