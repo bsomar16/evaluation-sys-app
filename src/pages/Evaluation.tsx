@@ -572,7 +572,9 @@ export default function Evaluation() {
                 <Label>Période</Label>
                 <Select value={period} onValueChange={setPeriod}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Sélectionner une période">
+                      {availablePeriods.find((p) => p.code === period)?.name || period || 'Sélectionner une période'}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {availablePeriods.length === 0 ? (
