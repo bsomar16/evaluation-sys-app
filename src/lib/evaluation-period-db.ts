@@ -382,6 +382,99 @@ export async function getCurrentOpenPeriod(): Promise<(EvaluationPeriod & { inte
   }
 }
 
+
+/**
+ * Migrate evaluation period schedule from localStorage to database
+ * Run once on app startup to move legacy data to new database structure
+ */
+export async function migratePeriodScheduleToDatabase(): Promise<void> {
+  try {
+    // Check if migration already done
+    const migrationKey = 'hr_pulse_period_migration_done';
+    if (localStorage.getItem(migrationKey) === 'true') {
+      console.log('Period migration already completed');
+      return;
+    }
+
+    const scheduleKey = 'hr_pulse_evaluation_period_schedule';
+    const rawSchedule = localStorage.getItem(scheduleKey);
+
+    if (!rawSchedule) {
+      // No localStorage data to migrate
+      localStorage.setItem(migrationKey, 'true');
+      return;
+    }
+
+    try {
+      const schedule = JSON.parse(rawSchedule) as {
+        enabled?: boolean;
+        intervals?: Array<{ startAt: string; endAt: string; isProlongation?: boolean }>;
+      };
+
+      if (!schedule.enabled || !Array.isArray(schedule.intervals) || schedule.intervals.length === 0) {
+        localStorage.setItem(migrationKey, 'true');
+        return;
+      }
+
+      // Get or create a default period
+      const periodName = `Migration Period ${new Date().getFullYear()}`;
+      let period = await getEvaluationPeriodByName(periodName);
+
+      if (!period) {
+        // Create new period
+        const firstInterval = schedule.intervals[0];
+        const startDate = new Date(firstInterval.startAt);
+        const lastInterval = schedule.intervals[schedule.intervals.length - 1];
+        const endDate = new Date(lastInterval.endAt);
+
+        period = await createEvaluationPeriod(
+          periodName,
+          startDate.toISOString().split('T')[0], // YYYY-MM-DD format
+          endDate.toISOString().split('T')[0],
+          'Migrated from localStorage',
+          'system'
+        );
+      }
+
+      if (!period) {
+        console.error('Failed to create period for migration');
+        return;
+      }
+
+      // Create all intervals
+      for (const interval of schedule.intervals) {
+        const existing = await getPeriodIntervals(period.id);
+        const isDuplicate = existing.some(
+          (e) =>
+            new Date(e.start_at).getTime() === new Date(interval.startAt).getTime() &&
+            new Date(e.end_at).getTime() === new Date(interval.endAt).getTime()
+        );
+
+        if (!isDuplicate) {
+          await createPeriodInterval(
+            period.id,
+            new Date(interval.startAt),
+            new Date(interval.endAt),
+            interval.isProlongation ?? false,
+            false,
+            'system'
+          );
+        }
+      }
+
+      // Mark migration as done
+      localStorage.setItem(migrationKey, 'true');
+      console.log('Period migration completed successfully');
+    } catch (parseErr) {
+      console.error('Failed to parse localStorage schedule:', parseErr);
+      localStorage.setItem(migrationKey, 'true');
+    }
+  } catch (err) {
+    console.error('Exception during period migration:', err);
+  }
+}
+
+
 /**
  * Subscribe to period changes (real-time updates)
  */

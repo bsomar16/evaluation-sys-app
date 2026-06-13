@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { EXPECTED_DB_SCHEMA, buildAddColumnSql, buildCreateTableSql, TABLE_CREATION_ORDER } from '@/lib/expected-db-schema';
+import { migratePeriodScheduleToDatabase } from '@/lib/evaluation-period-db';
 
 const EXECUTE_SQL_UNAVAILABLE_KEY = 'execute_sql_unavailable_v1';
 
@@ -75,6 +76,9 @@ export async function autoMigrateSchema() {
       console.warn(`⚠️  Erreur vérification table ${tableName}: ${message}`);
     }
   }
+
+  // Migrate evaluation period schedule from localStorage to database
+  await migratePeriodScheduleToDatabase();
 
   console.log('✅ Auto-migration complétée');
 }
