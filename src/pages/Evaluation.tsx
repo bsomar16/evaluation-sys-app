@@ -108,7 +108,6 @@ export default function Evaluation() {
   };
 
   const statusFilterOptions: Array<{ value: string; label: string; colorClass: string }> = [
-    { value: 'en-attente', label: 'En attente', colorClass: 'bg-slate-400' },
     { value: 'soumis', label: 'Soumis', colorClass: 'bg-amber-400' },
     { value: 'complet', label: 'Complet', colorClass: 'bg-emerald-500' },
   ];
