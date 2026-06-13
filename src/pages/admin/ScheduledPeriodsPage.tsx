@@ -19,6 +19,12 @@ import {
   subscribeEvaluationPeriodChange,
 } from '@/lib/evaluation-period-storage';
 import {
+  getAllEvaluationPeriods,
+  EvaluationPeriod,
+  getEvaluationPeriodById,
+  createEvaluationPeriod,
+} from '@/lib/evaluation-period-db';
+import {
   getCurrentEvaluationPeriodCode,
   getLastDayOfMonth,
   describeEvaluationPeriodCode,
@@ -89,9 +95,9 @@ export default function ScheduledPeriodsPage() {
   const canManagePeriods = canWrite('evaluations_management');
 
   // State
-  const [scheduledIntervals, setScheduledIntervals] = useState<Interval[]>(() =>
-    getEvaluationPeriodSchedule().intervals ?? []
-  );
+  const [scheduledIntervals, setScheduledIntervals] = useState<Interval[]>([]);
+  const [periods, setPeriods] = useState<EvaluationPeriod[]>([]);
+  const [loadingPeriods, setLoadingPeriods] = useState(true);
   const [search, setSearch] = useState('');
   const [filterState, setFilterState] = useState<FilterState>('all');
   const [dialogMode, setDialogMode] = useState<DialogMode>('none');
@@ -160,11 +166,50 @@ export default function ScheduledPeriodsPage() {
     setPeriodName(desc);
   }, [startDate]);
 
-  // Subscribe to period changes
+  // Load evaluation periods from database
+  useEffect(() => {
+    async function loadPeriods() {
+      setLoadingPeriods(true);
+      try {
+        const dbPeriods = await getAllEvaluationPeriods();
+        setPeriods(dbPeriods);
+
+        // Convert periods to intervals for display
+        const intervals: Interval[] = dbPeriods.flatMap((period) => ({
+          startAt: period.start_date,
+          endAt: period.end_date,
+          isProlongation: false,
+          createdAt: period.created_at,
+          createdBy: period.created_by,
+          isProlongationClosed: false,
+        }));
+        setScheduledIntervals(intervals);
+      } catch (error) {
+        console.error('Error loading periods:', error);
+      } finally {
+        setLoadingPeriods(false);
+      }
+    }
+
+    loadPeriods();
+  }, []);
+
+  // Subscribe to period changes (fallback for localStorage changes)
   useEffect(() => {
     const unsubscribe = subscribeEvaluationPeriodChange(() => {
-      const schedule = getEvaluationPeriodSchedule();
-      setScheduledIntervals(schedule.intervals ?? []);
+      // Reload from database
+      getAllEvaluationPeriods().then((dbPeriods) => {
+        setPeriods(dbPeriods);
+        const intervals: Interval[] = dbPeriods.flatMap((period) => ({
+          startAt: period.start_date,
+          endAt: period.end_date,
+          isProlongation: false,
+          createdAt: period.created_at,
+          createdBy: period.created_by,
+          isProlongationClosed: false,
+        }));
+        setScheduledIntervals(intervals);
+      });
     });
     return () => unsubscribe?.();
   }, []);
