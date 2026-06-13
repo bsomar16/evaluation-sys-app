@@ -125,7 +125,8 @@ export async function createEvaluationPeriod(
   start_date: string,
   end_date: string,
   description?: string,
-  created_by?: string
+  created_by?: string,
+  is_active?: boolean
 ): Promise<EvaluationPeriod | null> {
   try {
     const { data, error } = await supabase
@@ -134,7 +135,7 @@ export async function createEvaluationPeriod(
         name,
         start_date,
         end_date,
-        is_active: true,
+        is_active: is_active ?? true,
         description,
         created_by,
       })
@@ -387,6 +388,7 @@ export async function getCurrentOpenPeriod(): Promise<(EvaluationPeriod & { inte
 
 /**
  * Migrate evaluation period schedule from localStorage to database
+ * Creates period entries for each month based on localStorage intervals
  * Run once on app startup to move legacy data to new database structure
  */
 export async function migratePeriodScheduleToDatabase(): Promise<void> {
@@ -410,7 +412,7 @@ export async function migratePeriodScheduleToDatabase(): Promise<void> {
     try {
       const schedule = JSON.parse(rawSchedule) as {
         enabled?: boolean;
-        intervals?: Array<{ startAt: string; endAt: string; isProlongation?: boolean }>;
+        intervals?: Array<{ startAt: string; endAt: string; isProlongation?: boolean; createdBy?: string; createdAt?: string }>;
       };
 
       if (!schedule.enabled || !Array.isArray(schedule.intervals) || schedule.intervals.length === 0) {
@@ -418,55 +420,89 @@ export async function migratePeriodScheduleToDatabase(): Promise<void> {
         return;
       }
 
-      // Get or create a default period
-      const periodName = `Migration Period ${new Date().getFullYear()}`;
-      let period = await getEvaluationPeriodByName(periodName);
+      // Get current user for created_by field
+      const userData = localStorage.getItem('user');
+      const createdBy = userData ? JSON.parse(userData).id : 'system';
 
-      if (!period) {
-        // Create new period
-        const firstInterval = schedule.intervals[0];
-        const startDate = new Date(firstInterval.startAt);
-        const lastInterval = schedule.intervals[schedule.intervals.length - 1];
-        const endDate = new Date(lastInterval.endAt);
+      // Group intervals by month/year to create period entries
+      const monthMap = new Map<string, typeof schedule.intervals[0][]>();
+      const monthLabels: Record<number, string> = {
+        1: 'janvier', 2: 'février', 3: 'mars', 4: 'avril', 5: 'mai', 6: 'juin',
+        7: 'juillet', 8: 'août', 9: 'septembre', 10: 'octobre', 11: 'novembre', 12: 'décembre',
+      };
 
-        period = await createEvaluationPeriod(
-          periodName,
-          startDate.toISOString().split('T')[0], // YYYY-MM-DD format
-          endDate.toISOString().split('T')[0],
-          'Migrated from localStorage',
-          'system'
-        );
-      }
-
-      if (!period) {
-        console.error('Failed to create period for migration');
-        return;
-      }
-
-      // Create all intervals
       for (const interval of schedule.intervals) {
-        const existing = await getPeriodIntervals(period.id);
-        const isDuplicate = existing.some(
-          (e) =>
-            new Date(e.start_at).getTime() === new Date(interval.startAt).getTime() &&
-            new Date(e.end_at).getTime() === new Date(interval.endAt).getTime()
-        );
+        const date = new Date(interval.startAt);
+        const monthNum = date.getMonth() + 1;
+        const year = date.getFullYear();
+        const monthKey = `${year}-${String(monthNum).padStart(2, '0')}`;
+        
+        if (!monthMap.has(monthKey)) {
+          monthMap.set(monthKey, []);
+        }
+        monthMap.get(monthKey)!.push(interval);
+      }
 
-        if (!isDuplicate) {
-          await createPeriodInterval(
-            period.id,
-            new Date(interval.startAt),
-            new Date(interval.endAt),
-            interval.isProlongation ?? false,
-            false,
-            'system'
+      // Create period for each month
+      for (const [monthKey, intervals] of monthMap.entries()) {
+        const [yearStr, monthStr] = monthKey.split('-');
+        const year = parseInt(yearStr);
+        const month = parseInt(monthStr);
+        const monthName = monthLabels[month];
+        const periodName = `${monthName} ${year}`;
+
+        // Check if period already exists
+        let period = await getEvaluationPeriodByName(periodName);
+
+        if (!period) {
+          // Create new period
+          const firstDate = new Date(intervals[0].startAt);
+          const lastDate = new Date(intervals[intervals.length - 1].endAt);
+          
+          // Check if this is the current month
+          const now = new Date();
+          const isCurrentMonth = now.getMonth() === month - 1 && now.getFullYear() === year;
+
+          period = await createEvaluationPeriod(
+            periodName,
+            firstDate.toISOString().split('T')[0], // YYYY-MM-DD format
+            lastDate.toISOString().split('T')[0],
+            `Period for ${monthName} ${year}`,
+            createdBy,
+            isCurrentMonth // is_active = true for current month
           );
+        }
+
+        if (!period) {
+          console.error(`Failed to create period for ${periodName}`);
+          continue;
+        }
+
+        // Create intervals for this period
+        for (const interval of intervals) {
+          const existing = await getPeriodIntervals(period.id);
+          const isDuplicate = existing.some(
+            (e) =>
+              new Date(e.start_at).getTime() === new Date(interval.startAt).getTime() &&
+              new Date(e.end_at).getTime() === new Date(interval.endAt).getTime()
+          );
+
+          if (!isDuplicate) {
+            await createPeriodInterval(
+              period.id,
+              new Date(interval.startAt),
+              new Date(interval.endAt),
+              interval.isProlongation ?? false,
+              false,
+              createdBy
+            );
+          }
         }
       }
 
       // Mark migration as done
       localStorage.setItem(migrationKey, 'true');
-      console.log('Period migration completed successfully');
+      console.log('Period migration completed successfully - created periods for', monthMap.size, 'months');
     } catch (parseErr) {
       console.error('Failed to parse localStorage schedule:', parseErr);
       localStorage.setItem(migrationKey, 'true');
@@ -475,7 +511,6 @@ export async function migratePeriodScheduleToDatabase(): Promise<void> {
     console.error('Exception during period migration:', err);
   }
 }
-
 
 /**
  * Subscribe to period changes (real-time updates)
