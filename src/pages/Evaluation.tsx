@@ -45,8 +45,10 @@ import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluatio
 import {
   describeEvaluationPeriodCode,
   getCurrentEvaluationPeriodCode,
+  dateToPeriodCode,
 } from '@/lib/evaluation-period-label';
 import { useCurrentOpenPeriod } from '@/hooks/useEvaluationPeriod';
+import { getAllEvaluationPeriods } from '@/lib/evaluation-period-db';
 import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evaluation-types';
 import { getSessionUser } from '@/lib/session-user';
 import { supabase } from '@/integrations/supabase/client';
@@ -81,10 +83,10 @@ export default function Evaluation() {
   const [statusByEmployee, setStatusByEmployee] = useState<Record<string, EvaluationStatus | null>>({});
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
-  const [period, setPeriod] = useState(getCurrentEvaluationPeriodCode());
+  const [period, setPeriod] = useState('');
   const [formValues, setFormValues] = useState<Record<string, number | boolean>>({});
   const [notes, setNotes] = useState('');
-  const { isOpen: isPeriodOpen } = useCurrentOpenPeriod();
+  const { isOpen: isPeriodOpen, period: activePeriod } = useCurrentOpenPeriod();
   const [currentEvaluationId, setCurrentEvaluationId] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState<EvaluationStatus | null>(null);
   const [activityLog, setActivityLog] = useState<EvaluationAuditEntry[]>([]);
@@ -94,7 +96,7 @@ export default function Evaluation() {
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
   const [statusFilter, setStatusFilter] = useState<'all' | 'en-attente' | 'soumis' | 'complet'>('all');
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
-  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
+  const [availablePeriods, setAvailablePeriods] = useState<{ name: string; code: string }[]>([]);
 
   // Map grouped categories to database statuses
   const mapStatusGroupToDb = (group: string): EvaluationStatus[] => {
@@ -284,14 +286,16 @@ export default function Evaluation() {
           setRoles(rolesRes.data ?? []);
           setDepartments(deptsRes.data ?? []);
           
-          // Extract available periods from evaluations
-          const periods = new Set<string>();
-          periods.add(currentPeriod); // Always include current period
-          const evaluations = (await supabase.from('evaluations').select('period')).data || [];
-          evaluations.forEach(e => {
-            if (e.period) periods.add(e.period);
-          });
-          setAvailablePeriods(Array.from(periods).sort().reverse());
+          // Load available periods from database with generated codes
+          const dbPeriods = await getAllEvaluationPeriods();
+          const periodsWithCodes = dbPeriods.map((p) => ({
+            name: p.name,
+            code: dateToPeriodCode(new Date(p.start_date)),
+          })).sort((a, b) => b.code.localeCompare(a.code));
+          setAvailablePeriods(periodsWithCodes.length > 0 ? periodsWithCodes : [{
+            name: currentPeriod,
+            code: currentPeriod
+          }]);
 
           const scoreMap: Record<string, number | null> = {};
           const statusMap: Record<string, EvaluationStatus | null> = {};
@@ -318,6 +322,18 @@ export default function Evaluation() {
     init();
   }, [canReadEvaluations]);
 
+  // Initialize period with first available period from database
+  useEffect(() => {
+    if (availablePeriods.length > 0 && !period) {
+      // Try to find the active period in available periods
+      const activePeriodCode = activePeriod ? dateToPeriodCode(new Date(activePeriod.start_date)) : null;
+      const matchingPeriod = activePeriodCode && availablePeriods.find((p) => p.code === activePeriodCode) 
+        ? activePeriodCode 
+        : availablePeriods[0].code;
+      setPeriod(matchingPeriod);
+    }
+  }, [availablePeriods, activePeriod?.start_date, period]);
+
   const startEvaluation = async (empId: string) => {
     if (!isPeriodOpen) {
       toast({
@@ -327,9 +343,17 @@ export default function Evaluation() {
       });
       return;
     }
+    if (!period) {
+      toast({
+        variant: 'destructive',
+        title: 'Période non sélectionnée',
+        description: 'Veuillez sélectionner une période.',
+      });
+      return;
+    }
     const emp = employees.find((e) => e.id === empId);
     if (!emp) return;
-    const periodLabel = getCurrentEvaluationPeriodCode();
+    const periodLabel = period; // Use the selected period code
     const applicable = criteria
       .filter((c) => c.is_active !== false && criterionAppliesToEmployee(c, emp))
       .sort((a, b) => a.sort_order - b.sort_order);
@@ -555,8 +579,8 @@ export default function Evaluation() {
                       <SelectItem value={period}>{period}</SelectItem>
                     ) : (
                       availablePeriods.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
+                        <SelectItem key={p.code} value={p.code}>
+                          {p.name}
                         </SelectItem>
                       ))
                     )}
@@ -821,15 +845,15 @@ export default function Evaluation() {
               <SelectItem value={period}>{period}</SelectItem>
             ) : (
               availablePeriods.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
+                <SelectItem key={p.code} value={p.code}>
+                  {p.name}
                 </SelectItem>
               ))
             )}
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          <span className="font-medium">{period}</span>
+          <span className="font-medium">{availablePeriods.find((p) => p.code === period)?.name || period}</span>
           {periodDescription ? (
             <> désigne la campagne <span className="font-medium">{periodDescription}</span>.</>
           ) : (
