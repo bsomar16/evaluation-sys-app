@@ -56,12 +56,12 @@ FOR DELETE USING (auth.role() IS NOT NULL);
 
 -- Insert "juin 2026" period if not exists
 INSERT INTO evaluation_periods (name, start_date, end_date, is_active, created_by, description)
-VALUES ('Q2 2026', '2026-06-01', '2026-06-30', true, 'System', 'Période juin 2026')
+VALUES ('juin 2026', '2026-06-01', '2026-06-30', true, 'System', 'Période juin 2026')
 ON CONFLICT (name) DO NOTHING;
 
 -- Get the period ID and insert its interval
 WITH period AS (
-  SELECT id FROM evaluation_periods WHERE name = 'Q2 2026' LIMIT 1
+  SELECT id FROM evaluation_periods WHERE name = 'juin 2026' LIMIT 1
 )
 INSERT INTO evaluation_period_intervals (period_id, start_at, end_at, is_prolongation, created_by)
 SELECT id, '2026-06-01T00:00:00Z'::timestamp, '2026-06-30T23:59:59Z'::timestamp, false, 'System'
