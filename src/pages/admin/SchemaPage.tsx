@@ -85,31 +85,34 @@ export default function AdminSchemaPage() {
     setLoading(true);
     setMigrationStatus(null);
 
-    const results: TableStatus[] = [];
+    // Check all tables in parallel (not sequentially)
+    const tableResults = await Promise.all(
+      EXPECTED_TABLE_NAMES.map(async (tableName) => {
+        const exists = await checkTableExists(tableName);
+        const expectedCols: ExpectedColumn[] = EXPECTED_DB_SCHEMA[tableName] ?? [];
+        const liveCols = exists ? await discoverLiveColumns(tableName) : [];
 
-    for (const tableName of EXPECTED_TABLE_NAMES) {
-      const exists = await checkTableExists(tableName);
-      const expectedCols: ExpectedColumn[] = EXPECTED_DB_SCHEMA[tableName] ?? [];
-      const liveCols = exists ? await discoverLiveColumns(tableName) : [];
+        // Check all columns for this table in parallel (not sequentially)
+        const columns: ColumnStatus[] = await Promise.all(
+          expectedCols.map(async (col) => {
+            const colExists = exists ? await checkColumnExists(tableName, col.name) : false;
+            return {
+              table: tableName,
+              column: col.name,
+              type: col.type,
+              exists: colExists,
+            };
+          })
+        );
 
-      const columns: ColumnStatus[] = [];
-      for (const col of expectedCols) {
-        const colExists = exists ? await checkColumnExists(tableName, col.name) : false;
-        columns.push({
-          table: tableName,
-          column: col.name,
-          type: col.type,
-          exists: colExists,
-        });
-      }
+        const expectedNames = new Set(expectedCols.map((c) => c.name));
+        const extraColumns = liveCols.filter((c) => !expectedNames.has(c));
 
-      const expectedNames = new Set(expectedCols.map((c) => c.name));
-      const extraColumns = liveCols.filter((c) => !expectedNames.has(c));
+        return { name: tableName, exists, columns, extraColumns };
+      })
+    );
 
-      results.push({ name: tableName, exists, columns, extraColumns });
-    }
-
-    setTables(results);
+    setTables(tableResults);
     setLastCheckedAt(new Date());
     setLoading(false);
     hideLoadingOverlay();
