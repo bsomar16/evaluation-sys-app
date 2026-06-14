@@ -119,19 +119,15 @@ export function EvaluationsPage() {
     async function loadPeriods() {
       try {
         const dbPeriods = await getAllEvaluationPeriods();
-        console.log('Loaded periods:', dbPeriods);
         setPeriods(dbPeriods);
 
         // Initialize period filter: prioritize active period, else last closed
         if (dbPeriods.length > 0) {
           const activePeriod = dbPeriods.find((p) => p.is_active);
-          console.log('Active period found:', activePeriod);
           if (activePeriod) {
-            console.log('Setting period filter to active:', activePeriod.id);
             setPeriodFilter(activePeriod.id);
           } else {
             // No active period: use last one (latest by start_date)
-            console.log('No active period, using first:', dbPeriods[0].id);
             setPeriodFilter(dbPeriods[0].id);
           }
         }

@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -571,33 +570,24 @@ export default function Evaluation() {
             <div className="grid gap-4 p-4">
               <div className="space-y-1">
                 <Label>Période</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      {availablePeriods.find((p) => p.code === period)?.name || (period ? period : 'Sélectionner une période')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
-                    <div className="space-y-1">
-                      {availablePeriods.length === 0 ? (
-                        <Button variant="ghost" className="w-full justify-start" onClick={() => setPeriod(period)}>
-                          {period}
-                        </Button>
-                      ) : (
-                        availablePeriods.map((p) => (
-                          <Button
-                            key={p.code}
-                            variant={period === p.code ? 'default' : 'ghost'}
-                            className="w-full justify-start"
-                            onClick={() => setPeriod(p.code)}
-                          >
-                            {p.name}
-                          </Button>
-                        ))
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                {availablePeriods.length > 0 ? (
+                  <Select value={period} onValueChange={setPeriod}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Sélectionner une période" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availablePeriods.map((p) => (
+                        <SelectItem key={p.code} value={p.code}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground flex items-center">
+                    —
+                  </div>
+                )}
               </div>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-1">
@@ -848,31 +838,31 @@ export default function Evaluation() {
 
       <div className="space-y-2">
         <Label htmlFor="evaluation-period">Période d&apos;évaluation (campagne)</Label>
-        <Select value={period} onValueChange={setPeriod}>
+        <Select value={period} onValueChange={setPeriod} disabled={availablePeriods.length === 0}>
           <SelectTrigger className="max-w-xs border-2 border-blue-300">
-            <SelectValue />
+            <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
-            {availablePeriods.length === 0 ? (
-              <SelectItem value={period}>{period}</SelectItem>
-            ) : (
-              availablePeriods.map((p) => (
-                <SelectItem key={p.code} value={p.code}>
-                  {p.name}
-                </SelectItem>
-              ))
-            )}
+            {availablePeriods.map((p) => (
+              <SelectItem key={p.code} value={p.code}>
+                {p.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          <span className="font-medium">{availablePeriods.find((p) => p.code === period)?.name || period}</span>
-          {periodDescription ? (
-            <> désigne la campagne <span className="font-medium">{periodDescription}</span>.</>
-          ) : (
+          {availablePeriods.length > 0 && (
             <>
-              {' '}
-              — code année + trimestre (T1 à T4). Ex.{' '}
-              <span className="font-medium">2026-T2</span> = 2e trimestre 2026.
+              <span className="font-medium">{availablePeriods.find((p) => p.code === period)?.name || period}</span>
+              {periodDescription ? (
+                <> désigne la campagne <span className="font-medium">{periodDescription}</span>.</>
+              ) : (
+                <>
+                  {' '}
+                  — code année + trimestre (T1 à T4). Ex.{' '}
+                  <span className="font-medium">2026-T2</span> = 2e trimestre 2026.
+                </>
+              )}
             </>
           )}
         </p>
