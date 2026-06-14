@@ -465,7 +465,7 @@ export function EvaluationCriteriaPage() {
                   <Input
                     placeholder="Nom du critère"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                     className="border-2 border-blue-300 bg-blue-50"
                   />
 
@@ -477,15 +477,15 @@ export function EvaluationCriteriaPage() {
                         selectedRule?.type === 'choice'
                           ? getChoiceOptionsFromConfig(selectedRule.config).length
                           : 0;
-                      setFormData({
-                        ...formData,
+                      setFormData((prev) => ({
+                        ...prev,
                         calculation_rule_id: ruleId,
-                        type: selectedRule?.type ?? formData.type,
+                        type: selectedRule?.type ?? prev.type,
                         choice_option_labels:
                           selectedRule?.type === 'choice'
-                            ? Array.from({ length: optionCount }, (_, idx) => formData.choice_option_labels[idx] || '')
+                            ? Array.from({ length: optionCount }, (_, idx) => prev.choice_option_labels[idx] || '')
                             : [],
-                      });
+                      }));
                     }}
                   >
                     <SelectTrigger className="border-2 border-blue-300 bg-blue-50">
@@ -538,10 +538,10 @@ export function EvaluationCriteriaPage() {
                     emptyLabel="Ajouter un rôle"
                     allLabel="Pour tous"
                     allChecked={formData.role_all}
-                    onAllCheckedChange={(role_all) => setFormData({ ...formData, role_all })}
+                    onAllCheckedChange={(role_all) => setFormData((prev) => ({ ...prev, role_all }))}
                     options={roles}
                     selectedIds={formData.role_ids}
-                    onChange={(role_ids) => setFormData({ ...formData, role_ids })}
+                    onChange={(role_ids) => setFormData((prev) => ({ ...prev, role_ids }))}
                     renderBadge={(item, onRemove) => {
                       const role = roles.find((r) => r.id === item.id);
                       return (
@@ -563,10 +563,10 @@ export function EvaluationCriteriaPage() {
                     emptyLabel="Ajouter une filiale"
                     allLabel="Pour toutes"
                     allChecked={formData.branch_all}
-                    onAllCheckedChange={(branch_all) => setFormData({ ...formData, branch_all })}
+                    onAllCheckedChange={(branch_all) => setFormData((prev) => ({ ...prev, branch_all }))}
                     options={branches}
                     selectedIds={formData.branch_ids}
-                    onChange={(branch_ids) => setFormData({ ...formData, branch_ids })}
+                    onChange={(branch_ids) => setFormData((prev) => ({ ...prev, branch_ids }))}
                   />
 
                   <ScopeMultiField
@@ -574,10 +574,10 @@ export function EvaluationCriteriaPage() {
                     emptyLabel="Ajouter un service"
                     allLabel="Pour tous"
                     allChecked={formData.department_all}
-                    onAllCheckedChange={(department_all) => setFormData({ ...formData, department_all })}
+                    onAllCheckedChange={(department_all) => setFormData((prev) => ({ ...prev, department_all }))}
                     options={departments}
                     selectedIds={formData.department_ids}
-                    onChange={(department_ids) => setFormData({ ...formData, department_ids })}
+                    onChange={(department_ids) => setFormData((prev) => ({ ...prev, department_ids }))}
                   />
 
                   <Button onClick={handleSave} className="w-full">
