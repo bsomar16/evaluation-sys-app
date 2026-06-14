@@ -292,10 +292,8 @@ export default function Evaluation() {
             name: p.name,
             code: dateToPeriodCode(new Date(p.start_date)),
           })).sort((a, b) => b.code.localeCompare(a.code));
-          setAvailablePeriods(periodsWithCodes.length > 0 ? periodsWithCodes : [{
-            name: currentPeriod,
-            code: currentPeriod
-          }]);
+          // Only set periods that actually exist in database - empty array if none
+          setAvailablePeriods(periodsWithCodes);
 
           const scoreMap: Record<string, number | null> = {};
           const statusMap: Record<string, EvaluationStatus | null> = {};
