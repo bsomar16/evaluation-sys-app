@@ -573,9 +573,7 @@ export default function Evaluation() {
                 {availablePeriods.length > 0 ? (
                   <Select value={period} onValueChange={setPeriod}>
                     <SelectTrigger className="w-full">
-                      <SelectValue>
-                        {availablePeriods.find((p) => p.code === period)?.name || period}
-                      </SelectValue>
+                      <div>{availablePeriods.find((p) => p.code === period)?.name || period}</div>
                     </SelectTrigger>
                     <SelectContent>
                       {availablePeriods.map((p) => (
@@ -842,9 +840,7 @@ export default function Evaluation() {
         <Label htmlFor="evaluation-period">Période d&apos;évaluation (campagne)</Label>
         <Select value={period} onValueChange={setPeriod} disabled={availablePeriods.length === 0}>
           <SelectTrigger className="max-w-xs border-2 border-blue-300">
-            <SelectValue>
-              {availablePeriods.find((p) => p.code === period)?.name || '—'}
-            </SelectValue>
+            <div>{availablePeriods.find((p) => p.code === period)?.name || '—'}</div>
           </SelectTrigger>
           <SelectContent>
             {availablePeriods.map((p) => (
