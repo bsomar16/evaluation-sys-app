@@ -84,12 +84,10 @@ function isMissingColumnError(error: { code?: string; message?: string } | null)
 
 function isPermissionError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
-  // Treat common DB permission errors, HTTP auth failures (401/403/Unauthorized)
-  // and row-level security violations so we can fallback to local storage.
-  const msg = error.message ?? '';
+  // Treat common DB permission errors and HTTP auth failures (401/403/Unauthorized)
   return (
     error.code === '42501' ||
-    /permission denied|not authorized|forbidden|unauthorized|401|403|row-level security|row-level policy|violates row-level/i.test(msg)
+    /permission denied|not authorized|forbidden|unauthorized|401|403/i.test(error.message ?? '')
   );
 }
 

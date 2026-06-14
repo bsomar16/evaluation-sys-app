@@ -24,7 +24,7 @@ const Menubar = React.forwardRef<
     {...props}
   />
 ));
-Menubar.displayName = MenubarPrimitive.Root.displayName;
+Menubar.displayName = MenubarPrimitive.Root?.displayName ?? 'Menubar';
 
 const MenubarTrigger = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.Trigger>,
@@ -39,7 +39,7 @@ const MenubarTrigger = React.forwardRef<
     {...props}
   />
 ));
-MenubarTrigger.displayName = MenubarPrimitive.Trigger.displayName;
+MenubarTrigger.displayName = MenubarPrimitive.Trigger?.displayName ?? 'MenubarTrigger';
 
 const MenubarSubTrigger = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.SubTrigger>,
@@ -60,7 +60,7 @@ const MenubarSubTrigger = React.forwardRef<
     <ChevronRight className="ml-auto h-4 w-4" />
   </MenubarPrimitive.SubTrigger>
 ));
-MenubarSubTrigger.displayName = MenubarPrimitive.SubTrigger.displayName;
+MenubarSubTrigger.displayName = MenubarPrimitive.SubTrigger?.displayName ?? 'MenubarSubTrigger';
 
 const MenubarSubContent = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.SubContent>,
@@ -75,7 +75,7 @@ const MenubarSubContent = React.forwardRef<
     {...props}
   />
 ));
-MenubarSubContent.displayName = MenubarPrimitive.SubContent.displayName;
+MenubarSubContent.displayName = MenubarPrimitive.SubContent?.displayName ?? 'MenubarSubContent';
 
 const MenubarContent = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.Content>,
@@ -95,7 +95,7 @@ const MenubarContent = React.forwardRef<
     />
   </MenubarPrimitive.Portal>
 ));
-MenubarContent.displayName = MenubarPrimitive.Content.displayName;
+MenubarContent.displayName = MenubarPrimitive.Content?.displayName ?? 'MenubarContent';
 
 const MenubarItem = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.Item>,
@@ -113,7 +113,7 @@ const MenubarItem = React.forwardRef<
     {...props}
   />
 ));
-MenubarItem.displayName = MenubarPrimitive.Item.displayName;
+MenubarItem.displayName = MenubarPrimitive.Item?.displayName ?? 'MenubarItem';
 
 const MenubarCheckboxItem = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.CheckboxItem>,
@@ -136,7 +136,7 @@ const MenubarCheckboxItem = React.forwardRef<
     {children}
   </MenubarPrimitive.CheckboxItem>
 ));
-MenubarCheckboxItem.displayName = MenubarPrimitive.CheckboxItem.displayName;
+MenubarCheckboxItem.displayName = MenubarPrimitive.CheckboxItem?.displayName ?? 'MenubarCheckboxItem';
 
 const MenubarRadioItem = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.RadioItem>,
@@ -158,7 +158,7 @@ const MenubarRadioItem = React.forwardRef<
     {children}
   </MenubarPrimitive.RadioItem>
 ));
-MenubarRadioItem.displayName = MenubarPrimitive.RadioItem.displayName;
+MenubarRadioItem.displayName = MenubarPrimitive.RadioItem?.displayName ?? 'MenubarRadioItem';
 
 const MenubarLabel = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.Label>,
@@ -172,7 +172,7 @@ const MenubarLabel = React.forwardRef<
     {...props}
   />
 ));
-MenubarLabel.displayName = MenubarPrimitive.Label.displayName;
+MenubarLabel.displayName = MenubarPrimitive.Label?.displayName ?? 'MenubarLabel';
 
 const MenubarSeparator = React.forwardRef<
   React.ElementRef<typeof MenubarPrimitive.Separator>,
@@ -180,7 +180,7 @@ const MenubarSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <MenubarPrimitive.Separator ref={ref} className={cn("-mx-1 my-1 h-px bg-muted", className)} {...props} />
 ));
-MenubarSeparator.displayName = MenubarPrimitive.Separator.displayName;
+MenubarSeparator.displayName = MenubarPrimitive.Separator?.displayName ?? 'MenubarSeparator';
 
 const MenubarShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => {
   return <span className={cn("ml-auto text-xs tracking-widest text-muted-foreground", className)} {...props} />;

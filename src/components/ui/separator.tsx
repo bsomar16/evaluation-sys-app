@@ -15,6 +15,6 @@ const Separator = React.forwardRef<
     {...props}
   />
 ));
-Separator.displayName = SeparatorPrimitive.Root.displayName;
+Separator.displayName = SeparatorPrimitive.Root?.displayName ?? 'Separator';
 
 export { Separator };
