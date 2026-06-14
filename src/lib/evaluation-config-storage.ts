@@ -84,7 +84,11 @@ function isMissingColumnError(error: { code?: string; message?: string } | null)
 
 function isPermissionError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
-  return error.code === '42501' || /permission denied|not authorized|forbidden/i.test(error.message ?? '');
+  // Treat common DB permission errors and HTTP auth failures (401/403/Unauthorized)
+  return (
+    error.code === '42501' ||
+    /permission denied|not authorized|forbidden|unauthorized|401|403/i.test(error.message ?? '')
+  );
 }
 
 function sanitizeUuid(value: string | null | undefined): string | null {
@@ -420,7 +424,8 @@ async function persistCriterion(
 
     if (!error && data) return normalizeCriterion(data as CriterionRow);
 
-    if (error && isPermissionError(error)) throw error;
+    // If we hit a permission/auth error, break and fall back to local storage.
+    if (error && isPermissionError(error)) break;
 
     if (error && isMissingTableError(error)) break;
 
