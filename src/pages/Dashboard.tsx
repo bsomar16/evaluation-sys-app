@@ -11,7 +11,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
-import { getEvaluationPeriodSchedule, subscribeEvaluationPeriodChange } from '@/lib/evaluation-period-storage';
+import { getAllEvaluationPeriods } from '@/lib/evaluation-period-db';
 
 interface DashboardStats {
   totalUsers: number;
@@ -94,27 +94,8 @@ export default function Dashboard() {
   
   // Selector data states
   const [currentUser, setCurrentUser] = useState<any>(null);
-  // Get initial periods from localStorage
-  const getInitialPeriods = (): string[] => {
-    const schedule = getEvaluationPeriodSchedule();
-    if (schedule && schedule.intervals && schedule.intervals.length > 0) {
-      const periodSet = new Set<string>();
-      const months: Record<number, string> = {
-        1: 'janvier', 2: 'février', 3: 'mars', 4: 'avril', 5: 'mai', 6: 'juin',
-        7: 'juillet', 8: 'août', 9: 'septembre', 10: 'octobre', 11: 'novembre', 12: 'décembre',
-      };
-      schedule.intervals.forEach((interval: any) => {
-        const date = new Date(interval.startAt);
-        const monthNum = date.getMonth() + 1;
-        const year = date.getFullYear();
-        periodSet.add(`${months[monthNum]} ${year}`);
-      });
-      return Array.from(periodSet);
-    }
-    return [];
-  };
-
-  const [periods, setPeriods] = useState<string[]>(getInitialPeriods());
+  // Load periods from database only - no fallbacks
+  const [periods, setPeriods] = useState<string[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -577,17 +558,15 @@ export default function Dashboard() {
       setCurrentUser(JSON.parse(userData));
     }
     
-    // Subscribe to period changes
-    const unsubscribe = subscribeEvaluationPeriodChange(() => {
-      const newPeriods = getInitialPeriods();
-      setPeriods(newPeriods);
-    });
-    
-    loadInitialData();
-    
-    return () => {
-      if (unsubscribe) unsubscribe();
+    // Load periods from database
+    const loadPeriods = async () => {
+      const dbPeriods = await getAllEvaluationPeriods();
+      const periodNames = dbPeriods.map(p => p.name);
+      setPeriods(periodNames);
     };
+    
+    loadPeriods();
+    loadInitialData();
   }, []);
 
   const loadInitialData = async () => {
