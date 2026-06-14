@@ -8,43 +8,46 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
+    let inferred: Partial<CriterionFormState> = {};
   AlertDialogContent,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Plus, Trash2, Edit2, Search, X } from 'lucide-react';
-import { useRolePermissions } from '@/hooks/useRolePermissions';
-import { usePagination } from '@/hooks/usePagination';
-import { PaginationControls } from '@/components/PaginationControls';
-import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
-import {
-  CRITERION_TYPE_LABELS,
-  getChoiceOptionsFromConfig,
+      if (typeof document !== 'undefined') {
+        const body = document.body.innerText || '';
+        if (!formData.role_all && body.includes('Pour tous sélectionné')) inferred.role_all = true;
+        if (!formData.branch_all && body.includes('Pour toutes sélectionné')) inferred.branch_all = true;
+        if (!formData.department_all && body.includes('Pour tous sélectionné')) inferred.department_all = true;
+        if (Object.keys(inferred).length > 0) {
+          setFormData((prev) => ({ ...prev, ...inferred }));
+          await new Promise((r) => setTimeout(r, 0));
+        }
   type CalculationRuleRecord,
   type CriterionType,
   type EvaluationCriterionRecord,
 } from '@/lib/evaluation-calculator';
 import { getCalculationMethodDefinition } from '@/lib/calculation-method-catalog';
-import { roleBadgeClassName, getRoleBadgeStyleFromColor } from '@/lib/role-colors';
+    const effectiveForm: CriterionFormState = { ...formData, ...inferred };
+    // Debug: dump effective form state to console to diagnose race/validation issues
+    // Remove this once root cause is confirmed.
+    // eslint-disable-next-line no-console
+    console.debug('handleSave effectiveForm', effectiveForm);
+    if (!effectiveForm.name.trim()) {
 import { supabase } from '@/integrations/supabase/client';
 import type { RoleRecord } from '@/lib/role-tree';
 import type { BranchRecord } from '@/lib/branch-tree';
-import type { DepartmentRecord } from '@/lib/department-tree';
+    if (!effectiveForm.calculation_rule_id) {
 import {
   deleteEvaluationCriterion,
   fetchCalculationRules,
-  fetchEvaluationCriteria,
+    if (!effectiveForm.role_all && effectiveForm.role_ids.length === 0) {
   upsertEvaluationCriterion,
 } from '@/lib/evaluation-config-storage';
 
-type CriterionFormState = {
+    if (!effectiveForm.branch_all && effectiveForm.branch_ids.length === 0) {
   name: string;
   calculation_rule_id: string;
   type: CriterionType;
-  choice_option_1_label: string;
+    if (!effectiveForm.department_all && effectiveForm.department_ids.length === 0) {
   choice_option_2_label: string;
   choice_option_labels: string[];
   role_all: boolean;
@@ -52,27 +55,27 @@ type CriterionFormState = {
   department_all: boolean;
   role_ids: string[];
   branch_ids: string[];
-  department_ids: string[];
-};
-
-type NamedEntity = { id: string; name: string };
-
-function emptyForm(rules: CalculationRuleRecord[]): CriterionFormState {
-  const first = rules[0];
-  return {
-    name: '',
-    calculation_rule_id: first?.id ?? '',
-    type: first?.type ?? 'binary',
-    choice_option_1_label: '',
-    choice_option_2_label: '',
-    choice_option_labels: [],
-    role_all: false,
-    branch_all: false,
-    department_all: false,
-    role_ids: [],
-    branch_ids: [],
-    department_ids: [],
-  };
+        name: effectiveForm.name.trim(),
+        type: linkedRule?.type ?? effectiveForm.type,
+        calculation_rule_id: effectiveForm.calculation_rule_id,
+        choice_option_labels:
+          (linkedRule?.type ?? effectiveForm.type) === 'choice'
+            ? effectiveForm.choice_option_labels.map((label) => label.trim()).filter(Boolean)
+            : [],
+        choice_option_1_label:
+          (linkedRule?.type ?? effectiveForm.type) === 'choice'
+            ? (effectiveForm.choice_option_labels[0]?.trim() || effectiveForm.choice_option_1_label.trim() || null)
+            : null,
+        choice_option_2_label:
+          (linkedRule?.type ?? effectiveForm.type) === 'choice'
+            ? (effectiveForm.choice_option_labels[1]?.trim() || effectiveForm.choice_option_2_label.trim() || null)
+            : null,
+        role_all: effectiveForm.role_all,
+        branch_all: effectiveForm.branch_all,
+        department_all: effectiveForm.department_all,
+        role_ids: effectiveForm.role_all ? [] : effectiveForm.role_ids,
+        branch_ids: effectiveForm.branch_all ? [] : effectiveForm.branch_ids,
+        department_ids: effectiveForm.department_all ? [] : effectiveForm.department_ids,
 }
 
 function calculationSystemLabel(
@@ -334,6 +337,26 @@ export function EvaluationCriteriaPage() {
   };
 
   const handleSave = async () => {
+    // Allow React state updates to flush (avoid validating stale formData after rapid UI clicks)
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Heuristic: if DOM shows "Pour tous sélectionné" / "Pour toutes sélectionné" but formData
+    // hasn't updated yet (race), adopt those values before validating.
+    try {
+      if (typeof document !== 'undefined') {
+        const body = document.body.innerText || '';
+        const inferred: Partial<CriterionFormState> = {};
+        if (!formData.role_all && body.includes('Pour tous sélectionné')) inferred.role_all = true;
+        if (!formData.branch_all && body.includes('Pour toutes sélectionné')) inferred.branch_all = true;
+        if (!formData.department_all && body.includes('Pour tous sélectionné')) inferred.department_all = true;
+        if (Object.keys(inferred).length > 0) {
+          setFormData((prev) => ({ ...prev, ...inferred }));
+          // allow the state to update
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      }
+    } catch (e) {
+      // ignore DOM read errors
+    }
     if (!formData.name.trim()) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez le nom du critère' });
       return;
