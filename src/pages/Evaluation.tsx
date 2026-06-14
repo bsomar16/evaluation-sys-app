@@ -328,8 +328,8 @@ export default function Evaluation() {
       // Try to find the active period in available periods
       const activePeriodCode = activePeriod ? dateToPeriodCode(new Date(activePeriod.start_date)) : null;
       const matchingPeriod = activePeriodCode && availablePeriods.find((p) => p.code === activePeriodCode) 
-        ? activePeriodCode 
-        : availablePeriods[0].code;
+        ? availablePeriods.find((p) => p.code === activePeriodCode)!.name
+        : availablePeriods[0].name;
       setPeriod(matchingPeriod);
     }
   }, [availablePeriods, activePeriod?.start_date, period]);
@@ -353,7 +353,8 @@ export default function Evaluation() {
     }
     const emp = employees.find((e) => e.id === empId);
     if (!emp) return;
-    const periodLabel = period; // Use the selected period code
+    const periodCode = availablePeriods.find((p) => p.name === period)?.code || period;
+    const periodLabel = periodCode; // Use the selected period code
     const applicable = criteria
       .filter((c) => c.is_active !== false && criterionAppliesToEmployee(c, emp))
       .sort((a, b) => a.sort_order - b.sort_order);
@@ -368,7 +369,7 @@ export default function Evaluation() {
 
     setFormValues(initial);
     setNotes(existing?.feedback ?? '');
-    setPeriod(periodLabel);
+    setPeriod(period);
     setCurrentEvaluationId(existing?.id ?? null);
     setCurrentStatus(existing?.status ?? null);
     setActivityLog(existing?.activity_log ?? []);
@@ -533,7 +534,8 @@ export default function Evaluation() {
   };
 
   const roleName = (id?: string | null) => roles.find((r) => r.id === id)?.name ?? null;
-  const periodDescription = describeEvaluationPeriodCode(period);
+  const periodCode = availablePeriods.find((p) => p.name === period)?.code || period;
+  const periodDescription = describeEvaluationPeriodCode(periodCode);
 
   if (!hasEvaluationModuleAccess(isDeveloper, canReadEvaluations, canWriteEvaluations)) {
     return <ModuleAccessDenied />;
@@ -574,12 +576,12 @@ export default function Evaluation() {
                   <Select value={period} onValueChange={setPeriod}>
                     <SelectTrigger className="w-full">
                       <>
-                        {availablePeriods.find((p) => p.code === period)?.name || period}
+                        {period || 'Sélectionner une période'}
                       </>
                     </SelectTrigger>
                     <SelectContent>
                       {availablePeriods.map((p) => (
-                        <SelectItem key={p.code} value={p.code}>
+                        <SelectItem key={p.name} value={p.name}>
                           {p.name}
                         </SelectItem>
                       ))}
@@ -843,12 +845,12 @@ export default function Evaluation() {
         <Select value={period} onValueChange={setPeriod} disabled={availablePeriods.length === 0}>
           <SelectTrigger className="max-w-xs border-2 border-blue-300">
             <>
-              {availablePeriods.find((p) => p.code === period)?.name || '—'}
+              {period || '—'}
             </>
           </SelectTrigger>
           <SelectContent>
             {availablePeriods.map((p) => (
-              <SelectItem key={p.code} value={p.code}>
+              <SelectItem key={p.name} value={p.name}>
                 {p.name}
               </SelectItem>
             ))}
@@ -857,7 +859,7 @@ export default function Evaluation() {
         <p className="text-xs text-muted-foreground leading-relaxed">
           {availablePeriods.length > 0 && (
             <>
-              <span className="font-medium">{availablePeriods.find((p) => p.code === period)?.name || period}</span>
+              <span className="font-medium">{period}</span>
               {periodDescription ? (
                 <> désigne la campagne <span className="font-medium">{periodDescription}</span>.</>
               ) : (
