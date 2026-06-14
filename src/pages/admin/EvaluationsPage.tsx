@@ -286,26 +286,24 @@ export function EvaluationsPage() {
               />
             </div>
             {/* Period filter */}
-            <Select
-              value={periodFilter}
-              onValueChange={setPeriodFilter}
-              disabled={rows.length === 0}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Période" />
-              </SelectTrigger>
-              <SelectContent>
-                {periods.length === 0 ? (
-                  <div className="p-2 text-sm text-muted-foreground">Aucune période</div>
-                ) : (
-                  periods.map((p) => (
+            {periods.length > 0 && (
+              <Select
+                value={periodFilter}
+                onValueChange={setPeriodFilter}
+                disabled={rows.length === 0}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Période" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periods.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {/* Status filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[200px]">

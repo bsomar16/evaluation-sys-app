@@ -29,6 +29,8 @@ export interface EvaluationPeriodInterval {
  */
 export async function getAllEvaluationPeriods(): Promise<EvaluationPeriod[]> {
   try {
+    console.log('getAllEvaluationPeriods called');
+    
     const { data, error } = await supabase
       .from('evaluation_periods')
       .select('*')
@@ -41,6 +43,7 @@ export async function getAllEvaluationPeriods(): Promise<EvaluationPeriod[]> {
       return [];
     }
 
+    console.log('Returning data:', data);
     return data || [];
   } catch (err) {
     console.error('Exception fetching evaluation periods:', err);
