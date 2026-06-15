@@ -1,17 +1,26 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useEmblaCarousel from 'embla-carousel-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, TrendingUp, Building2, Trophy, CheckCircle, Clock, Award, TrendingDown, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
 import { getAllEvaluationPeriods } from '@/lib/evaluation-period-db';
+import { collectBranchScopeIds } from '@/lib/branch-tree';
+import {
+  fetchEvaluationCriteria,
+} from '@/lib/evaluation-config-storage';
+import {
+  getMaxEvaluationScoreForEmployee,
+  formatEvaluationScore,
+} from '@/lib/evaluation-storage';
+import type { EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
 
 interface DashboardStats {
   totalUsers: number;
@@ -20,12 +29,6 @@ interface DashboardStats {
   completedEvaluations: number;
   totalBranches: number;
   totalTrainings: number;
-}
-
-interface BranchData {
-  name: string;
-  employees: number;
-  evaluations: number;
 }
 
 interface RoleData {
@@ -55,20 +58,7 @@ interface EmployeePerformance extends AgentWithScore {
   branch_name: string;
   department_id: string;
   department_name: string;
-}
-
-interface DepartmentHierarchy {
-  id: string;
-  name: string;
-  employees: EmployeePerformance[];
-  expanded?: boolean;
-}
-
-interface BranchHierarchy {
-  id: string;
-  name: string;
-  departments: DepartmentHierarchy[];
-  expanded?: boolean;
+  max_score: number;
 }
 
 export default function Dashboard() {
@@ -82,14 +72,8 @@ export default function Dashboard() {
     totalBranches: 0,
     totalTrainings: 0,
   });
-  const [branchData, setBranchData] = useState<BranchData[]>([]);
   const [roleData, setRoleData] = useState<RoleData[]>([]);
-  const [evaluationStatus, setEvaluationStatus] = useState<EvaluationData[]>([]);
   const [trainingStatus, setTrainingStatus] = useState<EvaluationData[]>([]);
-  const [topEmployees, setTopEmployees] = useState<BranchHierarchy[]>([]);
-  const [worstEmployees, setWorstEmployees] = useState<BranchHierarchy[]>([]);
-  const [expandedBranches, setExpandedBranches] = useState<Set<string>>(new Set());
-  const [expandedDepartments, setExpandedDepartments] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   
   // Selector data states
@@ -101,6 +85,7 @@ export default function Dashboard() {
   const [roles, setRoles] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [allEvaluations, setAllEvaluations] = useState<any[]>([]);
+  const [evaluationCriteria, setEvaluationCriteria] = useState<EvaluationCriterionRecord[]>([]);
   
   // Selected values
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
@@ -110,16 +95,9 @@ export default function Dashboard() {
   
   // Filtered data
   const [departmentManager, setDepartmentManager] = useState<any>(null);
-  const [departmentAgents, setDepartmentAgents] = useState<AgentWithScore[]>([]);
   
   // Initialization tracking
   const hasInitializedSelection = useRef(false);
-  const [topAgents, setTopAgents] = useState<AgentWithScore[]>([]);
-  const [worstAgents, setWorstAgents] = useState<AgentWithScore[]>([]);
-  
-  // Filter by branch/department for TOP/WORST
-  const [filterByBranch, setFilterByBranch] = useState<string | null>(null);
-  const [filterByDepartment, setFilterByDepartment] = useState<string | null>(null);
   
   // Selected employee details
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null);
@@ -157,106 +135,42 @@ export default function Dashboard() {
 
   function getAccessibleDepartments() {
     if (!selectedBranch) return [];
-    
-    return departments.filter(d => {
-      const deptUsers = users.filter(u => u.department_id === d.id && u.branch_id === selectedBranch);
-      return deptUsers.length > 0;
-    });
+
+    // Inclut les services de la filiale sélectionnée ET de ses filiales filles
+    const scopeIds = collectBranchScopeIds(selectedBranch, branches);
+    return departments.filter(d =>
+      users.some(u => u.department_id === d.id && scopeIds.includes(u.branch_id))
+    );
   }
 
-  // Calculate employee performance by branch and department hierarchy
-  const calculateEmployeePerformance = () => {
-    if (!selectedPeriod || allEvaluations.length === 0 || users.length === 0) {
-      return { top: [], worst: [] };
+  /** Périmètre filiales pour les stats : filiale sélectionnée (+ filles) ou toutes les filiales accessibles */
+  function getDashboardBranchScopeIds(): string[] {
+    if (!branches.length) return [];
+
+    if (selectedBranch) {
+      return collectBranchScopeIds(selectedBranch, branches);
     }
 
-    // Get accessible branch IDs for role-based filtering
-    const getAccessibleBranchIds = (): string[] => {
-      if (!branches.length) return [];
-      
-      const userRole = roles.find(r => r.id === currentUser?.role_id);
-      if (userRole?.name?.toLowerCase().includes('directeur')) {
-        return branches.map(b => b.id);
-      }
-      
-      if (currentUser?.branch_id) {
-        const userBranch = branches.find(b => b.id === currentUser.branch_id);
-        if (!userBranch) return [];
-        
-        const childBranchIds = userBranch.child_branches || [];
-        return [currentUser.branch_id, ...childBranchIds];
-      }
-      
-      return branches.map(b => b.id);
-    };
+    const ids = new Set<string>();
+    getAccessibleBranches().forEach((branch) => {
+      collectBranchScopeIds(branch.id, branches).forEach((id) => ids.add(id));
+    });
+    return [...ids];
+  }
 
-    const accessibleBranchIds = getAccessibleBranchIds();
-
-    // Calculate scores for all users, applying role-based access filtering
-    let employeeScores: EmployeePerformance[] = users
-      .filter(u => !u.archived_at && u.email && accessibleBranchIds.includes(u.branch_id))
-      .map(employee => {
-        const evals = allEvaluations.filter(e => e.employee_email === employee.email && e.period === selectedPeriod && e.score !== null);
-        const avgScore = evals.length > 0 ? evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length : 0;
-        
-        return {
-          id: employee.id,
-          name: employee.name,
-          email: employee.email,
-          role_name: roles.find(r => r.id === employee.role_id)?.name || '—',
-          avg_score: avgScore,
-          eval_count: evals.length,
-          branch_id: employee.branch_id,
-          branch_name: branches.find(b => b.id === employee.branch_id)?.name || '—',
-          department_id: employee.department_id,
-          department_name: departments.find(d => d.id === employee.department_id)?.name || '—',
-        };
-      });
-
-    // Apply filters based on selection (with hierarchy: department > branch > manual filter)
-    if (filterByDepartment) {
-      employeeScores = employeeScores.filter(e => e.department_id === filterByDepartment);
-    } else if (filterByBranch) {
-      employeeScores = employeeScores.filter(e => e.branch_id === filterByBranch);
+  function handleBranchClick(branchId: string) {
+    if (selectedBranch === branchId) {
+      setSelectedBranch('');
+      setSelectedDepartment('');
+      return;
     }
+    setSelectedBranch(branchId);
+    setSelectedDepartment('');
+  }
 
-    // Filter employees with at least one evaluation and sort (only top 1)
-    const withEvals = employeeScores.filter(e => e.eval_count > 0);
-    
-    const topList = [...withEvals].sort((a, b) => b.avg_score - a.avg_score).slice(0, 1);
-    const worstList = [...withEvals].sort((a, b) => a.avg_score - b.avg_score).slice(0, 1);
-
-    // Build hierarchical structures
-    const buildHierarchy = (employees: EmployeePerformance[]): BranchHierarchy[] => {
-      const branchMap = new Map<string, Map<string, EmployeePerformance[]>>();
-      
-      employees.forEach(emp => {
-        if (!branchMap.has(emp.branch_id)) {
-          branchMap.set(emp.branch_id, new Map());
-        }
-        const deptMap = branchMap.get(emp.branch_id)!;
-        if (!deptMap.has(emp.department_id)) {
-          deptMap.set(emp.department_id, []);
-        }
-        deptMap.get(emp.department_id)!.push(emp);
-      });
-
-      return Array.from(branchMap.entries()).map(([branchId, deptMap]) => ({
-        id: branchId,
-        name: branches.find(b => b.id === branchId)?.name || '—',
-        departments: Array.from(deptMap.entries()).map(([deptId, emps]) => ({
-          id: deptId,
-          name: departments.find(d => d.id === deptId)?.name || '—',
-          employees: emps,
-        })),
-      }));
-    };
-
-    return {
-      top: buildHierarchy(topList),
-      worst: buildHierarchy(worstList),
-    };
-  };
+  function handleDepartmentClick(departmentId: string) {
+    setSelectedDepartment((prev) => (prev === departmentId ? '' : departmentId));
+  }
 
   const getCarouselItemStyle = (itemIndex: number, selectedItems: any[], selectedId: string) => {
     const selectedIndex = selectedItems.findIndex(item => item.id === selectedId);
@@ -296,50 +210,6 @@ export default function Dashboard() {
     };
   };
 
-  // Helper to get filtered evaluations for the currently open period and accessible branches
-  const getFilteredEvaluationsForPeriod = () => {
-    if (!selectedPeriod || allEvaluations.length === 0) return [];
-    
-    // Get accessible branch IDs
-    const getAccessibleBranchIds = (): string[] => {
-      if (!branches.length) return [];
-      
-      // Developer account (hardcoded admin) can see all branches
-      if (currentUser?.role === 'developer') {
-        return branches.map(b => b.id);
-      }
-      
-      const userRole = roles.find(r => r.id === currentUser?.role_id);
-      if (userRole?.name?.toLowerCase().includes('directeur') || userRole?.name?.toLowerCase().includes('admin')) {
-        return branches.map(b => b.id);
-      }
-      
-      if (currentUser?.branch_id) {
-        const userBranch = branches.find(b => b.id === currentUser.branch_id);
-        if (!userBranch) return [];
-        
-        const childBranchIds = userBranch.child_branches || [];
-        return [currentUser.branch_id, ...childBranchIds];
-      }
-      
-      return [];
-    };
-    
-    const accessibleBranchIds = getAccessibleBranchIds();
-    
-    // Filter evaluations for selected period and accessible branches
-    return allEvaluations.filter(e => {
-      // Check period match
-      if (e.period !== selectedPeriod) return false;
-      
-      // Check if employee is in accessible branch
-      const evaluatee = users.find(u => u.email === e.employee_email);
-      if (!evaluatee) return false;
-      
-      return accessibleBranchIds.includes(evaluatee.branch_id);
-    });
-  };
-
   const handleEvaluationStatusClick = (data: any) => {
     // Map status to filter types for Evaluation page
     let statusFilter = '';
@@ -366,53 +236,8 @@ export default function Dashboard() {
     }
   };
 
-  // Update TOP/WORST employees when filter changes
-  useEffect(() => {
-    const { top, worst } = calculateEmployeePerformance();
-    setTopEmployees(top);
-    setWorstEmployees(worst);
-  }, [selectedPeriod, selectedBranch, filterByBranch, filterByDepartment, allEvaluations, users, branches, departments, roles]);
-
   const accessibleBranches = getAccessibleBranches();
   const accessibleDepartments = getAccessibleDepartments();
-
-  // Update selection dynamically during scroll
-  const updateBranchSelection = useCallback(() => {
-    if (!branchEmblaApi || accessibleBranches.length === 0) return;
-    const selectedIndex = branchEmblaApi.selectedScrollSnap();
-    if (selectedIndex >= 0 && selectedIndex < accessibleBranches.length) {
-      setSelectedBranch(accessibleBranches[selectedIndex].id);
-    }
-  }, [branchEmblaApi, accessibleBranches]);
-
-  const updateDepartmentSelection = useCallback(() => {
-    if (!departmentEmblaApi || accessibleDepartments.length === 0) return;
-    const selectedIndex = departmentEmblaApi.selectedScrollSnap();
-    if (selectedIndex >= 0 && selectedIndex < accessibleDepartments.length) {
-      setSelectedDepartment(accessibleDepartments[selectedIndex].id);
-    }
-  }, [departmentEmblaApi, accessibleDepartments]);
-
-  // Listen to carousel selection (not scroll — scroll fights with explicit clicks)
-  useEffect(() => {
-    if (!branchEmblaApi) return;
-
-    branchEmblaApi.on('select', updateBranchSelection);
-
-    return () => {
-      branchEmblaApi.off('select', updateBranchSelection);
-    };
-  }, [branchEmblaApi, updateBranchSelection]);
-
-  useEffect(() => {
-    if (!departmentEmblaApi) return;
-
-    departmentEmblaApi.on('select', updateDepartmentSelection);
-
-    return () => {
-      departmentEmblaApi.off('select', updateDepartmentSelection);
-    };
-  }, [departmentEmblaApi, updateDepartmentSelection]);
 
   // Scroll to selected branch when manually selected
   useEffect(() => {
@@ -450,108 +275,6 @@ export default function Dashboard() {
     }
   }, [branches, currentUser, getAccessibleBranches]);
 
-  // Helper: Get eligible employees for evaluation (in accessible branches, not archived)
-  const getEligibleEmployees = (): any[] => {
-    if (branches.length === 0 || users.length === 0) return [];
-    
-    const getAccessibleBranchIds = (): string[] => {
-      if (!branches.length) return [];
-      
-      // Developer account (hardcoded admin) can see all branches
-      if (currentUser?.role === 'developer') {
-        return branches.map(b => b.id);
-      }
-      
-      const userRole = roles.find(r => r.id === currentUser?.role_id);
-      if (userRole?.name?.toLowerCase().includes('directeur') || userRole?.name?.toLowerCase().includes('admin')) {
-        return branches.map(b => b.id);
-      }
-      
-      if (currentUser?.branch_id) {
-        const userBranch = branches.find(b => b.id === currentUser.branch_id);
-        if (!userBranch) return [];
-        
-        const childBranchIds = userBranch.child_branches || [];
-        return [currentUser.branch_id, ...childBranchIds];
-      }
-      
-      return [];
-    };
-    
-    const accessibleBranchIds = getAccessibleBranchIds();
-    
-    // Return employees in accessible branches (not archived)
-    return users.filter(u => 
-      u.branch_id && 
-      accessibleBranchIds.includes(u.branch_id) && 
-      !u.archived_at
-    );
-  };
-
-  // Helper: Count eligible employees WITHOUT an evaluation for current period
-  const getEligibleEmployeesWithoutEvaluation = (): number => {
-    if (!selectedPeriod) return 0;
-    
-    const eligibleEmployees = getEligibleEmployees();
-    
-    // Get emails of employees with evaluations for this period
-    const evaluatedEmails = new Set(
-      allEvaluations
-        .filter(e => e.period === selectedPeriod)
-        .map(e => e.employee_email)
-    );
-    
-    // Count eligible employees NOT in the evaluated set
-    return eligibleEmployees.filter(emp => !evaluatedEmails.has(emp.email)).length;
-  };
-
-  // Recalculate evaluation statuses when period or user context changes
-  useEffect(() => {
-    if (!selectedPeriod) {
-      setEvaluationStatus([]);
-      return;
-    }
-    
-    const filteredEvals = getFilteredEvaluationsForPeriod();
-    
-    // Count evaluations by status and group into 3 categories
-    const notSubmittedCount = filteredEvals.filter(e => !e.status || e.status === 'draft').length;
-    const rejectedCount = filteredEvals.filter(e => e.status === 'rejected').length;
-    const submittedCount = filteredEvals.filter(e => e.status === 'submitted').length;
-    const completeCount = filteredEvals.filter(e => e.status === 'approved' || e.status === 'completed').length;
-    
-    // Add eligible employees without evaluation to "En attente"
-    // Even if branches are not loaded, this will return 0 or the actual count
-    const eligibleWithoutEval = getEligibleEmployeesWithoutEvaluation();
-    
-    // Group into 3 categories: En attente (draft+rejected+eligible without eval), Soumis, Complet
-    const enAttenteCount = notSubmittedCount + rejectedCount + eligibleWithoutEval;
-    
-    // Always show all 3 categories (even with 0), so legend displays all options
-    const evalStatusArray = [
-      {
-        status: 'en-attente',
-        count: enAttenteCount,
-        color: '#9ca3af', // gray
-        label: 'En attente'
-      },
-      {
-        status: 'soumis',
-        count: submittedCount,
-        color: '#f59e0b', // amber
-        label: 'Soumis'
-      },
-      {
-        status: 'complet',
-        count: completeCount,
-        color: '#10b981', // emerald
-        label: 'Complet'
-      }
-    ];
-    
-    setEvaluationStatus(evalStatusArray);
-  }, [selectedPeriod, allEvaluations, branches, currentUser, roles, users]);
-
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
@@ -580,10 +303,11 @@ export default function Dashboard() {
         supabase.from('departments').select('*'),
         supabase.from('roles').select('*'),
         supabase.from('training_requests').select('*'),
+        fetchEvaluationCriteria(),
       ]);
 
       // Extract successful results with defaults
-      const [usersResult, evaluationsResult, branchesResult, departmentsResult, rolesResult, trainingsResult] = results;
+      const [usersResult, evaluationsResult, branchesResult, departmentsResult, rolesResult, trainingsResult, criteriaResult] = results;
       
       const { data: usersRaw } = usersResult.status === 'fulfilled' ? usersResult.value : { data: [] };
       const { data: evaluations } = evaluationsResult.status === 'fulfilled' ? evaluationsResult.value : { data: [] };
@@ -591,6 +315,7 @@ export default function Dashboard() {
       const { data: departmentsData } = departmentsResult.status === 'fulfilled' ? departmentsResult.value : { data: [] };
       const { data: rolesData } = rolesResult.status === 'fulfilled' ? rolesResult.value : { data: [] };
       const { data: trainings } = trainingsResult.status === 'fulfilled' ? trainingsResult.value : { data: [] };
+      const criteria = criteriaResult.status === 'fulfilled' ? criteriaResult.value : [];
 
       const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
       setUsers(filteredUsers);
@@ -598,6 +323,7 @@ export default function Dashboard() {
       setBranches(branchesData || []);
       setDepartments(departmentsData || []);
       setRoles(rolesData || []);
+      setEvaluationCriteria(criteria);
 
       // Calculate stats
       const activeCount = filteredUsers.filter(u => u.is_active).length;
@@ -612,10 +338,6 @@ export default function Dashboard() {
         totalTrainings: trainings?.length || 0,
       });
 
-      // Evaluation status will be calculated in useEffect when period/user changes
-      // Initialize empty for now, will be populated once data loads
-      setEvaluationStatus([]);
-
       // Calculate training statuses for charts
       const trainingMap = new Map<string, number>();
       trainings?.forEach(t => {
@@ -629,25 +351,6 @@ export default function Dashboard() {
         color: t[0] === 'completed' ? 'hsl(var(--primary))' : t[0] === 'pending' ? 'hsl(var(--chart-2))' : 'hsl(var(--muted))',
       }));
       setTrainingStatus(trainStatusArray);
-
-      // Calculate branch data
-      const branchCounts = new Map<string, number>();
-      branchesData?.forEach(b => {
-        branchCounts.set(b.id, 0);
-      });
-
-      filteredUsers?.forEach(u => {
-        if (u.branch_id && branchCounts.has(u.branch_id)) {
-          branchCounts.set(u.branch_id, (branchCounts.get(u.branch_id) || 0) + 1);
-        }
-      });
-
-      const branchDataArray = (branchesData || []).map(b => ({
-        name: b.name,
-        employees: branchCounts.get(b.id) || 0,
-        evaluations: 0,
-      }));
-      setBranchData(branchDataArray);
 
       // Calculate role data
       const roleCounts = new Map<string, number>();
@@ -678,52 +381,15 @@ export default function Dashboard() {
   const loadDepartmentData = () => {
     if (!selectedPeriod || !selectedBranch || !selectedDepartment) {
       setDepartmentManager(null);
-      setDepartmentAgents([]);
-      setTopAgents([]);
-      setWorstAgents([]);
       return;
     }
 
-    // Get department manager (first user in department)
+    // Responsable du service (premier utilisateur du service dans le périmètre filiale + filles)
+    const scopeIds = collectBranchScopeIds(selectedBranch, branches);
     const manager = users.find(
-      u => u.department_id === selectedDepartment && u.branch_id === selectedBranch
+      u => u.department_id === selectedDepartment && scopeIds.includes(u.branch_id)
     );
     setDepartmentManager(manager || null);
-
-    // Get all Agents in this department
-    const agentRole = roles.find(r => r.name === 'Agent');
-    const departmentAgentsUsers = users.filter(
-      u => u.department_id === selectedDepartment && 
-           u.branch_id === selectedBranch && 
-           u.role_id === agentRole?.id
-    );
-
-    // Calculate scores for this period
-    const agentsWithScores: AgentWithScore[] = departmentAgentsUsers.map(agent => {
-      const agentEvals = allEvaluations.filter(
-        e => e.employee_email === agent.email && e.period === selectedPeriod && e.score !== null
-      );
-
-      const avgScore = agentEvals.length > 0
-        ? agentEvals.reduce((sum: number, e: any) => sum + e.score, 0) / agentEvals.length
-        : 0;
-
-      return {
-        id: agent.id,
-        name: agent.name,
-        email: agent.email,
-        role_name: 'Agent',
-        avg_score: avgScore,
-        eval_count: agentEvals.length,
-      };
-    });
-
-    // Sort by score descending
-    agentsWithScores.sort((a, b) => b.avg_score - a.avg_score);
-
-    setDepartmentAgents(agentsWithScores);
-    setTopAgents(agentsWithScores.slice(0, 3));
-    setWorstAgents(agentsWithScores.slice(-3).reverse());
   };
 
   // Load department data when selections change
@@ -731,11 +397,174 @@ export default function Dashboard() {
     loadDepartmentData();
   }, [selectedPeriod, selectedBranch, selectedDepartment, users, roles, allEvaluations]);
 
+  // Employés évalués dans le périmètre sélectionné (filiale + filles, service, période),
+  // triés par moyenne décroissante. Si aucun service n'est sélectionné => tous les services
+  // de la filiale (et de ses filiales filles).
+  const scopedEmployees = useMemo<EmployeePerformance[]>(() => {
+    if (!selectedPeriod || users.length === 0) return [];
+
+    const branchScopeIds = getDashboardBranchScopeIds();
+    if (branchScopeIds.length === 0) return [];
+
+    return users
+      .filter(
+        (u) =>
+          !u.archived_at &&
+          u.email &&
+          branchScopeIds.includes(u.branch_id) &&
+          (!selectedDepartment || u.department_id === selectedDepartment)
+      )
+      .map((employee) => {
+        const evals = allEvaluations.filter(
+          (e) => e.employee_email === employee.email && e.period === selectedPeriod && e.score !== null
+        );
+        const avgScore =
+          evals.length > 0 ? evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length : 0;
+        const maxScore = getMaxEvaluationScoreForEmployee(employee, evaluationCriteria);
+
+        return {
+          id: employee.id,
+          name: employee.name,
+          email: employee.email,
+          role_name: roles.find((r) => r.id === employee.role_id)?.name || '—',
+          avg_score: avgScore,
+          eval_count: evals.length,
+          max_score: maxScore,
+          branch_id: employee.branch_id,
+          branch_name: branches.find((b) => b.id === employee.branch_id)?.name || '—',
+          department_id: employee.department_id,
+          department_name: departments.find((d) => d.id === employee.department_id)?.name || '—',
+        } as EmployeePerformance;
+      })
+      .filter((e) => e.eval_count > 0)
+      .sort((a, b) => b.avg_score - a.avg_score);
+  }, [selectedPeriod, selectedBranch, selectedDepartment, users, allEvaluations, branches, departments, roles, evaluationCriteria]);
+
+  // Un seul meilleur et un seul moins bon employé du périmètre
+  const topEmployee = scopedEmployees.length > 0 ? scopedEmployees[0] : null;
+  const worstEmployee = scopedEmployees.length > 1 ? scopedEmployees[scopedEmployees.length - 1] : null;
+
+  // Évaluation du responsable de service (si elle existe) pour la période sélectionnée
+  const departmentManagerScore = useMemo(() => {
+    if (!departmentManager?.email || !selectedPeriod) return null;
+    const evals = allEvaluations.filter(
+      (e) => e.employee_email === departmentManager.email && e.period === selectedPeriod && e.score !== null
+    );
+    if (evals.length === 0) return null;
+    const max = getMaxEvaluationScoreForEmployee(departmentManager, evaluationCriteria);
+    return {
+      avg: evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length,
+      count: evals.length,
+      max,
+    };
+  }, [departmentManager, selectedPeriod, allEvaluations, evaluationCriteria]);
+
+  // Plafond de score pour l'échelle des graphiques (max des employés du périmètre)
+  const dashboardMaxScore = useMemo(() => {
+    if (evaluationCriteria.length === 0) return 10;
+    const branchScopeIds = getDashboardBranchScopeIds();
+    if (branchScopeIds.length === 0) return 10;
+
+    let max = 0;
+    for (const u of users) {
+      if (
+        !u.archived_at &&
+        u.email &&
+        branchScopeIds.includes(u.branch_id) &&
+        (!selectedDepartment || u.department_id === selectedDepartment)
+      ) {
+        max = Math.max(max, getMaxEvaluationScoreForEmployee(u, evaluationCriteria));
+      }
+    }
+    return max || 10;
+  }, [users, evaluationCriteria, selectedBranch, selectedDepartment, branches]);
+
+  // Libellé du périmètre courant (pour les titres)
+  const scopeLabel = (() => {
+    const branchName = branches.find((b) => b.id === selectedBranch)?.name;
+    const deptName = departments.find((d) => d.id === selectedDepartment)?.name;
+    if (deptName && branchName) return `${branchName} • ${deptName}`;
+    if (branchName) return `${branchName} (tous les services)`;
+    return 'Toutes les filiales (tous les services)';
+  })();
+
+  // Statut des évaluations (périmètre filiale + service + période sélectionnés)
+  const evaluationStatus = useMemo<EvaluationData[]>(() => {
+    if (!selectedPeriod || users.length === 0) return [];
+
+    const branchScopeIds = getDashboardBranchScopeIds();
+    if (branchScopeIds.length === 0) return [];
+    const scopedUsers = users.filter(
+      (u) =>
+        !u.archived_at &&
+        u.email &&
+        branchScopeIds.includes(u.branch_id) &&
+        (!selectedDepartment || u.department_id === selectedDepartment)
+    );
+    const scopedEmails = new Set(scopedUsers.map((u) => u.email));
+
+    const filteredEvals = allEvaluations.filter(
+      (e) => e.period === selectedPeriod && scopedEmails.has(e.employee_email)
+    );
+
+    const notSubmittedCount = filteredEvals.filter((e) => !e.status || e.status === 'draft').length;
+    const rejectedCount = filteredEvals.filter((e) => e.status === 'rejected').length;
+    const submittedCount = filteredEvals.filter((e) => e.status === 'submitted').length;
+    const completeCount = filteredEvals.filter((e) => e.status === 'approved' || e.status === 'completed').length;
+
+    const evaluatedEmails = new Set(filteredEvals.map((e) => e.employee_email));
+    const eligibleWithoutEval = scopedUsers.filter((emp) => !evaluatedEmails.has(emp.email)).length;
+    const enAttenteCount = notSubmittedCount + rejectedCount + eligibleWithoutEval;
+
+    return [
+      { status: 'en-attente', count: enAttenteCount, color: '#9ca3af', label: 'En attente' },
+      { status: 'soumis', count: submittedCount, color: '#f59e0b', label: 'Soumis' },
+      { status: 'complet', count: completeCount, color: '#10b981', label: 'Complet' },
+    ];
+  }, [selectedPeriod, selectedBranch, selectedDepartment, users, allEvaluations, branches]);
+
+  // Courbe des moyennes d'évaluation par période (périmètre filiale + service)
+  const periodEvaluationCurve = useMemo(() => {
+    if (periods.length === 0) return [];
+
+    const branchScopeIds = getDashboardBranchScopeIds();
+    if (branchScopeIds.length === 0) return [];
+    const scopedEmails = new Set(
+      users
+        .filter(
+          (u) =>
+            !u.archived_at &&
+            u.email &&
+            branchScopeIds.includes(u.branch_id) &&
+            (!selectedDepartment || u.department_id === selectedDepartment)
+        )
+        .map((u) => u.email)
+    );
+
+    return periods.map((period) => {
+      const evals = allEvaluations.filter(
+        (e) => e.period === period && e.score !== null && scopedEmails.has(e.employee_email)
+      );
+      const average =
+        evals.length > 0
+          ? parseFloat((evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length).toFixed(2))
+          : null;
+
+      return {
+        period,
+        average,
+        count: evals.length,
+        isSelected: period === selectedPeriod,
+      };
+    });
+  }, [selectedBranch, selectedDepartment, periods, users, branches, allEvaluations, selectedPeriod]);
+
+  const hasPeriodCurveData = periodEvaluationCurve.some((p) => p.average !== null);
+
   // Dynamic stat cards from real data
   const dynamicStatCards = [
     { label: 'Employés totaux', value: stats.totalUsers.toString(), icon: Users, change: `${stats.activeUsers} actifs` },
     { label: 'Évaluations', value: stats.totalEvaluations.toString(), icon: TrendingUp, change: `${stats.completedEvaluations} complétées` },
-    { label: 'Succursales', value: stats.totalBranches.toString(), icon: Building2, change: 'Branches' },
     { label: 'Formations', value: stats.totalTrainings.toString(), icon: Trophy, change: 'Demandes' },
   ];
 
@@ -747,7 +576,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {dynamicStatCards.map((stat) => (
           <Card key={stat.label} className="border-border shadow-sm hover:shadow-md transition-shadow">
             <CardContent className="p-5">
@@ -798,7 +627,12 @@ export default function Dashboard() {
 
         {/* Branch Carousel - Horizontal loop with arrows */}
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Filiale</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">
+            Filiale
+            {selectedBranch && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">(cliquer à nouveau pour tout afficher)</span>
+            )}
+          </h3>
           <div className="flex items-center gap-2">
             <button
               onClick={() => branchEmblaApi?.scrollPrev()}
@@ -817,10 +651,7 @@ export default function Dashboard() {
                         <button
                           data-carousel-item
                           data-branch-id={branch.id}
-                          onClick={() => {
-                            setSelectedBranch(branch.id);
-                            setSelectedDepartment('');
-                          }}
+                          onClick={() => handleBranchClick(branch.id)}
                           style={getCarouselItemStyle(index, accessibleBranches, selectedBranch)}
                           className={`w-full h-full p-3 rounded-xl border-2 text-left transition-all duration-300 ${
                             selectedBranch === branch.id
@@ -860,7 +691,12 @@ export default function Dashboard() {
         {/* Department Carousel - Shows when branch selected, horizontal loop with arrows */}
         {selectedBranch && (
           <div className="pl-4 border-l-2 border-l-primary">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Service</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-3">
+              Service
+              {selectedDepartment && (
+                <span className="ml-2 text-xs font-normal text-muted-foreground">(cliquer à nouveau pour tous les services)</span>
+              )}
+            </h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => departmentEmblaApi?.scrollPrev()}
@@ -879,7 +715,7 @@ export default function Dashboard() {
                           <button
                             data-carousel-item
                             data-dept-id={dept.id}
-                            onClick={() => setSelectedDepartment(dept.id)}
+                            onClick={() => handleDepartmentClick(dept.id)}
                             style={getCarouselItemStyle(index, accessibleDepartments, selectedDepartment)}
                             className={`w-full h-full p-3 rounded-xl border-2 text-left transition-all duration-300 ${
                               selectedDepartment === dept.id
@@ -922,111 +758,119 @@ export default function Dashboard() {
             <CardTitle className="text-base font-heading">Responsable du Service</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4 p-3 rounded bg-muted/30">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-bold">
-                {departmentManager.name.charAt(0).toUpperCase()}
+            <div className="flex items-center justify-between gap-4 p-3 rounded bg-muted/30">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white font-bold">
+                  {departmentManager.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">{departmentManager.name}</p>
+                  <p className="text-sm text-muted-foreground">{departmentManager.email}</p>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-foreground">{departmentManager.name}</p>
-                <p className="text-sm text-muted-foreground">{departmentManager.email}</p>
+              <div className="text-right">
+                {departmentManagerScore ? (
+                  <p className="font-bold text-lg text-primary">{formatEvaluationScore(departmentManagerScore.avg, departmentManagerScore.max)}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Aucune évaluation</p>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Top and Worst Agents */}
-      {selectedDepartment && departmentAgents.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Top Agents */}
-          <Card className="border-border shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-heading flex items-center gap-2">
-                <Award size={18} className="text-primary" />
-                Meilleurs Agents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {topAgents.length > 0 ? (
-                <div className="space-y-3">
-                  {topAgents.map((agent, i) => (
-                    <div key={agent.email} className="flex items-center justify-between p-2 rounded bg-muted/30 border-l-2 border-l-primary">
-                      <div>
-                        <p className="font-medium text-sm">{i + 1}. {agent.name}</p>
-                        <p className="text-xs text-muted-foreground">{agent.email}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-lg text-primary">{agent.avg_score.toFixed(2)}/20</p>
-                        <p className="text-xs text-muted-foreground">{agent.eval_count} éval.</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">Aucun agent évalué</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Worst Agents */}
-          <Card className="border-border shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-heading flex items-center gap-2">
-                <TrendingDown size={18} className="text-destructive" />
-                Agents à Améliorer
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {worstAgents.length > 0 ? (
-                <div className="space-y-3">
-                  {worstAgents.map((agent, i) => (
-                    <div key={agent.email} className="flex items-center justify-between p-2 rounded bg-muted/30 border-l-2 border-l-destructive">
-                      <div>
-                        <p className="font-medium text-sm">{i + 1}. {agent.name}</p>
-                        <p className="text-xs text-muted-foreground">{agent.email}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-lg text-destructive">{agent.avg_score.toFixed(2)}/20</p>
-                        <p className="text-xs text-muted-foreground">{agent.eval_count} éval.</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">Aucun agent à améliorer</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* All Agents List */}
-      {selectedDepartment && departmentAgents.length > 0 && (
+      {/* Meilleur & moins bon employé du périmètre sélectionné (un seul de chaque, dans un seul bloc) */}
+      {selectedPeriod && scopedEmployees.length > 0 && (
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
-              <Users size={18} />
-              Tous les Agents ({departmentAgents.length})
+            <CardTitle className="text-base font-heading flex items-center gap-2 flex-wrap">
+              <Trophy size={18} className="text-amber-600" />
+              Meilleur & moins bon employé
+              <span className="text-xs font-normal text-muted-foreground">— {scopeLabel}</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {departmentAgents.map((agent, idx) => (
-                <div key={agent.email} className="flex items-center justify-between p-3 rounded hover:bg-muted/50 transition-colors border border-border/50">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-muted-foreground">{idx + 1}.</span>
-                      <div>
-                        <p className="font-medium text-sm">{agent.name}</p>
-                        <p className="text-xs text-muted-foreground">{agent.email}</p>
-                      </div>
-                    </div>
+            <div className={`grid gap-4 ${worstEmployee ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
+              {/* TOP */}
+              <button
+                onClick={() => topEmployee && setSelectedEmployee(topEmployee)}
+                className="text-left p-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Award size={16} className="text-green-600" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300">Meilleur employé</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate">{topEmployee?.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{topEmployee?.department_name} · {topEmployee?.branch_name}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-foreground">{agent.avg_score.toFixed(2)}/20</p>
-                    <p className="text-xs text-muted-foreground">{agent.eval_count} éval.</p>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold text-lg text-green-600">{formatEvaluationScore(topEmployee?.avg_score ?? 0, topEmployee?.max_score ?? 0)}</p>
                   </div>
                 </div>
+              </button>
+
+              {/* WORST */}
+              {worstEmployee && (
+                <button
+                  onClick={() => setSelectedEmployee(worstEmployee)}
+                  className="text-left p-3 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingDown size={16} className="text-red-600" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">Moins bon employé</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm truncate">{worstEmployee.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{worstEmployee.department_name} · {worstEmployee.branch_name}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-bold text-lg text-red-600">{formatEvaluationScore(worstEmployee.avg_score, worstEmployee.max_score)}</p>
+                    </div>
+                  </div>
+                </button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Classement des employés du périmètre (décroissant) */}
+      {selectedPeriod && scopedEmployees.length > 0 && (
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-heading flex items-center gap-2 flex-wrap">
+              <Users size={18} />
+              Classement des employés ({scopedEmployees.length})
+              <span className="text-xs font-normal text-muted-foreground">— {scopeLabel}</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 max-h-[480px] overflow-y-auto">
+              {scopedEmployees.map((emp, idx) => (
+                <button
+                  key={emp.id}
+                  onClick={() => setSelectedEmployee(emp)}
+                  className={`w-full flex items-center justify-between gap-2 p-3 rounded text-left transition-colors border ${
+                    selectedEmployee?.id === emp.id
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border/50 hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`font-bold text-sm w-6 text-center flex-shrink-0 ${idx === 0 ? 'text-green-600' : idx === scopedEmployees.length - 1 && scopedEmployees.length > 1 ? 'text-red-600' : 'text-muted-foreground'}`}>{idx + 1}</span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{emp.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{emp.role_name} · {emp.department_name} · {emp.branch_name}</p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold text-foreground">{formatEvaluationScore(emp.avg_score, emp.max_score)}</p>
+                  </div>
+                </button>
               ))}
             </div>
           </CardContent>
@@ -1038,7 +882,12 @@ export default function Dashboard() {
         {/* Pie Chart - Evaluation Status */}
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Statut des Évaluations</CardTitle>
+            <CardTitle className="text-base font-heading flex items-center gap-2 flex-wrap">
+              Statut des Évaluations
+              {selectedPeriod && (
+                <span className="text-xs font-normal text-muted-foreground">— {selectedPeriod} · {scopeLabel}</span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {evaluationStatus.length > 0 ? (
@@ -1091,213 +940,62 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* TOP Employees - Hierarchical */}
+        {/* Courbe des évaluations par période */}
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
-              <Trophy size={18} className="text-amber-600" />
-              TOP Employés
+            <CardTitle className="text-base font-heading flex items-center gap-2 flex-wrap">
+              Évolution des évaluations
+              <span className="text-xs font-normal text-muted-foreground">— {scopeLabel}</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {topEmployees.length > 0 ? (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {topEmployees.map(branch => (
-                  <div key={branch.id} className="border border-border/30 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => {
-                        setExpandedBranches(prev => {
-                          const next = new Set(prev);
-                          next.has(branch.id) ? next.delete(branch.id) : next.add(branch.id);
-                          return next;
-                        });
-                        // Quand on expand une branche, filtrer par cette branche
-                        if (!expandedBranches.has(branch.id)) {
-                          setFilterByBranch(branch.id);
-                          setFilterByDepartment(null);
-                        } else {
-                          setFilterByBranch(null);
-                        }
-                      }}
-                      className={`w-full px-4 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors font-semibold text-left ${filterByBranch === branch.id ? 'bg-blue-100 dark:bg-blue-950' : 'bg-muted/20'}`}
-                    >
-                      {expandedBranches.has(branch.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                      <Building2 size={14} />
-                      <span>{branch.name}</span>
-                    </button>
-                    {expandedBranches.has(branch.id) && (
-                      <div className="bg-background p-2 space-y-1">
-                        {branch.departments.map(dept => (
-                          <div key={dept.id} className="ml-2 border border-border/20 rounded overflow-hidden">
-                            <button
-                              onClick={() => {
-                                setExpandedDepartments(prev => {
-                                  const next = new Set(prev);
-                                  const key = `${branch.id}-${dept.id}`;
-                                  next.has(key) ? next.delete(key) : next.add(key);
-                                  return next;
-                                });
-                                // Quand on expand un service, filtrer par ce service
-                                const key = `${branch.id}-${dept.id}`;
-                                if (!expandedDepartments.has(key)) {
-                                  setFilterByBranch(branch.id);
-                                  setFilterByDepartment(dept.id);
-                                } else {
-                                  setFilterByDepartment(null);
-                                }
-                              }}
-                              className={`w-full px-3 py-1.5 flex items-center gap-2 hover:bg-muted/30 transition-colors text-sm font-medium text-left ${filterByDepartment === dept.id ? 'bg-blue-100 dark:bg-blue-950' : 'bg-muted/10'}`}
-                            >
-                              {expandedDepartments.has(`${branch.id}-${dept.id}`) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                              <span>{dept.name}</span>
-                            </button>
-                            {expandedDepartments.has(`${branch.id}-${dept.id}`) && (
-                              <div className="bg-background p-2 space-y-1">
-                                {dept.employees.map((emp, idx) => (
-                                  <button
-                                    key={emp.id}
-                                    onClick={() => setSelectedEmployee(emp)}
-                                    className={`w-full px-3 py-1.5 rounded text-xs flex justify-between items-center transition-colors cursor-pointer ${
-                                      selectedEmployee?.id === emp.id
-                                        ? 'bg-green-200 dark:bg-green-800 border border-green-500'
-                                        : 'bg-green-50 dark:bg-green-950/20 hover:bg-green-100 dark:hover:bg-green-900/30'
-                                    }`}
-                                  >
-                                    <div>
-                                      <span className="font-semibold text-green-700 dark:text-green-300">#{idx + 1}</span> {emp.name}
-                                    </div>
-                                    <span className="font-bold text-green-600 dark:text-green-400">{emp.avg_score.toFixed(1)}/20</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-muted-foreground text-center py-4">Aucune donnée d'évaluation</div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Bar Chart - Branch Employees */}
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Employés par Succursale</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {branchData.length > 0 ? (
+            {hasPeriodCurveData ? (
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={branchData}>
+                <LineChart data={periodEvaluationCurve} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                  <Bar dataKey="employees" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
-                </BarChart>
+                  <XAxis
+                    dataKey="period"
+                    tick={{ fontSize: 11 }}
+                    stroke="hsl(var(--muted-foreground))"
+                    tickFormatter={(value) => (value === selectedPeriod ? `▶ ${value}` : value)}
+                  />
+                  <YAxis domain={[0, dashboardMaxScore]} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
+                  <Tooltip
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                    formatter={(value: number) => [formatEvaluationScore(value, dashboardMaxScore), 'Moyenne']}
+                    labelFormatter={(label) => `Période : ${label}${label === selectedPeriod ? ' (sélectionnée)' : ''}`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="average"
+                    stroke="hsl(var(--muted-foreground))"
+                    strokeWidth={2}
+                    connectNulls={false}
+                    dot={(props) => {
+                      const { cx, cy, payload } = props;
+                      if (cx == null || cy == null || payload.average == null) return null;
+                      const isSelected = payload.isSelected;
+                      return (
+                        <circle
+                          key={payload.period}
+                          cx={cx}
+                          cy={cy}
+                          r={isSelected ? 7 : 4}
+                          fill={isSelected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'}
+                          stroke={isSelected ? 'hsl(var(--primary))' : 'none'}
+                          strokeWidth={isSelected ? 2 : 0}
+                        />
+                      );
+                    }}
+                    activeDot={{ r: 8, fill: 'hsl(var(--primary))' }}
+                    name="Moyenne"
+                  />
+                </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[280px] flex items-center justify-center text-muted-foreground">Aucune donnée de succursale</div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* WORST Employees - Hierarchical */}
-        <Card className="border-border shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading flex items-center gap-2">
-              <TrendingDown size={18} className="text-red-600" />
-              WORST Employés
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {worstEmployees.length > 0 ? (
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {worstEmployees.map(branch => (
-                  <div key={branch.id} className="border border-border/30 rounded-lg overflow-hidden">
-                    <button
-                      onClick={() => {
-                        setExpandedBranches(prev => {
-                          const next = new Set(prev);
-                          next.has(branch.id) ? next.delete(branch.id) : next.add(branch.id);
-                          return next;
-                        });
-                        // Quand on expand une branche, filtrer par cette branche
-                        if (!expandedBranches.has(branch.id)) {
-                          setFilterByBranch(branch.id);
-                          setFilterByDepartment(null);
-                        } else {
-                          setFilterByBranch(null);
-                        }
-                      }}
-                      className={`w-full px-4 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors font-semibold text-left ${filterByBranch === branch.id ? 'bg-blue-100 dark:bg-blue-950' : 'bg-muted/20'}`}
-                    >
-                      {expandedBranches.has(branch.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                      <Building2 size={14} />
-                      <span>{branch.name}</span>
-                    </button>
-                    {expandedBranches.has(branch.id) && (
-                      <div className="bg-background p-2 space-y-1">
-                        {branch.departments.map(dept => (
-                          <div key={dept.id} className="ml-2 border border-border/20 rounded overflow-hidden">
-                            <button
-                              onClick={() => {
-                                setExpandedDepartments(prev => {
-                                  const next = new Set(prev);
-                                  const key = `${branch.id}-${dept.id}`;
-                                  next.has(key) ? next.delete(key) : next.add(key);
-                                  return next;
-                                });
-                                // Quand on expand un service, filtrer par ce service
-                                const key = `${branch.id}-${dept.id}`;
-                                if (!expandedDepartments.has(key)) {
-                                  setFilterByBranch(branch.id);
-                                  setFilterByDepartment(dept.id);
-                                } else {
-                                  setFilterByDepartment(null);
-                                }
-                              }}
-                              className={`w-full px-3 py-1.5 flex items-center gap-2 hover:bg-muted/30 transition-colors text-sm font-medium text-left ${filterByDepartment === dept.id ? 'bg-blue-100 dark:bg-blue-950' : 'bg-muted/10'}`}
-                            >
-                              {expandedDepartments.has(`${branch.id}-${dept.id}`) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                              <span>{dept.name}</span>
-                            </button>
-                            {expandedDepartments.has(`${branch.id}-${dept.id}`) && (
-                              <div className="bg-background p-2 space-y-1">
-                                {dept.employees.map((emp, idx) => (
-                                  <button
-                                    key={emp.id}
-                                    onClick={() => setSelectedEmployee(emp)}
-                                    className={`w-full px-3 py-1.5 rounded text-xs flex justify-between items-center transition-colors cursor-pointer ${
-                                      selectedEmployee?.id === emp.id
-                                        ? 'bg-red-200 dark:bg-red-800 border border-red-500'
-                                        : 'bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-900/30'
-                                    }`}
-                                  >
-                                    <div>
-                                      <span className="font-semibold text-red-700 dark:text-red-300">#{idx + 1}</span> {emp.name}
-                                    </div>
-                                    <span className="font-bold text-red-600 dark:text-red-400">{emp.avg_score.toFixed(1)}/20</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                Aucune évaluation pour ce périmètre
               </div>
-            ) : (
-              <div className="text-muted-foreground text-center py-4">Aucune donnée d'évaluation</div>
             )}
           </CardContent>
         </Card>
@@ -1332,7 +1030,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="border border-border rounded-lg p-4 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Moyenne</p>
-                <p className="text-2xl font-bold text-primary">{selectedEmployee.avg_score.toFixed(2)}/20</p>
+                <p className="text-2xl font-bold text-primary">{formatEvaluationScore(selectedEmployee.avg_score, selectedEmployee.max_score)}</p>
               </div>
               {(() => {
                 const evals = allEvaluations.filter(e => e.employee_email === selectedEmployee.email && e.period === selectedPeriod && e.score !== null);
@@ -1377,7 +1075,7 @@ export default function Dashboard() {
                         evals.map((eval_, idx) => (
                           <tr key={idx} className="border-t border-border hover:bg-muted/30">
                             <td className="p-2">{eval_.created_at ? new Date(eval_.created_at).toLocaleDateString() : '—'}</td>
-                            <td className="p-2 text-center font-semibold">{eval_.score}/20</td>
+                            <td className="p-2 text-center font-semibold">{formatEvaluationScore(eval_.score, selectedEmployee.max_score)}</td>
                             <td className="p-2 text-muted-foreground">{eval_.feedback || '—'}</td>
                           </tr>
                         ))
@@ -1439,7 +1137,7 @@ export default function Dashboard() {
                       height={80}
                       tick={{ fontSize: 12 }}
                     />
-                    <YAxis domain={[0, 20]} />
+                    <YAxis domain={[0, selectedEmployee.max_score || dashboardMaxScore]} />
                     <Tooltip 
                       formatter={(value: number) => value.toFixed(2)}
                       labelFormatter={(label) => `Période: ${label}`}
@@ -1515,13 +1213,19 @@ export default function Dashboard() {
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-heading flex items-center gap-2">
-              <Users size={18} className="text-accent" />
-              Utilisateurs Actifs
+              <TrendingUp size={18} className="text-accent" />
+              Évaluations soumises
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-foreground">{loading ? '-' : stats.activeUsers}</p>
-            <p className="text-xs text-muted-foreground mt-1">sur {stats.totalUsers} utilisateurs</p>
+            <p className="text-2xl font-bold text-foreground">
+              {loading || !selectedPeriod
+                ? '-'
+                : (evaluationStatus.find((s) => s.status === 'soumis')?.count ?? 0)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {selectedPeriod ? `${selectedPeriod} · ${scopeLabel}` : 'sélectionnez une période'}
+            </p>
           </CardContent>
         </Card>
       </div>

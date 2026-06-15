@@ -153,6 +153,22 @@ export function criterionAppliesToEmployee(
   return true;
 }
 
+/** Score maximum possible pour un employé (10 pts par critère applicable, comme la page Évaluation). */
+export function getMaxEvaluationScoreForEmployee(
+  employee: Pick<EmployeeForEvaluation, 'role_id' | 'branch_id' | 'department_id'>,
+  criteria: EvaluationCriterionRecord[]
+): number {
+  const applicableCount = criteria.filter(
+    (c) => c.is_active !== false && criterionAppliesToEmployee(c, employee)
+  ).length;
+  return applicableCount * 10;
+}
+
+export function formatEvaluationScore(score: number, maxScore: number): string {
+  if (!maxScore || maxScore <= 0) return score.toFixed(2);
+  return `${score.toFixed(2)} / ${maxScore}`;
+}
+
 export function filterEmployeesInEvaluatorScope(
   session: SessionUser | null,
   employees: EmployeeForEvaluation[],
