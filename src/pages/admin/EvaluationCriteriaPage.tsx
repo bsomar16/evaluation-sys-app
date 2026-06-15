@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -334,13 +335,37 @@ export function EvaluationCriteriaPage() {
   };
 
   const handleSave = async () => {
-    if (!formData.name.trim()) {
+    const trimmedName = formData.name.trim();
+    if (!trimmedName) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez le nom du critère' });
+      return;
+    }
+    const duplicate = criteria.some(
+      (c) => c.id !== editing?.id && c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (duplicate) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Un critère portant ce nom existe déjà' });
       return;
     }
     if (!formData.calculation_rule_id) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Choisissez un système de calcul' });
       return;
+    }
+    const selectedRule = calculationRules.find((r) => r.id === formData.calculation_rule_id);
+    if ((selectedRule?.type ?? formData.type) === 'choice') {
+      const expectedOptions = getChoiceOptionsFromConfig(selectedRule?.config ?? {}).length;
+      const filledLabels = formData.choice_option_labels
+        .slice(0, expectedOptions)
+        .map((label) => label.trim())
+        .filter(Boolean);
+      if (filledLabels.length < expectedOptions) {
+        toast({
+          variant: 'destructive',
+          title: 'Erreur',
+          description: 'Renseignez le nom de chaque choix',
+        });
+        return;
+      }
     }
     if (!formData.role_all && formData.role_ids.length === 0) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Sélectionnez au moins un rôle ou cochez Pour tous' });
@@ -384,6 +409,7 @@ export function EvaluationCriteriaPage() {
         is_active: editing?.is_active ?? true,
       });
       toast({ title: 'Succès', description: editing ? 'Critère modifié' : 'Critère créé' });
+      if (!editing) setSearch('');
       setOpenDialog(false);
       load();
     } catch (error: unknown) {
@@ -460,15 +486,24 @@ export function EvaluationCriteriaPage() {
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editing ? 'Modifier' : 'Créer'} un critère</DialogTitle>
+                  <DialogDescription>
+                    Renseignez le nom, le système de calcul et le périmètre (rôles, filiales, services).
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Input
-                    placeholder="Nom du critère"
-                    value={formData.name}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                    className="border-2 border-blue-300 bg-blue-50"
-                  />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="criterion-name">Nom du critère</Label>
+                    <Input
+                      id="criterion-name"
+                      placeholder="Nom du critère"
+                      value={formData.name}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                      className="border-2 border-blue-300 bg-blue-50"
+                    />
+                  </div>
 
+                  <div className="space-y-1.5">
+                  <Label>Système de calcul</Label>
                   <Select
                     value={formData.calculation_rule_id}
                     onValueChange={(ruleId) => {
@@ -502,6 +537,7 @@ export function EvaluationCriteriaPage() {
                       })}
                     </SelectContent>
                   </Select>
+                  </div>
                   {(calculationRules.find((r) => r.id === formData.calculation_rule_id)?.type ?? formData.type) === 'choice' && (
                     <div className="space-y-2">
                       {getChoiceOptionsFromConfig(
