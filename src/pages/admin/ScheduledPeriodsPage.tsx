@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,8 +14,6 @@ import { PaginationControls } from '@/components/PaginationControls';
 import { showLoadingOverlay, hideLoadingOverlay } from '@/lib/loading-overlay';
 import { getSessionUser } from '@/lib/session-user';
 import {
-  getEvaluationPeriodSchedule,
-  setEvaluationPeriodSchedule,
   subscribeEvaluationPeriodChange,
 } from '@/lib/evaluation-period-storage';
 import {
@@ -23,6 +21,11 @@ import {
   EvaluationPeriod,
   getEvaluationPeriodById,
   createEvaluationPeriod,
+  updateEvaluationPeriod,
+  deleteEvaluationPeriod,
+  getPeriodIntervals,
+  createPeriodInterval,
+  updatePeriodInterval,
 } from '@/lib/evaluation-period-db';
 import {
   getCurrentEvaluationPeriodCode,
@@ -36,6 +39,8 @@ type FilterState = 'all' | 'upcoming' | 'active' | 'ended';
 type IntervalPhase = 'upcoming' | 'active' | 'ended';
 
 interface Interval {
+  /** Identifiant de la période en base (evaluation_periods.id) */
+  id?: string;
   startAt: string;
   endAt: string;
   isProlongation?: boolean;
@@ -166,78 +171,42 @@ export default function ScheduledPeriodsPage() {
     setPeriodName(desc);
   }, [startDate]);
 
-  // Load evaluation periods from database
-  useEffect(() => {
-    async function loadPeriods() {
-      setLoadingPeriods(true);
-      try {
-        const dbPeriods = await getAllEvaluationPeriods();
-        setPeriods(dbPeriods);
+  // Load evaluation periods from database (source de vérité)
+  const loadPeriods = useCallback(async () => {
+    setLoadingPeriods(true);
+    try {
+      const dbPeriods = await getAllEvaluationPeriods();
+      setPeriods(dbPeriods);
 
-        // Convert periods to intervals for display
-        const intervals: Interval[] = dbPeriods.flatMap((period) => ({
-          startAt: period.start_date,
-          endAt: period.end_date,
-          isProlongation: false,
-          createdAt: period.created_at,
-          createdBy: period.created_by,
-          isProlongationClosed: false,
-        }));
-        setScheduledIntervals(intervals);
-      } catch (error) {
-        console.error('Error loading periods:', error);
-      } finally {
-        setLoadingPeriods(false);
-      }
+      // Convert periods to intervals for display
+      const intervals: Interval[] = dbPeriods.map((period) => ({
+        id: period.id,
+        startAt: period.start_date,
+        endAt: period.end_date,
+        isProlongation: false,
+        createdAt: period.created_at,
+        createdBy: period.created_by,
+        isProlongationClosed: false,
+      }));
+      setScheduledIntervals(intervals);
+    } catch (error) {
+      console.error('Error loading periods:', error);
+    } finally {
+      setLoadingPeriods(false);
     }
-
-    loadPeriods();
   }, []);
+
+  useEffect(() => {
+    loadPeriods();
+  }, [loadPeriods]);
 
   // Subscribe to period changes (fallback for localStorage changes)
   useEffect(() => {
     const unsubscribe = subscribeEvaluationPeriodChange(() => {
-      // Reload from database
-      getAllEvaluationPeriods().then((dbPeriods) => {
-        setPeriods(dbPeriods);
-        const intervals: Interval[] = dbPeriods.flatMap((period) => ({
-          startAt: period.start_date,
-          endAt: period.end_date,
-          isProlongation: false,
-          createdAt: period.created_at,
-          createdBy: period.created_by,
-          isProlongationClosed: false,
-        }));
-        setScheduledIntervals(intervals);
-      });
+      loadPeriods();
     });
     return () => unsubscribe?.();
-  }, []);
-
-  // Auto-close prolongations at end of month
-  useEffect(() => {
-    const now = new Date();
-    let updated = false;
-    const newIntervals = scheduledIntervals.map((interval) => {
-      // If it's a prolongation that hasn't been manually closed and end date is past, mark as closed
-      if (interval.isProlongation && !interval.isProlongationClosed) {
-        const endDate = new Date(interval.endAt);
-        if (now > endDate) {
-          updated = true;
-          return {
-            ...interval,
-            isProlongationClosed: true,
-          };
-        }
-      }
-      return interval;
-    });
-
-    if (updated) {
-      setEvaluationPeriodSchedule({ intervals: newIntervals });
-      setScheduledIntervals(newIntervals);
-    }
-  }, [scheduledIntervals]);
+  }, [loadPeriods]);
 
   // Count intervals by phase
   function countByPhase(phase: IntervalPhase): number {
@@ -294,7 +263,7 @@ export default function ScheduledPeriodsPage() {
   async function handleSaveSchedule() {
     try {
       setFormError('');
-      
+
       if (!startDate || !endDate) {
         setFormError('Veuillez saisir les dates de début et de fin');
         return;
@@ -306,12 +275,8 @@ export default function ScheduledPeriodsPage() {
         return;
       }
 
-      setLoading(true);
-      showLoadingOverlay('Enregistrement...');
-      
       const startAt = new Date(startDate);
       const endAt = new Date(endDate);
-      
       startAt.setHours(0, 0, 0, 0);
       endAt.setHours(23, 59, 59, 999);
 
@@ -327,52 +292,70 @@ export default function ScheduledPeriodsPage() {
         return;
       }
 
-      let newIntervals = [...scheduledIntervals];
       const sessionUser = getSessionUser();
       const currentUser = sessionUser?.name || sessionUser?.email || 'Utilisateur';
 
+      // Nom lisible de la période (ex: « Juin 2026 »)
+      const [year, month] = startDate.split('-').map(Number);
+      const code = `${year}-${String(month).padStart(2, '0')}`;
+      const periodLabel = describeEvaluationPeriodCode(code) || periodName || code;
+
+      const startIso = startAt.toISOString();
+      const endIso = endAt.toISOString();
+
+      setLoading(true);
+      showLoadingOverlay('Enregistrement...');
+
       if (editingIntervalIndex !== null) {
-        // Update existing (preserve createdAt and createdBy)
-        const existing = newIntervals[editingIntervalIndex];
-        newIntervals[editingIntervalIndex] = {
-          startAt: startAt.toISOString(),
-          endAt: endAt.toISOString(),
-          createdAt: existing.createdAt,
-          createdBy: existing.createdBy,
-          isProlongation: existing.isProlongation,
-        };
-      } else {
-        // Create new
-        // Check for duplicates
-        for (const interval of newIntervals) {
-          const iStart = new Date(interval.startAt);
-          const iStartMonth = iStart.getMonth() + 1;
-          const iStartYear = iStart.getFullYear();
-          
-          const startMonth = startAt.getMonth() + 1;
-          const startYear = startAt.getFullYear();
-          
-          if (iStartYear === startYear && iStartMonth === startMonth) {
-            toast({ variant: 'destructive', title: 'Erreur', description: 'Une période existe déjà pour ce mois' });
-            return;
-          }
+        // --- Modification d'une période existante ---
+        const existing = scheduledIntervals[editingIntervalIndex];
+        if (!existing?.id) {
+          throw new Error('Identifiant de période introuvable');
         }
 
-        newIntervals.push({
-          startAt: startAt.toISOString(),
-          endAt: endAt.toISOString(),
-          createdAt: new Date().toISOString(),
-          createdBy: currentUser,
+        const updated = await updateEvaluationPeriod(existing.id, {
+          name: periodLabel,
+          start_date: startDate,
+          end_date: endDate,
         });
+        if (!updated) {
+          throw new Error("La modification n'a pas pu être enregistrée en base de données");
+        }
+
+        // Synchronise l'intervalle associé pour garder la période exploitable
+        const intervals = await getPeriodIntervals(existing.id);
+        if (intervals.length > 0) {
+          await updatePeriodInterval(intervals[0].id, {
+            start_at: startIso,
+            end_at: endIso,
+            is_prolongation_closed: false,
+          });
+        } else {
+          await createPeriodInterval(existing.id, startIso, endIso, false, currentUser);
+        }
+      } else {
+        // --- Création d'une nouvelle période ---
+        // Empêche deux périodes pour le même mois
+        const duplicate = scheduledIntervals.some((interval) => {
+          const iStart = new Date(interval.startAt);
+          return iStart.getFullYear() === startAt.getFullYear() && iStart.getMonth() === startAt.getMonth();
+        });
+        if (duplicate) {
+          toast({ variant: 'destructive', title: 'Erreur', description: 'Une période existe déjà pour ce mois' });
+          return;
+        }
+
+        const created = await createEvaluationPeriod(periodLabel, startDate, endDate, undefined, currentUser, true);
+        if (!created) {
+          throw new Error("La période n'a pas pu être créée en base de données");
+        }
+
+        // Crée l'intervalle afin que la période soit réellement ouverte/exploitable
+        await createPeriodInterval(created.id, startIso, endIso, false, currentUser);
       }
 
-      // Sort by startAt
-      newIntervals = newIntervals.sort((a, b) => 
-        new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
-      );
-
-      setEvaluationPeriodSchedule({ intervals: newIntervals });
-      setScheduledIntervals(newIntervals);
+      // Recharge depuis la base (source de vérité)
+      await loadPeriods();
       setDialogMode('none');
       toast({ title: 'Succès', description: editingIntervalIndex !== null ? 'Période modifiée' : 'Période créée' });
     } catch (error: unknown) {
@@ -386,9 +369,6 @@ export default function ScheduledPeriodsPage() {
 
   async function handleDeleteInterval() {
     try {
-      setLoading(true);
-      showLoadingOverlay('Suppression...');
-      
       if (deleteTargetIndex === null) return;
 
       const interval = scheduledIntervals[deleteTargetIndex];
@@ -399,9 +379,18 @@ export default function ScheduledPeriodsPage() {
         return;
       }
 
-      const newIntervals = scheduledIntervals.filter((_, idx) => idx !== deleteTargetIndex);
-      setEvaluationPeriodSchedule({ intervals: newIntervals });
-      setScheduledIntervals(newIntervals);
+      setLoading(true);
+      showLoadingOverlay('Suppression...');
+
+      if (interval.id) {
+        // La suppression de la période supprime aussi ses intervalles (ON DELETE CASCADE)
+        const ok = await deleteEvaluationPeriod(interval.id);
+        if (!ok) {
+          throw new Error("La suppression n'a pas pu être enregistrée en base de données");
+        }
+      }
+
+      await loadPeriods();
       setDialogMode('none');
       setDeleteTargetIndex(null);
       toast({ title: 'Succès', description: 'Période supprimée' });
@@ -416,30 +405,42 @@ export default function ScheduledPeriodsPage() {
 
   async function handleProlongPeriod(idx: number) {
     try {
+      const interval = scheduledIntervals[idx];
+      if (!interval.id) {
+        throw new Error('Identifiant de période introuvable');
+      }
+
       setLoading(true);
       showLoadingOverlay('Prolongation en cours...');
-      
-      const interval = scheduledIntervals[idx];
-      const endDate = new Date(interval.endAt);
+
       const sessionUser = getSessionUser();
       const currentUser = sessionUser?.name || sessionUser?.email || 'Utilisateur';
-      
-      // Add 1 month
-      endDate.setMonth(endDate.getMonth() + 1);
 
-      const newIntervals = [...scheduledIntervals];
-      newIntervals[idx] = {
-        startAt: interval.startAt,
-        endAt: endDate.toISOString(),
-        isProlongation: true,
-        createdAt: interval.createdAt,
-        createdBy: interval.createdBy,
-        isProlongationClosed: false,
-      };
+      // Prolonge d'un mois
+      const newEnd = new Date(interval.endAt);
+      newEnd.setMonth(newEnd.getMonth() + 1);
+      const newEndIso = newEnd.toISOString();
+      const newEndDate = newEndIso.split('T')[0];
 
-      setEvaluationPeriodSchedule({ intervals: newIntervals });
-      setScheduledIntervals(newIntervals);
-      toast({ title: 'Succès', description: 'Période prolongée - Sera fermée automatiquement à la fin du mois' });
+      const updated = await updateEvaluationPeriod(interval.id, { end_date: newEndDate });
+      if (!updated) {
+        throw new Error("La prolongation n'a pas pu être enregistrée en base de données");
+      }
+
+      // Étend également l'intervalle associé
+      const intervals = await getPeriodIntervals(interval.id);
+      if (intervals.length > 0) {
+        await updatePeriodInterval(intervals[0].id, {
+          end_at: newEndIso,
+          is_prolongation: true,
+          is_prolongation_closed: false,
+        });
+      } else {
+        await createPeriodInterval(interval.id, new Date(interval.startAt).toISOString(), newEndIso, true, currentUser);
+      }
+
+      await loadPeriods();
+      toast({ title: 'Succès', description: 'Période prolongée' });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erreur lors de la prolongation';
       toast({ variant: 'destructive', title: 'Erreur', description: message });
