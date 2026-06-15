@@ -813,7 +813,7 @@ export default function Dashboard() {
                 <div className="flex gap-3 pb-2 pl-2 pr-2">
                   {accessibleBranches.length > 0 ? (
                     accessibleBranches.map((branch, index) => (
-                      <div key={branch.id} className="flex-shrink-0 w-[240px] max-w-[240px] box-border">
+                      <div key={branch.id} className="flex-shrink-0 w-[clamp(180px,22vw,280px)] box-border">
                         <button
                           data-carousel-item
                           data-branch-id={branch.id}

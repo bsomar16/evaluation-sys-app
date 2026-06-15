@@ -104,7 +104,7 @@ export function migrateCompanyBrandingIfNeeded(): void {
 export function getStoredAppearanceMode(): AppearanceMode {
   const saved = localStorage.getItem('appearanceMode');
   if (saved === 'dark' || saved === 'standard' || saved === 'light') return saved;
-  return 'light';
+  return 'standard';
 }
 
 function resolveLightAppearanceLogo(settings: CompanyBrandingSettings): string {

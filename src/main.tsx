@@ -8,7 +8,7 @@ try {
   migrateCompanyBrandingIfNeeded();
 
   // Initialize palette variables BEFORE React renders to prevent flash of unstyled content
-  const appearanceMode = localStorage.getItem('appearanceMode') || 'light';
+  const appearanceMode = localStorage.getItem('appearanceMode') || 'standard';
   const selectedPalette = localStorage.getItem('selectedPalette') || 'corporate';
 
   const palette = colorPalettes[selectedPalette as keyof typeof colorPalettes];

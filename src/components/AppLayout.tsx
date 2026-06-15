@@ -66,8 +66,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   ]);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
     const saved = localStorage.getItem('appearanceMode');
-    return (saved as AppearanceMode) || 'light';
+    return (saved as AppearanceMode) || 'standard';
   });
+  /** Évite que la valeur par défaut écrase la préférence BDD avant son chargement */
+  const appearanceLoadedRef = useRef(false);
   const [overlayTokens, setOverlayTokens] = useState<string[]>([]);
   const [overlayMessage, setOverlayMessage] = useState('Chargement en cours...');
   const navTokenRef = useRef<string | null>(null);
@@ -101,16 +103,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       setUser(session);
       setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
 
-      // Load appearance from DB for this user
+      // Load appearance from DB for this user (source de vérité)
       try {
-        const { data: userData } = await supabase
+        const { data: userRow } = await supabase
           .from('users')
           .select('appearance_mode')
           .eq('id', session.id)
           .single();
-        
-        if (userData?.appearance_mode) {
-          const mode = userData.appearance_mode as AppearanceMode;
+
+        if (userRow?.appearance_mode) {
+          const mode = userRow.appearance_mode as AppearanceMode;
           setAppearanceMode(mode);
         }
       } catch (error) {
@@ -118,6 +120,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         // Fallback to localStorage
         const saved = localStorage.getItem('appearanceMode');
         if (saved) setAppearanceMode(saved as AppearanceMode);
+      } finally {
+        // À partir d'ici, les changements peuvent être sauvegardés en BDD
+        appearanceLoadedRef.current = true;
       }
     };
 
@@ -130,8 +135,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('appearanceMode', appearanceMode);
     
-    // Save appearance to DB if user is logged in
-    if (user) {
+    // Save appearance to DB only after the initial load, so the default
+    // never overwrites the user's last saved preference on mount.
+    if (user && appearanceLoadedRef.current) {
       supabase
         .from('users')
         .update({ appearance_mode: appearanceMode })

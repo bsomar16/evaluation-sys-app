@@ -39,14 +39,14 @@ export default function UIStudio() {
 
   const [previewMode, setPreviewMode] = useState<ThemeMode>('light');
   const [appearanceMode, setAppearanceMode] = useState<'light' | 'dark' | 'standard'>(() => {
-    return (localStorage.getItem('appearanceMode') as any) || 'light';
+    return (localStorage.getItem('appearanceMode') as any) || 'standard';
   });
   const [branding, setBranding] = useState<CompanyBrandingSettings>(() => loadCompanyBranding());
 
   // Watch for appearance mode changes from AppLayout
   useEffect(() => {
     const handleStorageChange = () => {
-      const newMode = localStorage.getItem('appearanceMode') as any || 'light';
+      const newMode = localStorage.getItem('appearanceMode') as any || 'standard';
       setAppearanceMode(newMode);
     };
 

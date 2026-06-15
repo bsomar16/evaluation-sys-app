@@ -9,7 +9,7 @@ interface LoadingOverlayProps {
 
 export function LoadingOverlay({ visible, message = 'Chargement en cours...' }: LoadingOverlayProps) {
   const appearanceMode =
-    typeof window !== 'undefined' ? localStorage.getItem('appearanceMode') || 'light' : 'light';
+    typeof window !== 'undefined' ? localStorage.getItem('appearanceMode') || 'standard' : 'standard';
 
   const spinnerColor =
     appearanceMode === 'dark'
