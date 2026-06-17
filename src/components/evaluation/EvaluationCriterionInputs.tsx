@@ -58,15 +58,10 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
   if (method === 'binary') {
     const checked = Boolean(value);
     return (
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-center gap-4 py-0.5">
         <span className="text-sm text-muted-foreground">Non</span>
         <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
         <span className="text-sm text-muted-foreground">Oui</span>
-        {showValues && (
-          <Badge variant="outline" className="ml-auto shrink-0">
-            Valeur finale : {points.toFixed(1)}
-          </Badge>
-        )}
       </div>
     );
   }
@@ -86,7 +81,11 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
           step={1}
           disabled={disabled}
         />
-        {showValues && <Badge variant="outline">Valeur finale : {points.toFixed(1)}</Badge>}
+        {showValues && (
+          <Badge variant="outline" className="font-normal">
+            {points.toFixed(1)}
+          </Badge>
+        )}
       </div>
     );
   }
@@ -125,7 +124,11 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
             );
           })}
         </div>
-        {showValues && <Badge variant="outline">Valeur finale : {points.toFixed(1)}</Badge>}
+        {showValues && (
+          <Badge variant="outline" className="font-normal">
+            {points.toFixed(1)}
+          </Badge>
+        )}
       </div>
     );
   }
@@ -135,7 +138,11 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
     return (
       <div className="space-y-2">
         <StarRating value={num} onChange={onChange} disabled={disabled} />
-        {showValues && <Badge variant="outline">Valeur finale : {points.toFixed(1)}</Badge>}
+        {showValues && (
+          <Badge variant="outline" className="font-normal">
+            {points.toFixed(1)}
+          </Badge>
+        )}
       </div>
     );
   }

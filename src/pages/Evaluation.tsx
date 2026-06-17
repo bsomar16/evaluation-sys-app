@@ -914,7 +914,6 @@ export default function Evaluation() {
                 </div>
                 {showEvaluationValues && formValues[criterion.id] !== undefined && (
                   <Badge variant="outline" className="font-normal text-xs shrink-0">
-                    Valeur finale :{' '}
                     {calculateCriterionScore(
                       criterion.type,
                       formValues[criterion.id],
@@ -963,7 +962,6 @@ export default function Evaluation() {
         <CardContent className="p-5 flex flex-wrap items-center justify-between gap-4">
           {showEvaluationValues && (
             <div>
-              <p className="text-sm text-muted-foreground">Valeur finale de l&apos;évaluation</p>
               <p className="text-3xl font-bold text-primary">
                 {totalScore.toFixed(1)}{' '}
                 <span className="text-lg text-muted-foreground font-normal">/ {maxScore}</span>
