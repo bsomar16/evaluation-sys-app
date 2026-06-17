@@ -347,7 +347,7 @@ export default function Evaluation() {
 
         const data = await withTimeout(
           fetchEvaluationPageData(null),
-          10000,
+          20000,
           'Délai dépassé pendant le chargement des données.'
         );
         if (!cancelled && generation === loadGenerationRef.current) {
