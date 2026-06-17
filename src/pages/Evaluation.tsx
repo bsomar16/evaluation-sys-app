@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -39,22 +39,16 @@ import {
   fetchEmployeesForEvaluation,
   fetchEvaluations,
   findEvaluationForOpenPeriod,
-  getLatestEvaluationScoreForEmployee,
-  getLatestEvaluationStatusForEmployee,
-  getEvaluationPercentageForEmployeePeriod,
-  getEvaluationPercentageForOpenPeriod,
-  getEvaluationStatusForEmployeePeriod,
-  getEvaluationStatusForOpenPeriod,
+  resolveEvaluationPercentage,
   upsertEvaluation,
 } from '@/lib/evaluation-storage';
 import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
 import {
   describeEvaluationPeriodCode,
-  getCurrentEvaluationPeriodCode,
   dateToPeriodCode,
 } from '@/lib/evaluation-period-label';
 import { useCurrentOpenPeriod } from '@/hooks/useEvaluationPeriod';
-import { getAllEvaluationPeriods } from '@/lib/evaluation-period-db';
+import { getAllEvaluationPeriods, getDashboardPeriods } from '@/lib/evaluation-period-db';
 import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evaluation-types';
 import { getSessionUser } from '@/lib/session-user';
 import { isCriterionAvailableForEvaluation } from '@/lib/criterion-archive';
@@ -104,7 +98,10 @@ export default function Evaluation() {
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
   const [statusFilter, setStatusFilter] = useState<'all' | 'en-attente' | 'soumis' | 'complet'>('all');
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
-  const [availablePeriods, setAvailablePeriods] = useState<{ name: string; code: string }[]>([]);
+  const [availablePeriods, setAvailablePeriods] = useState<
+    { name: string; code: string; id: string; start_date: string }[]
+  >([]);
+  const hasInitializedPeriod = useRef(false);
 
   // Map grouped categories to database statuses
   const mapStatusGroupToDb = (group: string): EvaluationStatus[] => {
@@ -281,7 +278,6 @@ export default function Evaluation() {
     const init = async () => {
       try {
         await runWithLoadingOverlay(async () => {
-          const currentPeriod = getCurrentEvaluationPeriodCode();
           const [emps, crit, calcRules, rolesRes, deptsRes] = await withTimeout(
             Promise.all([
               fetchEmployeesForEvaluation(),
@@ -299,48 +295,17 @@ export default function Evaluation() {
           setRules(calcRules);
           setRoles(rolesRes.data ?? []);
           setDepartments(deptsRes.data ?? []);
-          
-          // Load available periods from database with generated codes
-          const dbPeriods = await getAllEvaluationPeriods();
-          const periodsWithCodes = dbPeriods.map((p) => ({
-            name: p.name,
-            code: dateToPeriodCode(new Date(p.start_date)),
-          })).sort((a, b) => b.code.localeCompare(a.code));
-          // Only set periods that actually exist in database - empty array if none
-          setAvailablePeriods(periodsWithCodes);
 
-          const scoreMap: Record<string, number | null> = {};
-          const statusMap: Record<string, EvaluationStatus | null> = {};
-          const statusPeriod = activePeriod;
-          await withTimeout(
-            Promise.all(
-              emps.map(async (emp) => {
-                if (statusPeriod) {
-                  statusMap[emp.id] = await getEvaluationStatusForOpenPeriod(emp.id, statusPeriod);
-                  scoreMap[emp.id] = await getEvaluationPercentageForOpenPeriod(
-                    emp.id,
-                    statusPeriod,
-                    crit,
-                    calcRules,
-                    emp
-                  );
-                } else {
-                  statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
-                  scoreMap[emp.id] = await getEvaluationPercentageForEmployeePeriod(
-                    emp.id,
-                    currentPeriod,
-                    crit,
-                    calcRules,
-                    emp
-                  );
-                }
-              })
-            ),
-            10000,
-            'Délai dépassé pendant le chargement des scores.'
+          const dbPeriods = await getAllEvaluationPeriods();
+          const eligible = getDashboardPeriods(dbPeriods);
+          setAvailablePeriods(
+            eligible.map((p) => ({
+              name: p.name,
+              code: dateToPeriodCode(new Date(p.start_date)),
+              id: p.id,
+              start_date: p.start_date,
+            }))
           );
-          setScoresByEmployee(scoreMap);
-          setStatusByEmployee(statusMap);
         }, 'Chargement des données d’évaluation...');
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Chargement impossible';
@@ -350,38 +315,54 @@ export default function Evaluation() {
       }
     };
     init();
-  }, [canReadEvaluations, activePeriod?.id]);
+  }, [canReadEvaluations]);
 
   useEffect(() => {
-    if (!canReadEvaluations || !activePeriod || employees.length === 0) return;
+    if (hasInitializedPeriod.current || availablePeriods.length === 0) return;
+
+    const openName = activePeriod?.name;
+    if (openName && availablePeriods.some((p) => p.name === openName)) {
+      setPeriod(openName);
+    } else {
+      setPeriod(availablePeriods[availablePeriods.length - 1].name);
+    }
+    hasInitializedPeriod.current = true;
+  }, [availablePeriods, activePeriod?.name]);
+
+  useEffect(() => {
+    if (!canReadEvaluations || !period || employees.length === 0) return;
+
+    const campaign = availablePeriods.find((p) => p.name === period);
+    if (!campaign) return;
 
     let cancelled = false;
     void (async () => {
+      const evaluations = await fetchEvaluations();
       const statusMap: Record<string, EvaluationStatus | null> = {};
-      await Promise.all(
-        employees.map(async (emp) => {
-          statusMap[emp.id] = await getEvaluationStatusForOpenPeriod(emp.id, activePeriod);
-        })
-      );
-      if (!cancelled) setStatusByEmployee(statusMap);
+      const scoreMap: Record<string, number | null> = {};
+
+      for (const emp of employees) {
+        const record = findEvaluationForOpenPeriod(
+          emp.id,
+          { id: campaign.id, name: campaign.name, start_date: campaign.start_date },
+          evaluations
+        );
+        statusMap[emp.id] = record?.status ?? null;
+        scoreMap[emp.id] = record
+          ? resolveEvaluationPercentage(record, criteria, rules, emp)
+          : null;
+      }
+
+      if (!cancelled) {
+        setStatusByEmployee(statusMap);
+        setScoresByEmployee(scoreMap);
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [canReadEvaluations, activePeriod?.id, activePeriod?.name, activePeriod?.start_date, employees]);
-
-  // Initialize period with first available period from database
-  useEffect(() => {
-    if (availablePeriods.length > 0 && !period) {
-      // Try to find the active period in available periods
-      const activePeriodCode = activePeriod ? dateToPeriodCode(new Date(activePeriod.start_date)) : null;
-      const matchingPeriod = activePeriodCode && availablePeriods.find((p) => p.code === activePeriodCode) 
-        ? availablePeriods.find((p) => p.code === activePeriodCode)!.name
-        : availablePeriods[0].name;
-      setPeriod(matchingPeriod);
-    }
-  }, [availablePeriods, activePeriod?.start_date, period]);
+  }, [canReadEvaluations, period, employees, criteria, rules, availablePeriods]);
 
   const openPeriodName = useMemo(() => {
     if (!activePeriod) return '';
@@ -640,14 +621,28 @@ export default function Evaluation() {
                 {availablePeriods.length > 0 ? (
                   <Select value={period} onValueChange={setPeriod}>
                     <SelectTrigger className="w-full">
-                      <>
+                      <span className="flex items-center gap-2">
+                        {period === activePeriod?.name && (
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25"
+                            aria-hidden
+                          />
+                        )}
                         {period || 'Sélectionner une période'}
-                      </>
+                      </span>
                     </SelectTrigger>
                     <SelectContent>
                       {availablePeriods.map((p) => (
                         <SelectItem key={p.name} value={p.name}>
-                          {p.name}
+                          <span className="flex items-center gap-2">
+                            {p.name === activePeriod?.name && (
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full bg-emerald-500"
+                                aria-hidden
+                              />
+                            )}
+                            {p.name}
+                          </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
