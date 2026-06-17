@@ -1,4 +1,8 @@
 import type { CalculationRuleRecord, EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
+import {
+  fetchCalculationRules,
+  fetchEvaluationCriteria,
+} from '@/lib/evaluation-config-storage';
 import { dateToPeriodCode } from '@/lib/evaluation-period-label';
 import {
   getAllEvaluationPeriods,
