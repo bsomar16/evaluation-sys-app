@@ -58,7 +58,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
   if (method === 'binary') {
     const checked = Boolean(value);
     return (
-      <div className="flex items-center justify-center gap-4 py-0.5">
+      <div className="flex items-center justify-start gap-4 py-0.5">
         <span className="text-sm text-muted-foreground">Non</span>
         <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
         <span className="text-sm text-muted-foreground">Oui</span>
@@ -103,7 +103,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
     });
     return (
       <div className="space-y-2">
-        <div className="flex rounded-lg overflow-hidden border border-border">
+        <div className="inline-flex max-w-full rounded-lg overflow-hidden border border-border">
           {optionLabels.map((label, idx) => {
             const n = idx + 1;
             return (
@@ -113,7 +113,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
               disabled={disabled}
               onClick={() => onChange(n)}
               className={cn(
-                'flex-1 py-2 px-4 text-sm font-medium transition-colors',
+                'py-2 px-4 text-sm font-medium transition-colors whitespace-nowrap',
                 opt === n
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-card text-muted-foreground hover:bg-muted'
