@@ -116,6 +116,10 @@ export default function TrainingPlanningPage() {
   };
 
   const handleSavePlan = async () => {
+    if (!canWriteMgmt) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     if (!selectedRequest) {
       toast({
         variant: 'destructive',

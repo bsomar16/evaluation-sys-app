@@ -27,6 +27,7 @@ import TrainingPlanningPage from "@/pages/admin/TrainingPlanningPage";
 import TrainingPlanningAnalytics from "@/pages/admin/TrainingPlanningAnalytics";
 import { EvaluationPeriodGuard } from "@/components/EvaluationPeriodGuard";
 import { EvaluationManagementGuard } from "@/components/EvaluationManagementGuard";
+import { ModuleAccessGuard } from "@/components/ModuleAccessGuard";
 import { TrainingPlanningGuard } from "@/components/TrainingPlanningGuard";
 import { TrainingAnalyticsGuard } from "@/components/TrainingAnalyticsGuard";
 import SchemaPage from "@/pages/admin/SchemaPage";
@@ -164,7 +165,9 @@ const App = () => {
               path="/admin/roles"
               element={
                 <ProtectedRoute>
-                  <RolesPage />
+                  <ModuleAccessGuard moduleKey="roles">
+                    <RolesPage />
+                  </ModuleAccessGuard>
                 </ProtectedRoute>
               }
             />
@@ -172,7 +175,9 @@ const App = () => {
               path="/admin/branches"
               element={
                 <ProtectedRoute>
-                  <BranchesPage />
+                  <ModuleAccessGuard moduleKey="branches">
+                    <BranchesPage />
+                  </ModuleAccessGuard>
                 </ProtectedRoute>
               }
             />
@@ -180,7 +185,9 @@ const App = () => {
               path="/admin/departments"
               element={
                 <ProtectedRoute>
-                  <DepartmentsPage />
+                  <ModuleAccessGuard moduleKey="departments">
+                    <DepartmentsPage />
+                  </ModuleAccessGuard>
                 </ProtectedRoute>
               }
             />
@@ -188,7 +195,9 @@ const App = () => {
               path="/admin/evaluation-criteria"
               element={
                 <ProtectedRoute>
-                  <EvaluationCriteriaPage />
+                  <ModuleAccessGuard moduleKey="evaluation_criteria">
+                    <EvaluationCriteriaPage />
+                  </ModuleAccessGuard>
                 </ProtectedRoute>
               }
             />
@@ -196,7 +205,9 @@ const App = () => {
               path="/admin/calculation-system"
               element={
                 <ProtectedRoute>
-                  <CalculationSystemPage />
+                  <ModuleAccessGuard moduleKey="calculation_system">
+                    <CalculationSystemPage />
+                  </ModuleAccessGuard>
                 </ProtectedRoute>
               }
             />

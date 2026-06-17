@@ -80,6 +80,10 @@ export function DepartmentsPage() {
   };
 
   const handleSaveDepartment = async () => {
+    if (!canWrite('departments')) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     if (!formData.name) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Remplissez le nom du service' });
       return;

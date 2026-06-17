@@ -261,6 +261,10 @@ export default function ScheduledPeriodsPage() {
   }
 
   async function handleSaveSchedule() {
+    if (!canManagePeriods) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     try {
       setFormError('');
 
@@ -368,6 +372,10 @@ export default function ScheduledPeriodsPage() {
   }
 
   async function handleDeleteInterval() {
+    if (!canManagePeriods) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     try {
       if (deleteTargetIndex === null) return;
 

@@ -351,6 +351,10 @@ export function EvaluationCriteriaPage() {
   }, []);
 
   const openCreate = () => {
+    if (!canWrite('evaluation_criteria')) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     if (calculationRules.length === 0) {
       toast({
         variant: 'destructive',
@@ -365,6 +369,10 @@ export function EvaluationCriteriaPage() {
   };
 
   const openEdit = (c: EvaluationCriterionRecord) => {
+    if (!canWrite('evaluation_criteria')) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     const linked =
       c.calculation_rule_id ??
       calculationRules.find((r) => r.type === c.type)?.id ??
@@ -400,6 +408,10 @@ export function EvaluationCriteriaPage() {
   };
 
   const handleSave = async () => {
+    if (!canWrite('evaluation_criteria')) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     const trimmedName = formData.name.trim();
     if (!trimmedName) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez le nom du critère' });
@@ -521,6 +533,10 @@ export function EvaluationCriteriaPage() {
   };
 
   const handleDelete = async () => {
+    if (!canDelete('evaluation_criteria')) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission suppression requise.' });
+      return;
+    }
     if (!deleteTarget) return;
     try {
       await deleteEvaluationCriterion(deleteTarget.id);
@@ -539,6 +555,10 @@ export function EvaluationCriteriaPage() {
   };
 
   const handleArchive = async () => {
+    if (!canWrite('evaluation_criteria')) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     if (!archiveTarget) return;
     try {
       await archiveEvaluationCriterion(archiveTarget.id);
@@ -552,6 +572,10 @@ export function EvaluationCriteriaPage() {
   };
 
   const handleRestore = async () => {
+    if (!canWrite('evaluation_criteria')) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
     if (!restoreTarget) return;
     try {
       await restoreEvaluationCriterion(restoreTarget.id);
@@ -873,7 +897,7 @@ export function EvaluationCriteriaPage() {
                     onChange={(department_ids) => setFormData((prev) => ({ ...prev, department_ids }))}
                   />
 
-                  <Button onClick={handleSave} className="w-full">
+                  <Button onClick={handleSave} className="w-full" disabled={!canWrite('evaluation_criteria')}>
                     {editing ? 'Modifier' : 'Créer'}
                   </Button>
                 </div>

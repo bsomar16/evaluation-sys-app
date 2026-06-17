@@ -137,7 +137,7 @@ export function CalculationSystemPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    const canRemove = canDelete('calculation_system') || canWrite('calculation_system');
+    const canRemove = canDelete('calculation_system');
     if (!canRemove) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Permission suppression requise' });
       return;
@@ -298,7 +298,7 @@ export function CalculationSystemPage() {
                               <Edit2 className="h-4 w-4" />
                             </Button>
                           )}
-                          {(canDelete('calculation_system') || canWrite('calculation_system')) && (
+                          {canDelete('calculation_system') && (
                             <Button
                               variant="ghost"
                               size="sm"

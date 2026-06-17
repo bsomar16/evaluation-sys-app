@@ -12,7 +12,12 @@ import { roleBadgeClassName } from '@/lib/role-colors';
 import { supabase } from '@/integrations/supabase/client';
 import { buildNavItems, isNavItemActive, type AppNavItem } from '@/lib/nav-items';
 import {
+  refreshSessionPermissionsFromRole,
+  SESSION_PERMISSIONS_UPDATED_EVENT,
+} from '@/lib/session-permissions';
+import {
   type SessionUser,
+  getSessionUser,
   repairSiteDeveloperSession,
   isSiteDeveloper,
   getSessionRoleBadge,
@@ -85,6 +90,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
 
   useEffect(() => {
+    const rebuildNav = async (session: SessionUser) => {
+      const { data: rolesData } = await supabase
+        .from('roles')
+        .select('id, name, code, color, level, child_roles, parent_role_id');
+
+      setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
+    };
+
     const loadSessionAndNav = async () => {
       const userData = localStorage.getItem("user");
       const userRole = localStorage.getItem("userRole");
@@ -96,12 +109,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         session = { ...session, role: userRole ?? session.role };
       }
 
-      const { data: rolesData } = await supabase
-        .from('roles')
-        .select('id, name, code, color, level, child_roles, parent_role_id');
+      const refreshed = await refreshSessionPermissionsFromRole();
+      if (refreshed) session = refreshed;
 
       setUser(session);
-      setNavItems(buildNavItems(session, (rolesData || []) as RoleRecord[]));
+      await rebuildNav(session);
 
       // Load appearance from DB for this user (source de vérité)
       try {
@@ -128,8 +140,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     loadSessionAndNav();
 
+    const onPermissionsUpdated = async () => {
+      const userData = localStorage.getItem('user');
+      if (!userData) return;
+      const session = getSessionUser();
+      if (!session) return;
+      setUser(session);
+      await rebuildNav(session);
+    };
+
+    window.addEventListener(SESSION_PERMISSIONS_UPDATED_EVENT, onPermissionsUpdated);
+
     const paletteKey = appearanceMode === 'standard' ? 'corporate' : getSelectedPaletteKey();
     applyPaletteToDOM(paletteKey, appearanceMode);
+
+    return () => {
+      window.removeEventListener(SESSION_PERMISSIONS_UPDATED_EVENT, onPermissionsUpdated);
+    };
   }, []);
 
   useEffect(() => {
