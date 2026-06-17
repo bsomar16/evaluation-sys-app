@@ -18,6 +18,7 @@ import {
   EvaluationCriterionInputs,
   getDefaultCriterionValue,
 } from '@/components/evaluation/EvaluationCriterionInputs';
+import { CriterionDescriptionExpand } from '@/components/evaluation/CriterionDescriptionExpand';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 import {
   calculateCriterionScore,
@@ -898,8 +899,15 @@ export default function Evaluation() {
         applicableCriteria.map((criterion) => (
           <Card key={criterion.id}>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center justify-between gap-2">
-                <span>{criterion.name}</span>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <CriterionDescriptionExpand
+                    description={criterion.description}
+                    variant="icon"
+                  >
+                    <CardTitle className="text-sm font-medium leading-tight">{criterion.name}</CardTitle>
+                  </CriterionDescriptionExpand>
+                </div>
                 {formValues[criterion.id] !== undefined && (
                   <Badge variant="outline" className="font-normal text-xs shrink-0">
                     {calculateCriterionScore(
@@ -911,7 +919,7 @@ export default function Evaluation() {
                     pt
                   </Badge>
                 )}
-              </CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
               <EvaluationCriterionInputs

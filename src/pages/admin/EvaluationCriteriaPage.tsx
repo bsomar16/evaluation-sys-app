@@ -7,7 +7,6 @@ import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +17,8 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Plus, Trash2, Edit2, Search, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Plus, Trash2, Edit2, Search, X } from 'lucide-react';
+import { CriterionDescriptionExpand } from '@/components/evaluation/CriterionDescriptionExpand';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
@@ -261,24 +261,6 @@ function formatCoefficient(weight: number): string {
   const n = Number(weight);
   if (!Number.isFinite(n)) return '1';
   return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
-}
-
-function CriterionDescriptionExpand({ description }: { description?: string | null }) {
-  const text = description?.trim();
-  if (!text) return null;
-
-  return (
-    <Collapsible className="mt-1.5 group">
-      <CollapsibleTrigger className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-        <ChevronRight className="h-3.5 w-3.5 group-data-[state=open]:hidden" />
-        <ChevronDown className="h-3.5 w-3.5 hidden group-data-[state=open]:inline" />
-        <span>Description</span>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-1.5 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed max-w-md">
-        {text}
-      </CollapsibleContent>
-    </Collapsible>
-  );
 }
 
 export function EvaluationCriteriaPage() {
