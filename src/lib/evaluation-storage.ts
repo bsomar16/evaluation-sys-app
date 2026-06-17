@@ -1,5 +1,10 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
+import {
+  computeEvaluationPercentageFromResponses,
+  getCriterionMaxPoints,
+  type CalculationRuleRecord,
+} from '@/lib/evaluation-calculator';
 import { isCriterionAvailableForEvaluation } from '@/lib/criterion-archive';
 import {
   appendAuditEntry,
@@ -154,15 +159,50 @@ export function criterionAppliesToEmployee(
   return true;
 }
 
-/** Score maximum possible pour un employé (10 pts par critère applicable, comme la page Évaluation). */
+/** Score maximum pondéré (points × coefficient) pour un employé. */
 export function getMaxEvaluationScoreForEmployee(
   employee: Pick<EmployeeForEvaluation, 'role_id' | 'branch_id' | 'department_id'>,
-  criteria: EvaluationCriterionRecord[]
+  criteria: EvaluationCriterionRecord[],
+  rules: CalculationRuleRecord[] = []
 ): number {
-  const applicableCount = criteria.filter(
-    (c) => isCriterionAvailableForEvaluation(c) && criterionAppliesToEmployee(c, employee)
-  ).length;
-  return applicableCount * 10;
+  return criteria
+    .filter((c) => isCriterionAvailableForEvaluation(c) && criterionAppliesToEmployee(c, employee))
+    .reduce((sum, c) => sum + getCriterionMaxPoints(c, rules) * (c.weight ?? 1), 0);
+}
+
+export function resolveEvaluationPercentage(
+  evaluation: {
+    score: number | null;
+    responses?: EvaluationResponseItem[] | null;
+  },
+  criteria: EvaluationCriterionRecord[],
+  rules: CalculationRuleRecord[],
+  employee?: Pick<EmployeeForEvaluation, 'role_id' | 'branch_id' | 'department_id'>
+): number | null {
+  if (evaluation.responses?.length) {
+    const fromResponses = computeEvaluationPercentageFromResponses(
+      evaluation.responses,
+      criteria,
+      rules
+    );
+    if (fromResponses != null) return fromResponses;
+  }
+
+  if (evaluation.score == null || Number.isNaN(evaluation.score)) return null;
+
+  if (employee) {
+    const maxPoints = getMaxEvaluationScoreForEmployee(employee, criteria, rules);
+    if (maxPoints > 0 && evaluation.score <= maxPoints + 0.01) {
+      return (evaluation.score / maxPoints) * 100;
+    }
+  }
+
+  return evaluation.score;
+}
+
+export function formatEvaluationScore(score: number | null | undefined, _maxScore?: number | null): string {
+  if (score == null || Number.isNaN(score)) return '—';
+  return `${score.toFixed(1)} %`;
 }
 
 export class CriterionInUseError extends Error {
@@ -201,9 +241,16 @@ export async function countEvaluationsUsingCriterion(criterionId: string): Promi
   return count;
 }
 
-export function formatEvaluationScore(score: number, maxScore: number): string {
-  if (!maxScore || maxScore <= 0) return score.toFixed(2);
-  return `${score.toFixed(2)} / ${maxScore}`;
+export async function getEvaluationPercentageForEmployeePeriod(
+  employeeId: string,
+  period: string,
+  criteria: EvaluationCriterionRecord[],
+  rules: CalculationRuleRecord[],
+  employee: Pick<EmployeeForEvaluation, 'role_id' | 'branch_id' | 'department_id'>
+): Promise<number | null> {
+  const evaluation = await findEvaluationForEmployeePeriod(employeeId, period);
+  if (!evaluation) return null;
+  return resolveEvaluationPercentage(evaluation, criteria, rules, employee);
 }
 
 export function filterEmployeesInEvaluatorScope(

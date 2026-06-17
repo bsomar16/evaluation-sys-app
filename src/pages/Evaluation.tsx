@@ -22,6 +22,8 @@ import { CriterionDescriptionExpand } from '@/components/evaluation/CriterionDes
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 import {
   calculateCriterionScore,
+  computeWeightedEvaluationBreakdown,
+  formatEvaluationPercentage,
   type CalculationRuleRecord,
   type EvaluationCriterionRecord,
 } from '@/lib/evaluation-calculator';
@@ -38,7 +40,7 @@ import {
   findEvaluationForEmployeePeriod,
   getLatestEvaluationScoreForEmployee,
   getLatestEvaluationStatusForEmployee,
-  getEvaluationScoreForEmployeePeriod,
+  getEvaluationPercentageForEmployeePeriod,
   getEvaluationStatusForEmployeePeriod,
   upsertEvaluation,
 } from '@/lib/evaluation-storage';
@@ -144,13 +146,11 @@ export default function Evaluation() {
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
   }, [criteria, selectedEmployee, formValues]);
 
-  const totalScore = applicableCriteria.reduce((sum, c) => {
-    const v = formValues[c.id];
-    if (v === undefined) return sum;
-    return sum + calculateCriterionScore(c.type, v, rules, c.calculation_rule_id);
-  }, 0);
-
-  const maxScore = applicableCriteria.length * 10;
+  const scoreBreakdown = useMemo(
+    () => computeWeightedEvaluationBreakdown(applicableCriteria, formValues, rules),
+    [applicableCriteria, formValues, rules]
+  );
+  const totalPercentage = scoreBreakdown.percentage;
   const departmentName = (id?: string | null) => departments.find((d) => d.id === id)?.name ?? null;
 
   const branchFilterOptions = useMemo(() => {
@@ -311,7 +311,13 @@ export default function Evaluation() {
           await withTimeout(
             Promise.all(
               emps.map(async (emp) => {
-                scoreMap[emp.id] = await getEvaluationScoreForEmployeePeriod(emp.id, currentPeriod);
+                scoreMap[emp.id] = await getEvaluationPercentageForEmployeePeriod(
+                  emp.id,
+                  currentPeriod,
+                  crit,
+                  calcRules,
+                  emp
+                );
                 statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
               })
             ),
@@ -497,7 +503,7 @@ export default function Evaluation() {
           employee_name: selectedEmployee.name,
           manager_id: session?.id ?? null,
           period: period.trim(),
-          score: requireCriteria ? totalScore : null,
+          score: requireCriteria ? totalPercentage : null,
           feedback: notes.trim() || null,
           status,
           responses,
@@ -523,7 +529,7 @@ export default function Evaluation() {
           status === 'approved' ? 'Évaluation acceptée' : 'Évaluation refusée',
       });
       if (status === 'approved') {
-        setScoresByEmployee((prev) => ({ ...prev, [selectedEmployee.id]: totalScore }));
+        setScoresByEmployee((prev) => ({ ...prev, [selectedEmployee.id]: totalPercentage }));
         setStatusByEmployee((prev) => ({ ...prev, [selectedEmployee.id]: 'approved' }));
       } else if (status === 'rejected') {
         setStatusByEmployee((prev) => ({ ...prev, [selectedEmployee.id]: 'rejected' }));
@@ -750,8 +756,8 @@ export default function Evaluation() {
                             </TableCell>
                             <TableCell className="text-right">
                               {last != null ? (
-                                <Badge variant={last >= 40 ? 'default' : 'secondary'}>
-                                  {last.toFixed(1)} pts
+                                <Badge variant={last >= 70 ? 'default' : 'secondary'}>
+                                  {formatEvaluationPercentage(last)}
                                 </Badge>
                               ) : (
                                 <span className="text-muted-foreground text-xs">—</span>
@@ -973,8 +979,7 @@ export default function Evaluation() {
           {showEvaluationValues && (
             <div>
               <p className="text-3xl font-bold text-primary">
-                {totalScore.toFixed(1)}{' '}
-                <span className="text-lg text-muted-foreground font-normal">/ {maxScore}</span>
+                {formatEvaluationPercentage(totalPercentage)}
               </p>
             </div>
           )}

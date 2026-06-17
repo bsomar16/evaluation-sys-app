@@ -15,12 +15,13 @@ import { getAllEvaluationPeriods } from '@/lib/evaluation-period-db';
 import { collectBranchScopeIds } from '@/lib/branch-tree';
 import {
   fetchEvaluationCriteria,
+  fetchCalculationRules,
 } from '@/lib/evaluation-config-storage';
 import {
-  getMaxEvaluationScoreForEmployee,
   formatEvaluationScore,
+  resolveEvaluationPercentage,
 } from '@/lib/evaluation-storage';
-import type { EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
+import type { CalculationRuleRecord, EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
 
 interface DashboardStats {
   totalUsers: number;
@@ -58,7 +59,6 @@ interface EmployeePerformance extends AgentWithScore {
   branch_name: string;
   department_id: string;
   department_name: string;
-  max_score: number;
 }
 
 export default function Dashboard() {
@@ -86,6 +86,7 @@ export default function Dashboard() {
   const [users, setUsers] = useState<any[]>([]);
   const [allEvaluations, setAllEvaluations] = useState<any[]>([]);
   const [evaluationCriteria, setEvaluationCriteria] = useState<EvaluationCriterionRecord[]>([]);
+  const [calculationRules, setCalculationRules] = useState<CalculationRuleRecord[]>([]);
   
   // Selected values
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
@@ -304,10 +305,11 @@ export default function Dashboard() {
         supabase.from('roles').select('*'),
         supabase.from('training_requests').select('*'),
         fetchEvaluationCriteria(),
+        fetchCalculationRules(),
       ]);
 
       // Extract successful results with defaults
-      const [usersResult, evaluationsResult, branchesResult, departmentsResult, rolesResult, trainingsResult, criteriaResult] = results;
+      const [usersResult, evaluationsResult, branchesResult, departmentsResult, rolesResult, trainingsResult, criteriaResult, rulesResult] = results;
       
       const { data: usersRaw } = usersResult.status === 'fulfilled' ? usersResult.value : { data: [] };
       const { data: evaluations } = evaluationsResult.status === 'fulfilled' ? evaluationsResult.value : { data: [] };
@@ -316,6 +318,7 @@ export default function Dashboard() {
       const { data: rolesData } = rolesResult.status === 'fulfilled' ? rolesResult.value : { data: [] };
       const { data: trainings } = trainingsResult.status === 'fulfilled' ? trainingsResult.value : { data: [] };
       const criteria = criteriaResult.status === 'fulfilled' ? criteriaResult.value : [];
+      const rules = rulesResult.status === 'fulfilled' ? rulesResult.value : [];
 
       const filteredUsers = usersRaw?.filter((u) => !u.archived_at) ?? [];
       setUsers(filteredUsers);
@@ -324,6 +327,7 @@ export default function Dashboard() {
       setDepartments(departmentsData || []);
       setRoles(rolesData || []);
       setEvaluationCriteria(criteria);
+      setCalculationRules(rules);
 
       // Calculate stats
       const activeCount = filteredUsers.filter(u => u.is_active).length;
@@ -397,6 +401,9 @@ export default function Dashboard() {
     loadDepartmentData();
   }, [selectedPeriod, selectedBranch, selectedDepartment, users, roles, allEvaluations]);
 
+  const resolvePercent = (evaluation: any, employee: any): number =>
+    resolveEvaluationPercentage(evaluation, evaluationCriteria, calculationRules, employee) ?? 0;
+
   // Employés évalués dans le périmètre sélectionné (filiale + filles, service, période),
   // triés par moyenne décroissante. Si aucun service n'est sélectionné => tous les services
   // de la filiale (et de ses filiales filles).
@@ -419,8 +426,9 @@ export default function Dashboard() {
           (e) => e.employee_email === employee.email && e.period === selectedPeriod && e.score !== null
         );
         const avgScore =
-          evals.length > 0 ? evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length : 0;
-        const maxScore = getMaxEvaluationScoreForEmployee(employee, evaluationCriteria);
+          evals.length > 0
+            ? evals.reduce((sum: number, e: any) => sum + resolvePercent(e, employee), 0) / evals.length
+            : 0;
 
         return {
           id: employee.id,
@@ -429,7 +437,6 @@ export default function Dashboard() {
           role_name: roles.find((r) => r.id === employee.role_id)?.name || '—',
           avg_score: avgScore,
           eval_count: evals.length,
-          max_score: maxScore,
           branch_id: employee.branch_id,
           branch_name: branches.find((b) => b.id === employee.branch_id)?.name || '—',
           department_id: employee.department_id,
@@ -438,7 +445,7 @@ export default function Dashboard() {
       })
       .filter((e) => e.eval_count > 0)
       .sort((a, b) => b.avg_score - a.avg_score);
-  }, [selectedPeriod, selectedBranch, selectedDepartment, users, allEvaluations, branches, departments, roles, evaluationCriteria]);
+  }, [selectedPeriod, selectedBranch, selectedDepartment, users, allEvaluations, branches, departments, roles, evaluationCriteria, calculationRules]);
 
   // Un seul meilleur et un seul moins bon employé du périmètre
   const topEmployee = scopedEmployees.length > 0 ? scopedEmployees[0] : null;
@@ -451,33 +458,13 @@ export default function Dashboard() {
       (e) => e.employee_email === departmentManager.email && e.period === selectedPeriod && e.score !== null
     );
     if (evals.length === 0) return null;
-    const max = getMaxEvaluationScoreForEmployee(departmentManager, evaluationCriteria);
     return {
-      avg: evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length,
+      avg: evals.reduce((sum: number, e: any) => sum + resolvePercent(e, departmentManager), 0) / evals.length,
       count: evals.length,
-      max,
     };
-  }, [departmentManager, selectedPeriod, allEvaluations, evaluationCriteria]);
+  }, [departmentManager, selectedPeriod, allEvaluations, evaluationCriteria, calculationRules]);
 
-  // Plafond de score pour l'échelle des graphiques (max des employés du périmètre)
-  const dashboardMaxScore = useMemo(() => {
-    if (evaluationCriteria.length === 0) return 10;
-    const branchScopeIds = getDashboardBranchScopeIds();
-    if (branchScopeIds.length === 0) return 10;
-
-    let max = 0;
-    for (const u of users) {
-      if (
-        !u.archived_at &&
-        u.email &&
-        branchScopeIds.includes(u.branch_id) &&
-        (!selectedDepartment || u.department_id === selectedDepartment)
-      ) {
-        max = Math.max(max, getMaxEvaluationScoreForEmployee(u, evaluationCriteria));
-      }
-    }
-    return max || 10;
-  }, [users, evaluationCriteria, selectedBranch, selectedDepartment, branches]);
+  const dashboardMaxScore = 100;
 
   // Libellé du périmètre courant (pour les titres)
   const scopeLabel = (() => {
@@ -547,7 +534,14 @@ export default function Dashboard() {
       );
       const average =
         evals.length > 0
-          ? parseFloat((evals.reduce((sum: number, e: any) => sum + e.score, 0) / evals.length).toFixed(2))
+          ? parseFloat(
+              (
+                evals.reduce((sum: number, e: any) => {
+                  const employee = users.find((u) => u.email === e.employee_email);
+                  return sum + (employee ? resolveEvaluationPercentage(e, evaluationCriteria, calculationRules, employee) ?? 0 : 0);
+                }, 0) / evals.length
+              ).toFixed(2)
+            )
           : null;
 
       return {
@@ -557,7 +551,7 @@ export default function Dashboard() {
         isSelected: period === selectedPeriod,
       };
     });
-  }, [selectedBranch, selectedDepartment, periods, users, branches, allEvaluations, selectedPeriod]);
+  }, [selectedBranch, selectedDepartment, periods, users, branches, allEvaluations, selectedPeriod, evaluationCriteria, calculationRules]);
 
   const hasPeriodCurveData = periodEvaluationCurve.some((p) => p.average !== null);
 
@@ -770,7 +764,7 @@ export default function Dashboard() {
               </div>
               <div className="text-right">
                 {departmentManagerScore ? (
-                  <p className="font-bold text-lg text-primary">{formatEvaluationScore(departmentManagerScore.avg, departmentManagerScore.max)}</p>
+                  <p className="font-bold text-lg text-primary">{formatEvaluationScore(departmentManagerScore.avg)}</p>
                 ) : (
                   <p className="text-xs text-muted-foreground">Aucune évaluation</p>
                 )}
@@ -807,7 +801,7 @@ export default function Dashboard() {
                     <p className="text-xs text-muted-foreground truncate">{topEmployee?.department_name} · {topEmployee?.branch_name}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-lg text-green-600">{formatEvaluationScore(topEmployee?.avg_score ?? 0, topEmployee?.max_score ?? 0)}</p>
+                    <p className="font-bold text-lg text-green-600">{formatEvaluationScore(topEmployee?.avg_score ?? 0)}</p>
                   </div>
                 </div>
               </button>
@@ -828,7 +822,7 @@ export default function Dashboard() {
                       <p className="text-xs text-muted-foreground truncate">{worstEmployee.department_name} · {worstEmployee.branch_name}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="font-bold text-lg text-red-600">{formatEvaluationScore(worstEmployee.avg_score, worstEmployee.max_score)}</p>
+                      <p className="font-bold text-lg text-red-600">{formatEvaluationScore(worstEmployee.avg_score)}</p>
                     </div>
                   </div>
                 </button>
@@ -868,7 +862,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-foreground">{formatEvaluationScore(emp.avg_score, emp.max_score)}</p>
+                    <p className="font-bold text-foreground">{formatEvaluationScore(emp.avg_score)}</p>
                   </div>
                 </button>
               ))}
@@ -962,7 +956,7 @@ export default function Dashboard() {
                   <YAxis domain={[0, dashboardMaxScore]} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                   <Tooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
-                    formatter={(value: number) => [formatEvaluationScore(value, dashboardMaxScore), 'Moyenne']}
+                    formatter={(value: number) => [formatEvaluationScore(value), 'Moyenne']}
                     labelFormatter={(label) => `Période : ${label}${label === selectedPeriod ? ' (sélectionnée)' : ''}`}
                   />
                   <Line
@@ -1030,22 +1024,25 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="border border-border rounded-lg p-4 text-center">
                 <p className="text-xs text-muted-foreground mb-1">Moyenne</p>
-                <p className="text-2xl font-bold text-primary">{formatEvaluationScore(selectedEmployee.avg_score, selectedEmployee.max_score)}</p>
+                <p className="text-2xl font-bold text-primary">{formatEvaluationScore(selectedEmployee.avg_score)}</p>
               </div>
               {(() => {
+                const employee = users.find((u) => u.email === selectedEmployee.email);
                 const evals = allEvaluations.filter(e => e.employee_email === selectedEmployee.email && e.period === selectedPeriod && e.score !== null);
-                const scores = evals.map(e => e.score);
-                const min = scores.length > 0 ? Math.min(...scores) : 0;
-                const max = scores.length > 0 ? Math.max(...scores) : 0;
+                const percentages = evals.map((e) =>
+                  employee ? resolvePercent(e, employee) : (e.score ?? 0)
+                );
+                const min = percentages.length > 0 ? Math.min(...percentages) : 0;
+                const max = percentages.length > 0 ? Math.max(...percentages) : 0;
                 return (
                   <>
                     <div className="border border-border rounded-lg p-4 text-center">
                       <p className="text-xs text-muted-foreground mb-1">Minimum</p>
-                      <p className="text-2xl font-bold text-red-600">{min.toFixed(2)}</p>
+                      <p className="text-2xl font-bold text-red-600">{formatEvaluationScore(min)}</p>
                     </div>
                     <div className="border border-border rounded-lg p-4 text-center">
                       <p className="text-xs text-muted-foreground mb-1">Maximum</p>
-                      <p className="text-2xl font-bold text-green-600">{max.toFixed(2)}</p>
+                      <p className="text-2xl font-bold text-green-600">{formatEvaluationScore(max)}</p>
                     </div>
                     <div className="border border-border rounded-lg p-4 text-center">
                       <p className="text-xs text-muted-foreground mb-1">Évaluations</p>
@@ -1070,12 +1067,15 @@ export default function Dashboard() {
                   </thead>
                   <tbody>
                     {(() => {
+                      const employee = users.find((u) => u.email === selectedEmployee.email);
                       const evals = allEvaluations.filter(e => e.employee_email === selectedEmployee.email && e.period === selectedPeriod && e.score !== null);
                       return evals.length > 0 ? (
                         evals.map((eval_, idx) => (
                           <tr key={idx} className="border-t border-border hover:bg-muted/30">
                             <td className="p-2">{eval_.created_at ? new Date(eval_.created_at).toLocaleDateString() : '—'}</td>
-                            <td className="p-2 text-center font-semibold">{formatEvaluationScore(eval_.score, selectedEmployee.max_score)}</td>
+                            <td className="p-2 text-center font-semibold">
+                              {formatEvaluationScore(employee ? resolvePercent(eval_, employee) : eval_.score)}
+                            </td>
                             <td className="p-2 text-muted-foreground">{eval_.feedback || '—'}</td>
                           </tr>
                         ))
@@ -1103,16 +1103,17 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             {(() => {
-              // Gather all evaluations for selected employee grouped by period
+              const employee = users.find((u) => u.email === selectedEmployee.email);
               const evalsByPeriod = new Map<string, number[]>();
-              
+
               allEvaluations
                 .filter(e => e.employee_email === selectedEmployee.email && e.score !== null)
                 .forEach(e => {
+                  const pct = employee ? resolvePercent(e, employee) : (e.score ?? 0);
                   if (!evalsByPeriod.has(e.period)) {
                     evalsByPeriod.set(e.period, []);
                   }
-                  evalsByPeriod.get(e.period)!.push(e.score);
+                  evalsByPeriod.get(e.period)!.push(pct);
                 });
 
               // Convert to chart data
@@ -1137,7 +1138,7 @@ export default function Dashboard() {
                       height={80}
                       tick={{ fontSize: 12 }}
                     />
-                    <YAxis domain={[0, selectedEmployee.max_score || dashboardMaxScore]} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                     <Tooltip 
                       formatter={(value: number) => value.toFixed(2)}
                       labelFormatter={(label) => `Période: ${label}`}

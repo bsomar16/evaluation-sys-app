@@ -252,3 +252,98 @@ export function calculateCriterionScore(
       return 0;
   }
 }
+
+export function getCriterionMaxPoints(
+  criterion: Pick<EvaluationCriterionRecord, 'type' | 'calculation_rule_id'>,
+  rules: CalculationRuleRecord[]
+): number {
+  const rule =
+    (criterion.calculation_rule_id
+      ? rules.find((r) => r.id === criterion.calculation_rule_id)
+      : undefined) ?? rules.find((r) => r.type === criterion.type);
+  return rule?.max_points ?? DEFAULT_CALCULATION_RULES.find((r) => r.type === criterion.type)?.max_points ?? 10;
+}
+
+export interface WeightedEvaluationBreakdown {
+  earned: number;
+  max: number;
+  percentage: number;
+}
+
+/** Score pondéré (points × coefficient) et pourcentage final. */
+export function computeWeightedEvaluationBreakdown(
+  applicableCriteria: EvaluationCriterionRecord[],
+  formValues: Record<string, number | boolean | undefined>,
+  rules: CalculationRuleRecord[]
+): WeightedEvaluationBreakdown {
+  let earned = 0;
+  let max = 0;
+
+  for (const criterion of applicableCriteria) {
+    const weight = criterion.weight ?? 1;
+    const criterionMax = getCriterionMaxPoints(criterion, rules);
+    const weightedMax = criterionMax * weight;
+    max += weightedMax;
+
+    const value = formValues[criterion.id];
+    if (value === undefined) continue;
+
+    const points = calculateCriterionScore(
+      criterion.type,
+      value,
+      rules,
+      criterion.calculation_rule_id
+    );
+    earned += points * weight;
+  }
+
+  const percentage = max > 0 ? (earned / max) * 100 : 0;
+  return { earned, max, percentage };
+}
+
+export function computeEvaluationPercentageFromResponses(
+  responses: Array<{
+    criterion_id: string;
+    type?: CriterionType;
+    calculation_rule_id?: string | null;
+    value?: number | boolean;
+    points?: number;
+  }>,
+  criteria: EvaluationCriterionRecord[],
+  rules: CalculationRuleRecord[]
+): number | null {
+  if (!responses.length) return null;
+
+  const criteriaById = new Map(criteria.map((c) => [c.id, c]));
+  let earned = 0;
+  let max = 0;
+
+  for (const response of responses) {
+    const criterion = criteriaById.get(response.criterion_id);
+    const weight = criterion?.weight ?? 1;
+    const criterionMax = criterion
+      ? getCriterionMaxPoints(criterion, rules)
+      : 10;
+    const type = criterion?.type ?? response.type;
+    const points =
+      response.points ??
+      (type != null && response.value !== undefined
+        ? calculateCriterionScore(
+            type,
+            response.value,
+            rules,
+            criterion?.calculation_rule_id ?? response.calculation_rule_id
+          )
+        : 0);
+
+    earned += points * weight;
+    max += criterionMax * weight;
+  }
+
+  return max > 0 ? (earned / max) * 100 : null;
+}
+
+export function formatEvaluationPercentage(percentage: number | null | undefined): string {
+  if (percentage == null || Number.isNaN(percentage)) return '—';
+  return `${percentage.toFixed(1)} %`;
+}

@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { formatEvaluationScore } from '@/lib/evaluation-storage';
 import {
   Search,
   Trash2,
@@ -340,7 +340,7 @@ export function EvaluationsPage() {
                       <td className="py-3 px-4 font-medium">{e.employee_name ?? '—'}</td>
                       <td className="py-3 px-4">{e.period || '—'}</td>
                       <td className="py-3 px-4">
-                        {e.score != null ? `${e.score.toFixed(1)} pts` : '—'}
+                        {e.score != null ? formatEvaluationScore(e.score) : '—'}
                       </td>
                       <td className="py-3 px-4">
                         <Badge variant={statusBadgeVariant(e.status)}>
@@ -399,7 +399,7 @@ export function EvaluationsPage() {
                 <span>{viewTarget.period}</span>
                 <span className="text-muted-foreground">Score total</span>
                 <span className="font-semibold">
-                  {viewTarget.score != null ? `${viewTarget.score.toFixed(1)} pts` : '—'}
+                  {viewTarget.score != null ? formatEvaluationScore(viewTarget.score) : '—'}
                 </span>
                 <span className="text-muted-foreground">Statut</span>
                 <Badge variant={statusBadgeVariant(viewTarget.status)}>
