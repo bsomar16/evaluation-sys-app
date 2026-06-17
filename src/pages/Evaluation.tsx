@@ -52,7 +52,7 @@ import {
 } from '@/lib/evaluation-page-cache';
 import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evaluation-types';
 import { getSessionUser } from '@/lib/session-user';
-import { isCriterionAvailableForEvaluation } from '@/lib/criterion-archive';
+import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
 import { hideLoadingOverlay, runWithLoadingOverlay } from '@/lib/loading-overlay';
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
@@ -133,18 +133,45 @@ export default function Evaluation() {
   const canOpenEvaluationForm =
     isPeriodOpen && canPerformEvaluationActions;
 
+  const openPeriodName = useMemo(() => {
+    if (!activePeriod) return '';
+    const code = dateToPeriodCode(new Date(activePeriod.start_date));
+    return availablePeriods.find((p) => p.code === code)?.name ?? activePeriod.name;
+  }, [activePeriod, availablePeriods]);
+
+  const orderedEvaluationPeriods = useMemo(
+    () =>
+      [...availablePeriods].sort(
+        (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+      ),
+    [availablePeriods]
+  );
+
+  const evaluationPeriodStartDate = useMemo(() => {
+    const periodName = openPeriodName || period;
+    return availablePeriods.find((p) => p.name === periodName)?.start_date;
+  }, [availablePeriods, openPeriodName, period]);
+
   const applicableCriteria = useMemo(() => {
     if (!selectedEmployee) return [];
     const savedCriterionIds = new Set(Object.keys(formValues));
     return criteria
       .filter((c) => {
         if (!criterionAppliesToEmployee(c, selectedEmployee)) return false;
-        if (savedCriterionIds.has(c.id)) return true;
-        return isCriterionAvailableForEvaluation(c);
+        return criterionIsApplicableForEvaluation(c, {
+          savedCriterionIds,
+          periodStartDate: evaluationPeriodStartDate,
+          orderedPeriods: orderedEvaluationPeriods,
+        });
       })
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-  }, [criteria, selectedEmployee, formValues]);
-
+  }, [
+    criteria,
+    selectedEmployee,
+    formValues,
+    evaluationPeriodStartDate,
+    orderedEvaluationPeriods,
+  ]);
   const scoreBreakdown = useMemo(
     () => computeWeightedEvaluationBreakdown(applicableCriteria, formValues, rules),
     [applicableCriteria, formValues, rules]
@@ -370,12 +397,6 @@ export default function Evaluation() {
     };
   }, [canReadEvaluations]);
 
-  const openPeriodName = useMemo(() => {
-    if (!activePeriod) return '';
-    const code = dateToPeriodCode(new Date(activePeriod.start_date));
-    return availablePeriods.find((p) => p.code === code)?.name ?? activePeriod.name;
-  }, [activePeriod, availablePeriods]);
-
   const startEvaluation = async (empId: string) => {
     if (!isPeriodOpen) {
       toast({
@@ -407,8 +428,11 @@ export default function Evaluation() {
     const applicable = criteria
       .filter((c) => {
         if (!criterionAppliesToEmployee(c, emp)) return false;
-        if (savedCriterionIds.has(c.id)) return true;
-        return isCriterionAvailableForEvaluation(c);
+        return criterionIsApplicableForEvaluation(c, {
+          savedCriterionIds,
+          periodStartDate: evaluationPeriodStartDate,
+          orderedPeriods: orderedEvaluationPeriods,
+        });
       })
       .sort((a, b) => a.sort_order - b.sort_order);
     const initial: Record<string, number | boolean> = {};

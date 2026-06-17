@@ -29,6 +29,9 @@ type CriterionRow = EvaluationCriterionRecord & {
   role_all?: boolean | null;
   branch_all?: boolean | null;
   department_all?: boolean | null;
+  frequency?: number | null;
+  frequency_anchor_date?: string | null;
+  created_at?: string | null;
 
 };
 
@@ -66,10 +69,14 @@ function normalizeCriterion(row: CriterionRow): EvaluationCriterionRecord {
     branch_ids,
     department_ids,
     weight: row.weight != null ? Number(row.weight) : 1,
+    frequency:
+      row.frequency != null ? Math.max(1, Math.floor(Number(row.frequency))) : 1,
+    frequency_anchor_date: row.frequency_anchor_date ?? null,
     description: row.description?.trim() || null,
     sort_order: row.sort_order ?? 0,
     is_active: row.is_active !== false,
     archived_at: row.archived_at ?? null,
+    created_at: row.created_at ?? null,
   };
 }
 
@@ -166,7 +173,7 @@ function saveRulesToLocal(rules: CalculationRuleRecord[]) {
 
 
 const SELECT_ARRAYS =
-  'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, description, sort_order, is_active, archived_at';
+  'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, frequency, frequency_anchor_date, description, sort_order, is_active, archived_at, created_at';
 
 const SELECT_WITHOUT_DESCRIPTION =
   'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, sort_order, is_active';
@@ -206,6 +213,8 @@ function buildPayload(criterion: Omit<EvaluationCriterionRecord, 'id'> & { id?: 
     department_ids: departmentIds,
 
     weight: criterion.weight ?? 1,
+    frequency: Math.max(1, Math.floor(Number(criterion.frequency) || 1)),
+    frequency_anchor_date: criterion.frequency_anchor_date || null,
     description: criterion.description?.trim() || null,
     sort_order: criterion.sort_order,
 
@@ -362,6 +371,10 @@ async function persistCriterion(
 
     weight: fullPayload.weight,
 
+    frequency: fullPayload.frequency,
+
+    frequency_anchor_date: fullPayload.frequency_anchor_date,
+
     description: fullPayload.description,
 
     sort_order: fullPayload.sort_order,
@@ -388,6 +401,10 @@ async function persistCriterion(
 
     weight: fullPayload.weight,
 
+    frequency: fullPayload.frequency,
+
+    frequency_anchor_date: fullPayload.frequency_anchor_date,
+
     description: fullPayload.description,
 
     sort_order: fullPayload.sort_order,
@@ -410,6 +427,10 @@ async function persistCriterion(
 
     weight: fullPayload.weight,
 
+    frequency: fullPayload.frequency,
+
+    frequency_anchor_date: fullPayload.frequency_anchor_date,
+
     description: fullPayload.description,
 
     sort_order: fullPayload.sort_order,
@@ -425,6 +446,10 @@ async function persistCriterion(
     type: fullPayload.type,
 
     weight: fullPayload.weight,
+
+    frequency: fullPayload.frequency,
+
+    frequency_anchor_date: fullPayload.frequency_anchor_date,
 
     description: fullPayload.description,
 
@@ -530,6 +555,10 @@ async function persistCriterion(
     department_ids: fullPayload.department_ids,
 
     weight: fullPayload.weight,
+
+    frequency: fullPayload.frequency,
+
+    frequency_anchor_date: fullPayload.frequency_anchor_date,
 
     description: fullPayload.description,
 

@@ -80,6 +80,9 @@ const SQL_STATEMENTS = [
   )`,
   `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS description text`,
   `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS archived_at timestamp`,
+  `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS weight numeric(5,2) DEFAULT 1`,
+  `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS frequency integer DEFAULT 1`,
+  `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS frequency_anchor_date date`,
 
   // TABLE: CALCULATION_RULES
   `CREATE TABLE IF NOT EXISTS calculation_rules (

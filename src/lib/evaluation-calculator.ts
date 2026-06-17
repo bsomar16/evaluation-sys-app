@@ -19,14 +19,19 @@ export interface EvaluationCriterionRecord {
   role_ids: string[];
   branch_ids: string[];
   department_ids: string[];
-  /** Poids / coefficient du critère dans le score total */
+  /** Poids / coefficient du critère dans le score total (colonne BDD : weight) */
   weight: number;
+  /** Répétition : 1 = chaque période, 2 = une période sur deux, etc. */
+  frequency: number;
+  /** Mois/période de départ (sinon created_at du critère) */
+  frequency_anchor_date?: string | null;
   /** Description détaillée du critère */
   description?: string | null;
   sort_order: number;
   is_active: boolean;
   /** Archivage soft-delete */
   archived_at?: string | null;
+  created_at?: string | null;
 }
 
 export interface CalculationRuleConfig {
@@ -106,11 +111,11 @@ export function getChoiceOptionsFromConfig(cfg: CalculationRuleConfig): Array<{ 
 }
 
 export const DEFAULT_EVALUATION_CRITERIA: EvaluationCriterionRecord[] = [
-  { id: 'c1', name: 'Assiduité', type: 'binary', choice_option_1_label: null, choice_option_2_label: null, choice_option_labels: [], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, sort_order: 1, is_active: true },
-  { id: 'c2', name: 'Atteinte des objectifs', type: 'threshold', choice_option_1_label: null, choice_option_2_label: null, choice_option_labels: [], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, sort_order: 2, is_active: true },
-  { id: 'c3', name: 'Qualité du travail', type: 'direct', choice_option_1_label: null, choice_option_2_label: null, choice_option_labels: [], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, sort_order: 3, is_active: true },
-  { id: 'c4', name: 'Certification', type: 'choice', choice_option_1_label: 'Choix 1', choice_option_2_label: 'Choix 2', choice_option_labels: ['Choix 1', 'Choix 2'], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, sort_order: 4, is_active: true },
-  { id: 'c5', name: 'Travail en équipe', type: 'scale', choice_option_1_label: null, choice_option_2_label: null, choice_option_labels: [], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, sort_order: 5, is_active: true },
+  { id: 'c1', name: 'Assiduité', type: 'binary', choice_option_1_label: null, choice_option_2_label: null, choice_option_labels: [], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, frequency: 1, sort_order: 1, is_active: true },
+  { id: 'c2', name: 'Atteinte des objectifs', type: 'threshold', choice_option_1_label: null, choice_option_2_label: null, choice_option_labels: [], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, frequency: 1, sort_order: 2, is_active: true },
+  { id: 'c3', name: 'Qualité du travail', type: 'direct', choice_option_1_label: null, choice_option_2_label: null, choice_option_labels: [], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, frequency: 1, sort_order: 3, is_active: true },
+  { id: 'c4', name: 'Certification', type: 'choice', choice_option_1_label: 'Choix 1', choice_option_2_label: 'Choix 2', choice_option_labels: ['Choix 1', 'Choix 2'], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, frequency: 1, sort_order: 4, is_active: true },
+  { id: 'c5', name: 'Travail en équipe', type: 'scale', choice_option_1_label: null, choice_option_2_label: null, choice_option_labels: [], role_all: true, branch_all: true, department_all: true, role_ids: [], branch_ids: [], department_ids: [], weight: 1, frequency: 1, sort_order: 5, is_active: true },
 ];
 
 /** Normalise un champ périmètre (tableau ou ancienne colonne uuid unique) */

@@ -83,6 +83,8 @@ export const EXPECTED_DB_SCHEMA: ExpectedDbSchema = {
     { name: 'branch_ids', type: 'text[]', default: "'{}'", nullable: true },
     { name: 'department_ids', type: 'text[]', default: "'{}'", nullable: true },
     { name: 'weight', type: 'numeric(5,2)', default: '1', nullable: true },
+    { name: 'frequency', type: 'integer', default: '1', nullable: true },
+    { name: 'frequency_anchor_date', type: 'date', nullable: true },
     { name: 'description', type: 'text', nullable: true },
     { name: 'sort_order', type: 'integer', default: '0', nullable: true },
     { name: 'is_active', type: 'boolean', default: 'true', nullable: true },

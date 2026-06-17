@@ -47,6 +47,7 @@ import {
   restoreEvaluationCriterion,
   upsertEvaluationCriterion,
 } from '@/lib/evaluation-config-storage';
+import { formatCriterionFrequencyLabel } from '@/lib/criterion-frequency';
 import { partitionCriteriaByArchive } from '@/lib/criterion-archive';
 import { countEvaluationsUsingCriterion } from '@/lib/evaluation-storage';
 import { formatArchivedAt } from '@/lib/user-archive';
@@ -54,6 +55,8 @@ import { formatArchivedAt } from '@/lib/user-archive';
 type CriterionFormState = {
   name: string;
   coefficient: string;
+  frequency: string;
+  frequency_anchor_date: string;
   description: string;
   calculation_rule_id: string;
   type: CriterionType;
@@ -75,6 +78,8 @@ function emptyForm(rules: CalculationRuleRecord[]): CriterionFormState {
   return {
     name: '',
     coefficient: '1',
+    frequency: '1',
+    frequency_anchor_date: '',
     description: '',
     calculation_rule_id: first?.id ?? '',
     type: first?.type ?? 'binary',
@@ -343,6 +348,8 @@ export function EvaluationCriteriaPage() {
     setFormData({
       name: c.name,
       coefficient: formatCoefficient(c.weight ?? 1),
+      frequency: String(Math.max(1, c.frequency ?? 1)),
+      frequency_anchor_date: c.frequency_anchor_date?.slice(0, 10) ?? '',
       description: c.description ?? '',
       calculation_rule_id: linked,
       type: c.type,
@@ -379,6 +386,11 @@ export function EvaluationCriteriaPage() {
     const coefficientValue = Number.parseFloat(formData.coefficient.replace(',', '.'));
     if (!Number.isFinite(coefficientValue) || coefficientValue <= 0) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez un coefficient valide (supérieur à 0)' });
+      return;
+    }
+    const frequencyValue = Math.floor(Number.parseInt(formData.frequency, 10));
+    if (!Number.isFinite(frequencyValue) || frequencyValue < 1) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez une fréquence valide (entier ≥ 1)' });
       return;
     }
     const selectedRule = calculationRules.find((r) => r.id === formData.calculation_rule_id);
@@ -435,6 +447,8 @@ export function EvaluationCriteriaPage() {
         branch_ids: formData.branch_all ? [] : formData.branch_ids,
         department_ids: formData.department_all ? [] : formData.department_ids,
         weight: coefficientValue,
+        frequency: frequencyValue,
+        frequency_anchor_date: formData.frequency_anchor_date.trim() || null,
         description: formData.description.trim() || null,
         sort_order: editing?.sort_order ?? criteria.length + 1,
         is_active: editing?.is_active ?? true,
@@ -616,8 +630,42 @@ export function EvaluationCriteriaPage() {
                       className="border-2 border-blue-300 bg-blue-50 max-w-[160px]"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Poids du critère dans le calcul du score global.
+                      Poids du critère dans le calcul du score global (colonne BDD : weight).
                     </p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="criterion-frequency">Fréquence</Label>
+                      <Input
+                        id="criterion-frequency"
+                        type="number"
+                        min={1}
+                        step={1}
+                        placeholder="1"
+                        value={formData.frequency}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, frequency: e.target.value }))}
+                        className="border-2 border-blue-300 bg-blue-50 max-w-[160px]"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        1 = chaque période · 2 = une période sur deux (ex. janv. → mars).
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="criterion-frequency-anchor">Période de départ</Label>
+                      <Input
+                        id="criterion-frequency-anchor"
+                        type="date"
+                        value={formData.frequency_anchor_date}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, frequency_anchor_date: e.target.value }))
+                        }
+                        className="border-2 border-blue-300 bg-blue-50"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Optionnel — sinon date de création du critère.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -768,6 +816,7 @@ export function EvaluationCriteriaPage() {
                   <tr className="border-b">
                     <th className="text-left py-3 px-4">Nom du critère</th>
                     <th className="text-left py-3 px-4 w-28">Coefficient</th>
+                    <th className="text-left py-3 px-4 w-36">Fréquence</th>
                     <th className="text-left py-3 px-4">Système de calcul</th>
                     <th className="text-left py-3 px-4">Rôles</th>
                     <th className="text-left py-3 px-4">Filiales</th>
@@ -789,6 +838,9 @@ export function EvaluationCriteriaPage() {
                         <Badge variant="outline" className="font-mono tabular-nums">
                           {formatCoefficient(c.weight ?? 1)}
                         </Badge>
+                      </td>
+                      <td className="py-3 px-4 align-top text-muted-foreground">
+                        {formatCriterionFrequencyLabel(c.frequency)}
                       </td>
                       <td className="py-3 px-4 align-top">
                         <Badge variant="secondary">
