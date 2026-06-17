@@ -37,7 +37,8 @@ import { hasEvaluationModuleAccess, showEvaluationManageButton } from '@/lib/eva
 import {
   criterionAppliesToEmployee,
   fetchEmployeesForEvaluation,
-  findEvaluationForEmployeePeriod,
+  fetchEvaluations,
+  findEvaluationForOpenPeriod,
   getLatestEvaluationScoreForEmployee,
   getLatestEvaluationStatusForEmployee,
   getEvaluationPercentageForEmployeePeriod,
@@ -407,9 +408,14 @@ export default function Evaluation() {
     }
     const emp = employees.find((e) => e.id === empId);
     if (!emp) return;
-    const periodCode = availablePeriods.find((p) => p.name === openPeriodName)?.code || openPeriodName;
-    const periodLabel = periodCode; // Use the selected period code
-    const existing = await findEvaluationForEmployeePeriod(empId, periodLabel);
+    const evaluations = await fetchEvaluations();
+    const existing = activePeriod
+      ? findEvaluationForOpenPeriod(empId, activePeriod, evaluations)
+      : evaluations.find(
+          (row) =>
+            row.employee_id === empId &&
+            (row.period ?? '').trim() === (openPeriodName ?? '').trim()
+        ) ?? null;
     const savedCriterionIds = new Set((existing?.responses ?? []).map((r) => r.criterion_id));
     const applicable = criteria
       .filter((c) => {
@@ -429,7 +435,7 @@ export default function Evaluation() {
     setNotes(existing?.feedback ?? '');
     setPeriod(openPeriodName);
     setCurrentEvaluationId(existing?.id ?? null);
-    setCurrentStatus(existing?.status ?? null);
+    setCurrentStatus(existing?.status ?? statusByEmployee[empId] ?? null);
     setActivityLog(existing?.activity_log ?? []);
     setSelectedEmployeeId(empId);
   };
