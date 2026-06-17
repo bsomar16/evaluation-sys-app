@@ -18,7 +18,11 @@ export function CriterionDescriptionExpand({
   children,
 }: CriterionDescriptionExpandProps) {
   const text = description?.trim();
-  if (!text) return children ? <>{children}</> : null;
+  const alwaysShow = variant === 'icon';
+
+  if (!text && !alwaysShow) {
+    return children ? <>{children}</> : null;
+  }
 
   return (
     <Collapsible className={cn('group w-full', className)}>
@@ -42,7 +46,11 @@ export function CriterionDescriptionExpand({
           variant === 'icon' ? 'mt-2 pl-0.5' : 'mt-1.5 max-w-md'
         )}
       >
-        {text}
+        {text ? (
+          text
+        ) : (
+          <span className="italic text-muted-foreground/80">Aucune description renseignée pour ce critère.</span>
+        )}
       </CollapsibleContent>
     </Collapsible>
   );

@@ -166,6 +166,9 @@ function saveRulesToLocal(rules: CalculationRuleRecord[]) {
 const SELECT_ARRAYS =
   'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, description, sort_order, is_active';
 
+const SELECT_WITHOUT_DESCRIPTION =
+  'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, sort_order, is_active';
+
 const SELECT_LEGACY_SINGLES =
   'id, name, type, role_id, branch_id, department_id, weight, sort_order, is_active';
 
@@ -220,6 +223,28 @@ function buildPayload(criterion: Omit<EvaluationCriterionRecord, 'id'> & { id?: 
 
 
 
+function syncCriterionToLocal(criterion: EvaluationCriterionRecord): void {
+  const local = loadCriteriaFromLocal();
+  const next = local.some((c) => c.id === criterion.id)
+    ? local.map((c) => (c.id === criterion.id ? criterion : c))
+    : [...local, criterion];
+  saveCriteriaToLocal(next);
+}
+
+function mergeCriterionDescriptionsFromLocal(
+  records: EvaluationCriterionRecord[]
+): EvaluationCriterionRecord[] {
+  const localById = new Map(loadCriteriaFromLocal().map((c) => [c.id, c]));
+  return records.map((c) => {
+    if (c.description?.trim()) return c;
+    const local = localById.get(c.id);
+    if (local?.description?.trim()) {
+      return { ...c, description: local.description };
+    }
+    return c;
+  });
+}
+
 export async function fetchEvaluationCriteria(): Promise<EvaluationCriterionRecord[]> {
 
   let { data, error } = await supabase
@@ -229,6 +254,24 @@ export async function fetchEvaluationCriteria(): Promise<EvaluationCriterionReco
     .select(SELECT_ARRAYS)
 
     .order('sort_order', { ascending: true });
+
+
+
+  if (error && isMissingColumnError(error)) {
+
+    const withoutDescription = await supabase
+
+      .from('evaluation_criteria')
+
+      .select(SELECT_WITHOUT_DESCRIPTION)
+
+      .order('sort_order', { ascending: true });
+
+    data = withoutDescription.data as typeof data;
+
+    error = withoutDescription.error;
+
+  }
 
 
 
@@ -278,7 +321,7 @@ export async function fetchEvaluationCriteria(): Promise<EvaluationCriterionReco
 
   if (!data?.length) return loadCriteriaFromLocal();
 
-  return (data as CriterionRow[]).map(normalizeCriterion);
+  return mergeCriterionDescriptionsFromLocal((data as CriterionRow[]).map(normalizeCriterion));
 
 }
 
@@ -412,10 +455,18 @@ async function persistCriterion(
 
 
 
+  const arrayPayloadWithoutDescription = { ...arrayPayload } as Record<string, unknown>;
+  delete arrayPayloadWithoutDescription.description;
+
+  const compatibilityPayloadWithoutDescription = { ...compatibilityPayload } as Record<string, unknown>;
+  delete compatibilityPayloadWithoutDescription.description;
+
   const attempts: { payload: Record<string, unknown>; select: string }[] = [
 
     { payload: arrayPayload, select: SELECT_ARRAYS },
+    { payload: arrayPayloadWithoutDescription, select: SELECT_WITHOUT_DESCRIPTION },
     { payload: compatibilityPayload, select: SELECT_ARRAYS },
+    { payload: compatibilityPayloadWithoutDescription, select: SELECT_WITHOUT_DESCRIPTION },
 
     { payload: legacyPayload, select: SELECT_LEGACY_SINGLES },
 
@@ -431,7 +482,15 @@ async function persistCriterion(
 
     const { data, error } = await tryWrite(payload, select);
 
-    if (!error && data) return normalizeCriterion(data as CriterionRow);
+    if (!error && data) {
+      const normalized = normalizeCriterion(data as CriterionRow);
+      const merged: EvaluationCriterionRecord = {
+        ...normalized,
+        description: normalized.description ?? fullPayload.description ?? null,
+      };
+      syncCriterionToLocal(merged);
+      return merged;
+    }
 
     // If we hit a permission/auth error, break and fall back to local storage.
     if (error && isPermissionError(error)) break;
