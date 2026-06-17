@@ -28,18 +28,12 @@ import {
   type EvaluationCriterionRecord,
 } from '@/lib/evaluation-calculator';
 import {
-  fetchCalculationRules,
-  fetchEvaluationCriteria,
-} from '@/lib/evaluation-config-storage';
-import {
   appendAuditEntry, createAuditEntry, type EvaluationAuditEntry } from '@/lib/evaluation-audit';
 import { hasEvaluationModuleAccess, showEvaluationManageButton } from '@/lib/evaluation-access';
 import {
   criterionAppliesToEmployee,
-  fetchEmployeesForEvaluation,
   fetchEvaluations,
   findEvaluationForOpenPeriod,
-  resolveEvaluationPercentage,
   upsertEvaluation,
 } from '@/lib/evaluation-storage';
 import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
@@ -48,12 +42,18 @@ import {
   dateToPeriodCode,
 } from '@/lib/evaluation-period-label';
 import { useCurrentOpenPeriod } from '@/hooks/useEvaluationPeriod';
-import { getAllEvaluationPeriods, getDashboardPeriods } from '@/lib/evaluation-period-db';
+import {
+  applyPeriodToSnapshot,
+  fetchEvaluationPageData,
+  isEvaluationPageSnapshotFresh,
+  getEvaluationPageSnapshot,
+  refreshEvaluationPageEvaluations,
+  type EvaluationPeriodOption,
+} from '@/lib/evaluation-page-cache';
 import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evaluation-types';
 import { getSessionUser } from '@/lib/session-user';
 import { isCriterionAvailableForEvaluation } from '@/lib/criterion-archive';
-import { supabase } from '@/integrations/supabase/client';
-import { runWithLoadingOverlay } from '@/lib/loading-overlay';
+import { hideLoadingOverlay, runWithLoadingOverlay } from '@/lib/loading-overlay';
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
   return Promise.race([
@@ -77,6 +77,7 @@ export default function Evaluation() {
   const canPerformEvaluationActions = canSubmitEvaluations || canReviewEvaluations;
   const canReadEvaluationsManagement = canRead('evaluations_management');
   const [loading, setLoading] = useState(true);
+  const [listRefreshing, setListRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [employees, setEmployees] = useState<EmployeeForEvaluation[]>([]);
   const [criteria, setCriteria] = useState<EvaluationCriterionRecord[]>([]);
@@ -98,10 +99,8 @@ export default function Evaluation() {
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
   const [statusFilter, setStatusFilter] = useState<'all' | 'en-attente' | 'soumis' | 'complet'>('all');
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
-  const [availablePeriods, setAvailablePeriods] = useState<
-    { name: string; code: string; id: string; start_date: string }[]
-  >([]);
-  const hasInitializedPeriod = useRef(false);
+  const [availablePeriods, setAvailablePeriods] = useState<EvaluationPeriodOption[]>([]);
+  const loadGenerationRef = useRef(0);
 
   // Map grouped categories to database statuses
   const mapStatusGroupToDb = (group: string): EvaluationStatus[] => {
@@ -270,99 +269,106 @@ export default function Evaluation() {
     pagination.setCurrentPage(1);
   }, [filteredEmployees, pagination.itemsPerPage, groupBy]);
 
+  const applyPageData = (data: {
+    employees: EmployeeForEvaluation[];
+    criteria: EvaluationCriterionRecord[];
+    rules: CalculationRuleRecord[];
+    roles: { id: string; name: string }[];
+    departments: { id: string; name: string }[];
+    availablePeriods: EvaluationPeriodOption[];
+    period: string;
+    scoresByEmployee: Record<string, number | null>;
+    statusByEmployee: Record<string, EvaluationStatus | null>;
+  }) => {
+    setEmployees(data.employees);
+    setCriteria(data.criteria);
+    setRules(data.rules);
+    setRoles(data.roles);
+    setDepartments(data.departments);
+    setAvailablePeriods(data.availablePeriods);
+    setPeriod(data.period);
+    setScoresByEmployee(data.scoresByEmployee);
+    setStatusByEmployee(data.statusByEmployee);
+  };
+
+  const handlePeriodChange = (nextPeriod: string) => {
+    if (!nextPeriod || nextPeriod === period) return;
+
+    setPeriod(nextPeriod);
+    const maps = applyPeriodToSnapshot(nextPeriod);
+    if (maps) {
+      setScoresByEmployee(maps.scoresByEmployee);
+      setStatusByEmployee(maps.statusByEmployee);
+      return;
+    }
+
+    setListRefreshing(true);
+    void refreshEvaluationPageEvaluations(nextPeriod)
+      .then((maps) => {
+        if (maps) {
+          setScoresByEmployee(maps.scoresByEmployee);
+          setStatusByEmployee(maps.statusByEmployee);
+        }
+      })
+      .finally(() => setListRefreshing(false));
+  };
+
   useEffect(() => {
     if (!canReadEvaluations) {
       setLoading(false);
+      hideLoadingOverlay();
       return;
     }
-    const init = async () => {
+
+    const generation = ++loadGenerationRef.current;
+    let cancelled = false;
+
+    const finishInitialLoad = () => {
+      if (cancelled || generation !== loadGenerationRef.current) return;
+      setLoading(false);
+      hideLoadingOverlay();
+    };
+
+    const run = async () => {
       try {
-        await runWithLoadingOverlay(async () => {
-          const [emps, crit, calcRules, rolesRes, deptsRes] = await withTimeout(
-            Promise.all([
-              fetchEmployeesForEvaluation(),
-              fetchEvaluationCriteria(),
-              fetchCalculationRules(),
-              supabase.from('roles').select('id, name'),
-              supabase.from('departments').select('id, name'),
-            ]),
-            10000,
-            'Délai dépassé pendant le chargement des données.'
-          );
+        if (isEvaluationPageSnapshotFresh()) {
+          const cached = getEvaluationPageSnapshot();
+          if (cached) {
+            applyPageData(cached);
+            finishInitialLoad();
+            void fetchEvaluationPageData(cached.period).then((fresh) => {
+              if (!cancelled && generation === loadGenerationRef.current) {
+                applyPageData(fresh);
+              }
+            });
+            return;
+          }
+        }
 
-          setEmployees(emps);
-          setCriteria(crit);
-          setRules(calcRules);
-          setRoles(rolesRes.data ?? []);
-          setDepartments(deptsRes.data ?? []);
-
-          const dbPeriods = await getAllEvaluationPeriods();
-          const eligible = getDashboardPeriods(dbPeriods);
-          setAvailablePeriods(
-            eligible.map((p) => ({
-              name: p.name,
-              code: dateToPeriodCode(new Date(p.start_date)),
-              id: p.id,
-              start_date: p.start_date,
-            }))
-          );
-        }, 'Chargement des données d’évaluation...');
+        const data = await withTimeout(
+          fetchEvaluationPageData(null),
+          10000,
+          'Délai dépassé pendant le chargement des données.'
+        );
+        if (!cancelled && generation === loadGenerationRef.current) {
+          applyPageData(data);
+        }
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Chargement impossible';
-        toast({ variant: 'destructive', title: 'Erreur', description: message });
+        if (!cancelled && generation === loadGenerationRef.current) {
+          const message = error instanceof Error ? error.message : 'Chargement impossible';
+          toast({ variant: 'destructive', title: 'Erreur', description: message });
+        }
       } finally {
-        setLoading(false);
+        finishInitialLoad();
       }
     };
-    init();
-  }, [canReadEvaluations]);
 
-  useEffect(() => {
-    if (hasInitializedPeriod.current || availablePeriods.length === 0) return;
-
-    const openName = activePeriod?.name;
-    if (openName && availablePeriods.some((p) => p.name === openName)) {
-      setPeriod(openName);
-    } else {
-      setPeriod(availablePeriods[availablePeriods.length - 1].name);
-    }
-    hasInitializedPeriod.current = true;
-  }, [availablePeriods, activePeriod?.name]);
-
-  useEffect(() => {
-    if (!canReadEvaluations || !period || employees.length === 0) return;
-
-    const campaign = availablePeriods.find((p) => p.name === period);
-    if (!campaign) return;
-
-    let cancelled = false;
-    void (async () => {
-      const evaluations = await fetchEvaluations();
-      const statusMap: Record<string, EvaluationStatus | null> = {};
-      const scoreMap: Record<string, number | null> = {};
-
-      for (const emp of employees) {
-        const record = findEvaluationForOpenPeriod(
-          emp.id,
-          { id: campaign.id, name: campaign.name, start_date: campaign.start_date },
-          evaluations
-        );
-        statusMap[emp.id] = record?.status ?? null;
-        scoreMap[emp.id] = record
-          ? resolveEvaluationPercentage(record, criteria, rules, emp)
-          : null;
-      }
-
-      if (!cancelled) {
-        setStatusByEmployee(statusMap);
-        setScoresByEmployee(scoreMap);
-      }
-    })();
+    void run();
 
     return () => {
       cancelled = true;
     };
-  }, [canReadEvaluations, period, employees, criteria, rules, availablePeriods]);
+  }, [canReadEvaluations]);
 
   const openPeriodName = useMemo(() => {
     if (!activePeriod) return '';
@@ -542,6 +548,7 @@ export default function Evaluation() {
       if (status === 'submitted') {
         setCurrentStatus('submitted');
         setStatusByEmployee((prev) => ({ ...prev, [selectedEmployee.id]: 'submitted' }));
+        void refreshEvaluationPageEvaluations(period);
         toast({
           title: 'Succès',
           description: 'Évaluation soumise. Vous pouvez maintenant l’accepter ou la refuser.',
@@ -560,6 +567,7 @@ export default function Evaluation() {
       } else if (status === 'rejected') {
         setStatusByEmployee((prev) => ({ ...prev, [selectedEmployee.id]: 'rejected' }));
       }
+      void refreshEvaluationPageEvaluations(period);
       closeEvaluationForm();
     } catch (error: unknown) {
       const message =
@@ -619,7 +627,7 @@ export default function Evaluation() {
               <div className="space-y-1">
                 <Label>Période</Label>
                 {availablePeriods.length > 0 ? (
-                  <Select value={period} onValueChange={setPeriod}>
+                  <Select value={period} onValueChange={handlePeriodChange}>
                     <SelectTrigger className="w-full">
                       <span className="flex items-center gap-2">
                         {period === activePeriod?.name && (
@@ -723,6 +731,12 @@ export default function Evaluation() {
                 </div>
               </div>
             </div>
+            <div className="relative">
+              {listRefreshing && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -823,6 +837,7 @@ export default function Evaluation() {
                 )}
               </TableBody>
             </Table>
+            </div>
             {filteredEmployees.length > 0 && (
               <PaginationControls
                 currentPage={pagination.currentPage}
