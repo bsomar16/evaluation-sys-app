@@ -86,6 +86,7 @@ export const EXPECTED_DB_SCHEMA: ExpectedDbSchema = {
     { name: 'description', type: 'text', nullable: true },
     { name: 'sort_order', type: 'integer', default: '0', nullable: true },
     { name: 'is_active', type: 'boolean', default: 'true', nullable: true },
+    { name: 'archived_at', type: 'timestamp', nullable: true },
     { name: 'created_at', type: 'timestamp', default: 'now()', nullable: true },
     { name: 'updated_at', type: 'timestamp', default: 'now()', nullable: true },
   ],

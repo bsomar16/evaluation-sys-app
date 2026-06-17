@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
+import { isCriterionAvailableForEvaluation } from '@/lib/criterion-archive';
 import {
   appendAuditEntry,
   createAuditEntry,
@@ -159,9 +160,45 @@ export function getMaxEvaluationScoreForEmployee(
   criteria: EvaluationCriterionRecord[]
 ): number {
   const applicableCount = criteria.filter(
-    (c) => c.is_active !== false && criterionAppliesToEmployee(c, employee)
+    (c) => isCriterionAvailableForEvaluation(c) && criterionAppliesToEmployee(c, employee)
   ).length;
   return applicableCount * 10;
+}
+
+export class CriterionInUseError extends Error {
+  readonly usageCount: number;
+
+  constructor(usageCount: number) {
+    super(
+      usageCount === 1
+        ? 'Ce critère est utilisé dans 1 évaluation et ne peut pas être supprimé. Archivez-le à la place.'
+        : `Ce critère est utilisé dans ${usageCount} évaluations et ne peut pas être supprimé. Archivez-le à la place.`
+    );
+    this.name = 'CriterionInUseError';
+    this.usageCount = usageCount;
+  }
+}
+
+export async function countEvaluationsUsingCriterion(criterionId: string): Promise<number> {
+  const { data, error } = await supabase.from('evaluations').select('responses');
+  if (error) {
+    if (isMissingTableError(error)) {
+      const local = loadFromLocal();
+      return local.filter((evaluation) =>
+        (evaluation.responses ?? []).some((response) => response.criterion_id === criterionId)
+      ).length;
+    }
+    throw error;
+  }
+
+  let count = 0;
+  for (const row of data ?? []) {
+    const responses = Array.isArray(row.responses) ? (row.responses as EvaluationResponseItem[]) : [];
+    if (responses.some((response) => response.criterion_id === criterionId)) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 export function formatEvaluationScore(score: number, maxScore: number): string {

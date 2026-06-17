@@ -25,6 +25,8 @@ export interface EvaluationCriterionRecord {
   description?: string | null;
   sort_order: number;
   is_active: boolean;
+  /** Archivage soft-delete */
+  archived_at?: string | null;
 }
 
 export interface CalculationRuleConfig {

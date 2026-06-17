@@ -79,6 +79,7 @@ const SQL_STATEMENTS = [
     updated_at timestamp DEFAULT now()
   )`,
   `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS description text`,
+  `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS archived_at timestamp`,
 
   // TABLE: CALCULATION_RULES
   `CREATE TABLE IF NOT EXISTS calculation_rules (

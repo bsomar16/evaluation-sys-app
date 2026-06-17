@@ -52,6 +52,7 @@ import { useCurrentOpenPeriod } from '@/hooks/useEvaluationPeriod';
 import { getAllEvaluationPeriods } from '@/lib/evaluation-period-db';
 import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evaluation-types';
 import { getSessionUser } from '@/lib/session-user';
+import { isCriterionAvailableForEvaluation } from '@/lib/criterion-archive';
 import { supabase } from '@/integrations/supabase/client';
 import { runWithLoadingOverlay } from '@/lib/loading-overlay';
 
@@ -133,10 +134,15 @@ export default function Evaluation() {
 
   const applicableCriteria = useMemo(() => {
     if (!selectedEmployee) return [];
+    const savedCriterionIds = new Set(Object.keys(formValues));
     return criteria
-      .filter((c) => criterionAppliesToEmployee(c, selectedEmployee))
+      .filter((c) => {
+        if (!criterionAppliesToEmployee(c, selectedEmployee)) return false;
+        if (savedCriterionIds.has(c.id)) return true;
+        return isCriterionAvailableForEvaluation(c);
+      })
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-  }, [criteria, selectedEmployee]);
+  }, [criteria, selectedEmployee, formValues]);
 
   const totalScore = applicableCriteria.reduce((sum, c) => {
     const v = formValues[c.id];
@@ -286,7 +292,7 @@ export default function Evaluation() {
           );
 
           setEmployees(emps);
-          setCriteria(crit.filter((c) => c.is_active !== false));
+          setCriteria(crit);
           setRules(calcRules);
           setRoles(rolesRes.data ?? []);
           setDepartments(deptsRes.data ?? []);
@@ -358,11 +364,15 @@ export default function Evaluation() {
     if (!emp) return;
     const periodCode = availablePeriods.find((p) => p.name === period)?.code || period;
     const periodLabel = periodCode; // Use the selected period code
-    const applicable = criteria
-      .filter((c) => c.is_active !== false && criterionAppliesToEmployee(c, emp))
-      .sort((a, b) => a.sort_order - b.sort_order);
-
     const existing = await findEvaluationForEmployeePeriod(empId, periodLabel);
+    const savedCriterionIds = new Set((existing?.responses ?? []).map((r) => r.criterion_id));
+    const applicable = criteria
+      .filter((c) => {
+        if (!criterionAppliesToEmployee(c, emp)) return false;
+        if (savedCriterionIds.has(c.id)) return true;
+        return isCriterionAvailableForEvaluation(c);
+      })
+      .sort((a, b) => a.sort_order - b.sort_order);
     const initial: Record<string, number | boolean> = {};
     for (const c of applicable) {
       const saved = existing?.responses.find((r) => r.criterion_id === c.id);

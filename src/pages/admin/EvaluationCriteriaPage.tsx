@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,12 +12,14 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Plus, Trash2, Edit2, Search, X } from 'lucide-react';
+import { Archive, CheckCircle2, Plus, RotateCcw, Trash2, Edit2, Search, X } from 'lucide-react';
 import { CriterionDescriptionExpand } from '@/components/evaluation/CriterionDescriptionExpand';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { usePagination } from '@/hooks/usePagination';
@@ -37,11 +39,17 @@ import type { RoleRecord } from '@/lib/role-tree';
 import type { BranchRecord } from '@/lib/branch-tree';
 import type { DepartmentRecord } from '@/lib/department-tree';
 import {
+  archiveEvaluationCriterion,
+  CriterionInUseError,
   deleteEvaluationCriterion,
   fetchCalculationRules,
   fetchEvaluationCriteria,
+  restoreEvaluationCriterion,
   upsertEvaluationCriterion,
 } from '@/lib/evaluation-config-storage';
+import { partitionCriteriaByArchive } from '@/lib/criterion-archive';
+import { countEvaluationsUsingCriterion } from '@/lib/evaluation-storage';
+import { formatArchivedAt } from '@/lib/user-archive';
 
 type CriterionFormState = {
   name: string;
@@ -276,6 +284,9 @@ export function EvaluationCriteriaPage() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editing, setEditing] = useState<EvaluationCriterionRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EvaluationCriterionRecord | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<EvaluationCriterionRecord | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<EvaluationCriterionRecord | null>(null);
+  const [criterionTab, setCriterionTab] = useState<'active' | 'archived'>('active');
   const [formData, setFormData] = useState<CriterionFormState>(() => emptyForm([]));
 
   const load = async () => {
@@ -455,12 +466,71 @@ export function EvaluationCriteriaPage() {
       setDeleteTarget(null);
       load();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Suppression impossible';
+      const message =
+        error instanceof CriterionInUseError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Suppression impossible';
       toast({ variant: 'destructive', title: 'Erreur', description: message });
     }
   };
 
-  const filtered = criteria.filter(
+  const handleArchive = async () => {
+    if (!archiveTarget) return;
+    try {
+      await archiveEvaluationCriterion(archiveTarget.id);
+      toast({ title: 'Succès', description: 'Critère archivé' });
+      setArchiveTarget(null);
+      load();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Archivage impossible';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!restoreTarget) return;
+    try {
+      await restoreEvaluationCriterion(restoreTarget.id);
+      toast({ title: 'Succès', description: 'Critère restauré' });
+      setRestoreTarget(null);
+      load();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Restauration impossible';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    }
+  };
+
+  const requestDelete = async (criterion: EvaluationCriterionRecord) => {
+    try {
+      const usageCount = await countEvaluationsUsingCriterion(criterion.id);
+      if (usageCount > 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Suppression impossible',
+          description:
+            usageCount === 1
+              ? 'Ce critère est utilisé dans 1 évaluation. Archivez-le à la place.'
+              : `Ce critère est utilisé dans ${usageCount} évaluations. Archivez-le à la place.`,
+        });
+        return;
+      }
+      setDeleteTarget(criterion);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Vérification impossible';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    }
+  };
+
+  const { active: activeCriteria, archived: archivedCriteria } = useMemo(
+    () => partitionCriteriaByArchive(criteria),
+    [criteria]
+  );
+
+  const listSource = criterionTab === 'active' ? activeCriteria : archivedCriteria;
+
+  const filtered = listSource.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       calculationSystemLabel(c, calculationRules).toLowerCase().includes(search.toLowerCase())
@@ -486,6 +556,13 @@ export function EvaluationCriteriaPage() {
           <CardTitle className="text-lg">Liste des critères</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Tabs value={criterionTab} onValueChange={(v) => setCriterionTab(v as 'active' | 'archived')}>
+            <TabsList>
+              <TabsTrigger value="active">Actifs ({activeCriteria.length})</TabsTrigger>
+              <TabsTrigger value="archived">Archivés ({archivedCriteria.length})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -498,7 +575,11 @@ export function EvaluationCriteriaPage() {
             </div>
             <Dialog open={openDialog} onOpenChange={setOpenDialog}>
               <DialogTrigger asChild>
-                <Button className="gap-2" disabled={!canWrite('evaluation_criteria')} onClick={openCreate}>
+                <Button
+                  className="gap-2"
+                  disabled={!canWrite('evaluation_criteria') || criterionTab === 'archived'}
+                  onClick={openCreate}
+                >
                   <Plus className="h-4 w-4" />
                   Nouveau
                 </Button>
@@ -676,7 +757,9 @@ export function EvaluationCriteriaPage() {
           {loading ? (
             <p>Chargement...</p>
           ) : filtered.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">Aucun critère</p>
+            <p className="text-center text-muted-foreground py-8">
+              {criterionTab === 'active' ? 'Aucun critère actif' : 'Aucun critère archivé'}
+            </p>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -689,6 +772,9 @@ export function EvaluationCriteriaPage() {
                     <th className="text-left py-3 px-4">Rôles</th>
                     <th className="text-left py-3 px-4">Filiales</th>
                     <th className="text-left py-3 px-4">Services</th>
+                    {criterionTab === 'archived' && (
+                      <th className="text-left py-3 px-4">Archivé le</th>
+                    )}
                     <th className="text-right py-3 px-4">Actions</th>
                   </tr>
                 </thead>
@@ -718,10 +804,37 @@ export function EvaluationCriteriaPage() {
                       <td className="py-3 px-4 align-top">
                         <StackedNames ids={c.department_ids} options={departments} allLabel="Tous" allSelected={c.department_all ?? c.department_ids.length === 0} />
                       </td>
+                      {criterionTab === 'archived' && (
+                        <td className="py-3 px-4 align-top text-muted-foreground text-xs">
+                          {formatArchivedAt(c.archived_at)}
+                        </td>
+                      )}
                       <td className="py-3 px-4 text-right align-top">
-                        {canWrite('evaluation_criteria') && (
+                        {criterionTab === 'active' && canWrite('evaluation_criteria') && (
                           <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>
                             <Edit2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {criterionTab === 'active' && canWrite('evaluation_criteria') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-amber-700"
+                            onClick={() => setArchiveTarget(c)}
+                            title="Archiver"
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {criterionTab === 'archived' && canWrite('evaluation_criteria') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-emerald-700"
+                            onClick={() => setRestoreTarget(c)}
+                            title="Restaurer"
+                          >
+                            <RotateCcw className="h-4 w-4" />
                           </Button>
                         )}
                         {canDelete('evaluation_criteria') && (
@@ -729,7 +842,8 @@ export function EvaluationCriteriaPage() {
                             variant="ghost"
                             size="sm"
                             className="text-destructive"
-                            onClick={() => setDeleteTarget(c)}
+                            onClick={() => void requestDelete(c)}
+                            title="Supprimer"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -755,9 +869,38 @@ export function EvaluationCriteriaPage() {
         </CardContent>
       </Card>
 
+      <AlertDialog open={!!archiveTarget} onOpenChange={() => setArchiveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Archiver « {archiveTarget?.name} » ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Le critère sera masqué des nouvelles évaluations. Les évaluations existantes conservent
+            leurs données. Restauration possible depuis l&apos;onglet Archivés.
+          </AlertDialogDescription>
+          <AlertDialogAction onClick={handleArchive} className="bg-amber-600 hover:bg-amber-700">
+            Archiver
+          </AlertDialogAction>
+          <AlertDialogCancel>Annuler</AlertDialogCancel>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!restoreTarget} onOpenChange={() => setRestoreTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Restaurer « {restoreTarget?.name} » ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Le critère redeviendra disponible pour les nouvelles évaluations.
+          </AlertDialogDescription>
+          <AlertDialogAction onClick={handleRestore}>Restaurer</AlertDialogAction>
+          <AlertDialogCancel>Annuler</AlertDialogCancel>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogTitle>Supprimer « {deleteTarget?.name} » ?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Action irréversible. Un critère déjà utilisé dans une évaluation ne peut pas être
+            supprimé — archivez-le à la place.
+          </AlertDialogDescription>
           <div className="flex gap-2 justify-end">
             <AlertDialogCancel>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">

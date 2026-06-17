@@ -9,6 +9,7 @@ import {
   type CriterionType,
   type EvaluationCriterionRecord,
 } from '@/lib/evaluation-calculator';
+import { CriterionInUseError, countEvaluationsUsingCriterion } from '@/lib/evaluation-storage';
 
 
 
@@ -68,6 +69,7 @@ function normalizeCriterion(row: CriterionRow): EvaluationCriterionRecord {
     description: row.description?.trim() || null,
     sort_order: row.sort_order ?? 0,
     is_active: row.is_active !== false,
+    archived_at: row.archived_at ?? null,
   };
 }
 
@@ -164,7 +166,7 @@ function saveRulesToLocal(rules: CalculationRuleRecord[]) {
 
 
 const SELECT_ARRAYS =
-  'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, description, sort_order, is_active';
+  'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, description, sort_order, is_active, archived_at';
 
 const SELECT_WITHOUT_DESCRIPTION =
   'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, sort_order, is_active';
@@ -231,17 +233,20 @@ function syncCriterionToLocal(criterion: EvaluationCriterionRecord): void {
   saveCriteriaToLocal(next);
 }
 
-function mergeCriterionDescriptionsFromLocal(
+function mergeCriterionFieldsFromLocal(
   records: EvaluationCriterionRecord[]
 ): EvaluationCriterionRecord[] {
   const localById = new Map(loadCriteriaFromLocal().map((c) => [c.id, c]));
   return records.map((c) => {
-    if (c.description?.trim()) return c;
     const local = localById.get(c.id);
-    if (local?.description?.trim()) {
-      return { ...c, description: local.description };
+    let next = c;
+    if (!c.description?.trim() && local?.description?.trim()) {
+      next = { ...next, description: local.description };
     }
-    return c;
+    if (c.archived_at == null && local?.archived_at) {
+      next = { ...next, archived_at: local.archived_at, is_active: local.is_active };
+    }
+    return next;
   });
 }
 
@@ -321,7 +326,7 @@ export async function fetchEvaluationCriteria(): Promise<EvaluationCriterionReco
 
   if (!data?.length) return loadCriteriaFromLocal();
 
-  return mergeCriterionDescriptionsFromLocal((data as CriterionRow[]).map(normalizeCriterion));
+  return mergeCriterionFieldsFromLocal((data as CriterionRow[]).map(normalizeCriterion));
 
 }
 
@@ -561,18 +566,62 @@ export async function upsertEvaluationCriterion(
 
 
 export async function deleteEvaluationCriterion(id: string): Promise<void> {
+  const usageCount = await countEvaluationsUsingCriterion(id);
+  if (usageCount > 0) {
+    throw new CriterionInUseError(usageCount);
+  }
 
   const { error } = await supabase.from('evaluation_criteria').delete().eq('id', id);
 
   if (error && !isMissingTableError(error)) throw error;
 
-
-
   const next = loadCriteriaFromLocal().filter((c) => c.id !== id);
 
   saveCriteriaToLocal(next);
-
 }
+
+export async function archiveEvaluationCriterion(id: string): Promise<void> {
+  const archivedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('evaluation_criteria')
+    .update({
+      archived_at: archivedAt,
+      is_active: false,
+      updated_at: archivedAt,
+    })
+    .eq('id', id);
+
+  if (error && !isMissingColumnError(error) && !isMissingTableError(error)) throw error;
+
+  const local = loadCriteriaFromLocal();
+  saveCriteriaToLocal(
+    local.map((c) =>
+      c.id === id ? { ...c, archived_at: archivedAt, is_active: false } : c
+    )
+  );
+}
+
+export async function restoreEvaluationCriterion(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('evaluation_criteria')
+    .update({
+      archived_at: null,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  if (error && !isMissingColumnError(error) && !isMissingTableError(error)) throw error;
+
+  const local = loadCriteriaFromLocal();
+  saveCriteriaToLocal(
+    local.map((c) =>
+      c.id === id ? { ...c, archived_at: null, is_active: true } : c
+    )
+  );
+}
+
+export { CriterionInUseError };
 
 
 
