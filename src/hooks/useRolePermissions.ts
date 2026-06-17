@@ -27,6 +27,7 @@ export function useRolePermissions() {
     canDelete: (key: SidebarModuleKey) => canDeleteModule(key, effective),
     canSubmitEvaluation: () => effective.all || effective.evaluations_actions.submit,
     canReviewEvaluation: () => effective.all || effective.evaluations_actions.review,
+    canViewEvaluationValues: () => effective.all || effective.evaluations_actions.values,
     canRequestTraining: () => effective.all || effective.training_actions.request,
     canReviewTraining: () => effective.all || effective.training_actions.review,
   };

@@ -27,6 +27,8 @@ export type SidebarPermissionsMap = Record<SidebarModuleKey, ModulePermission>;
 export interface EvaluationActionsPermission {
   submit: boolean;
   review: boolean;
+  /** Lecture seule : afficher les valeurs finales pendant la saisie */
+  values: boolean;
 }
 
 export interface TrainingActionsPermission {
@@ -92,11 +94,11 @@ export function createFullSidebarPermissions(): SidebarPermissionsMap {
 }
 
 export function createEmptyEvaluationActionsPermissions(): EvaluationActionsPermission {
-  return { submit: false, review: false };
+  return { submit: false, review: false, values: false };
 }
 
 export function createFullEvaluationActionsPermissions(): EvaluationActionsPermission {
-  return { submit: true, review: true };
+  return { submit: true, review: true, values: true };
 }
 
 export function createEmptyTrainingActionsPermissions(): TrainingActionsPermission {
@@ -181,6 +183,7 @@ export function parseRolePermissions(raw: unknown): {
   const evaluationsActions: EvaluationActionsPermission = {
     submit: Boolean(payload.evaluations_actions?.submit),
     review: Boolean(payload.evaluations_actions?.review),
+    values: Boolean(payload.evaluations_actions?.values),
   };
   // Backward compatibility: if old payload had only evaluations.write,
   // grant submit/review implicitly to avoid removing existing capabilities.

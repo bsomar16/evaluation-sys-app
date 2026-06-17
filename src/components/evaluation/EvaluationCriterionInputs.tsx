@@ -41,9 +41,10 @@ type Props = {
   onChange: (value: number | boolean) => void;
   rules: CalculationRuleRecord[];
   disabled?: boolean;
+  showValues?: boolean;
 };
 
-export function EvaluationCriterionInputs({ criterion, value, onChange, rules, disabled }: Props) {
+export function EvaluationCriterionInputs({ criterion, value, onChange, rules, disabled, showValues = true }: Props) {
   const ruleId = criterion.calculation_rule_id;
   const method = criterion.type as CriterionType;
   const linkedRule =
@@ -61,9 +62,11 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
         <span className="text-sm text-muted-foreground">Non</span>
         <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
         <span className="text-sm text-muted-foreground">Oui</span>
-        <Badge variant="outline" className="ml-auto shrink-0">
-          {points.toFixed(1)} pt
-        </Badge>
+        {showValues && (
+          <Badge variant="outline" className="ml-auto shrink-0">
+            Valeur finale : {points.toFixed(1)}
+          </Badge>
+        )}
       </div>
     );
   }
@@ -83,7 +86,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
           step={1}
           disabled={disabled}
         />
-        <Badge variant="outline">{points.toFixed(1)} pt</Badge>
+        {showValues && <Badge variant="outline">Valeur finale : {points.toFixed(1)}</Badge>}
       </div>
     );
   }
@@ -122,7 +125,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
             );
           })}
         </div>
-        <Badge variant="outline">{points.toFixed(1)} pt</Badge>
+        {showValues && <Badge variant="outline">Valeur finale : {points.toFixed(1)}</Badge>}
       </div>
     );
   }
@@ -132,7 +135,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
     return (
       <div className="space-y-2">
         <StarRating value={num} onChange={onChange} disabled={disabled} />
-        <Badge variant="outline">{points.toFixed(1)} pt</Badge>
+        {showValues && <Badge variant="outline">Valeur finale : {points.toFixed(1)}</Badge>}
       </div>
     );
   }

@@ -68,11 +68,12 @@ export default function Evaluation() {
   const FILTER_ALL = '__all__';
   const location = useLocation();
   const { toast } = useToast();
-  const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation } = useRolePermissions();
+  const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation, canViewEvaluationValues } = useRolePermissions();
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canSubmitEvaluations = canSubmitEvaluation();
   const canReviewEvaluations = canReviewEvaluation();
+  const canViewValues = canViewEvaluationValues();
   const canPerformEvaluationActions = canSubmitEvaluations || canReviewEvaluations;
   const canReadEvaluationsManagement = canRead('evaluations_management');
   const [loading, setLoading] = useState(true);
@@ -119,6 +120,9 @@ export default function Evaluation() {
   const isSubmitted = currentStatus === 'submitted';
   const isRejected = currentStatus === 'rejected';
   const isFinalized = currentStatus === 'approved';
+  const isCompleted = currentStatus === 'completed';
+  const showEvaluationValues =
+    canViewValues || isSubmitted || isRejected || isFinalized || isCompleted;
   const canEditCriteria =
     canSubmitEvaluations &&
     isPeriodOpen &&
@@ -908,15 +912,15 @@ export default function Evaluation() {
                     <CardTitle className="text-sm font-medium leading-tight">{criterion.name}</CardTitle>
                   </CriterionDescriptionExpand>
                 </div>
-                {formValues[criterion.id] !== undefined && (
+                {showEvaluationValues && formValues[criterion.id] !== undefined && (
                   <Badge variant="outline" className="font-normal text-xs shrink-0">
+                    Valeur finale :{' '}
                     {calculateCriterionScore(
                       criterion.type,
                       formValues[criterion.id],
                       rules,
                       criterion.calculation_rule_id
-                    ).toFixed(1)}{' '}
-                    pt
+                    ).toFixed(1)}
                   </Badge>
                 )}
               </div>
@@ -928,6 +932,7 @@ export default function Evaluation() {
                 onChange={(v) => setFormValues((prev) => ({ ...prev, [criterion.id]: v }))}
                 rules={rules}
                 disabled={!canEditCriteria}
+                showValues={showEvaluationValues}
               />
             </CardContent>
           </Card>
@@ -956,13 +961,16 @@ export default function Evaluation() {
 
       <Card className="border-primary/30 bg-accent">
         <CardContent className="p-5 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Score total</p>
-            <p className="text-3xl font-bold text-primary">
-              {totalScore.toFixed(1)}{' '}
-              <span className="text-lg text-muted-foreground font-normal">/ {maxScore}</span>
-            </p>
-          </div>
+          {showEvaluationValues && (
+            <div>
+              <p className="text-sm text-muted-foreground">Valeur finale de l&apos;évaluation</p>
+              <p className="text-3xl font-bold text-primary">
+                {totalScore.toFixed(1)}{' '}
+                <span className="text-lg text-muted-foreground font-normal">/ {maxScore}</span>
+              </p>
+            </div>
+          )}
+          {!showEvaluationValues && <div />}
           {canPerformEvaluationActions && isPeriodOpen && !isFinalized && (
             <div className="flex flex-wrap gap-2">
               {(!isSubmitted || isRejected) && canSubmitEvaluations && (

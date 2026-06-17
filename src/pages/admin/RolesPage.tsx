@@ -564,6 +564,29 @@ export function RolesPage() {
                                   ) : null;
                                 })()}
 
+                                {/* Valeur (lecture seule) */}
+                                <tr className="border-b bg-muted/20">
+                                  <td className="py-2 px-1"><span className="inline-block w-6" /></td>
+                                  <td className="py-2 px-3 text-sm text-muted-foreground">Valeur</td>
+                                  <td className="text-center py-2 px-2">
+                                    <Checkbox
+                                      checked={formData.evaluations_actions.values}
+                                      disabled={!formData.permissions.evaluations?.read}
+                                      onCheckedChange={(v) =>
+                                        setFormData((prev) => ({
+                                          ...prev,
+                                          evaluations_actions: {
+                                            ...prev.evaluations_actions,
+                                            values: v === true,
+                                          },
+                                        }))
+                                      }
+                                    />
+                                  </td>
+                                  <td className="text-center py-2 px-2 text-muted-foreground">—</td>
+                                  <td className="text-center py-2 px-2 text-muted-foreground">—</td>
+                                </tr>
+
                                 {/* Soumission (Évaluation action) */}
                                 <tr className="border-b bg-muted/20">
                                   <td className="py-2 px-1"><span className="inline-block w-6" /></td>
