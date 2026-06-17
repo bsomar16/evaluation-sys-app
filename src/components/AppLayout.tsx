@@ -31,7 +31,7 @@ import {
 } from '@/lib/evaluation-access';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { useToast } from '@/hooks/use-toast';
-import { fetchEvaluations } from '@/lib/evaluation-storage';
+import { countEvaluatorPendingWork } from '@/lib/evaluation-storage';
 import { fetchTrainingRequests } from '@/lib/training-storage';
 import { hasTrainingModuleAccess } from '@/lib/training-access';
 import { CompanyLogo } from '@/components/CompanyLogo';
@@ -47,7 +47,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isDeveloper, canRead, canWrite } = useRolePermissions();
+  const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation } = useRolePermissions();
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canReadEvaluationsManagement = canRead('evaluations_management');
@@ -215,93 +215,39 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [dropdownOpen]);
 
   const loadPendingEvaluationsCount = useCallback(async () => {
-    if (!hasEvaluationModuleAccess(isDeveloper, canReadEvaluations, canWriteEvaluations)) {
+    const canSubmit = canSubmitEvaluation();
+    const canReview = canReviewEvaluation();
+
+    if (
+      !hasEvaluationModuleAccess(isDeveloper, canReadEvaluations, canWriteEvaluations) ||
+      (!canSubmit && !canReview)
+    ) {
       setPendingEvaluationsCount(0);
       return;
     }
 
-    // If no active period, no evaluations to count
-    if (!activePeriod?.id) {
+    if (!evaluationPeriodOpen || !activePeriod) {
       setPendingEvaluationsCount(0);
       return;
     }
 
     try {
-      let totalCount = 0;
-
-      // Get current user's role with child_roles
-      if (user?.role_id) {
-        const { data: roleData } = await supabase
-          .from('roles')
-          .select('child_roles')
-          .eq('id', user.role_id)
-          .single();
-        
-        let childRoleIds: string[] = [];
-        if (roleData?.child_roles) {
-          // Parse child_roles (could be JSON array or comma-separated string)
-          if (Array.isArray(roleData.child_roles)) {
-            childRoleIds = roleData.child_roles;
-          } else if (typeof roleData.child_roles === 'string') {
-            try {
-              childRoleIds = JSON.parse(roleData.child_roles);
-            } catch {
-              childRoleIds = roleData.child_roles.split(',').map(id => id.trim()).filter(id => id);
-            }
-          }
-        }
-
-        // Get users with child roles
-        if (childRoleIds.length > 0) {
-          const { data: childUsers } = await supabase
-            .from('users')
-            .select('id')
-            .in('role_id', childRoleIds);
-
-          const childUserIds = childUsers?.map(u => u.id) ?? [];
-
-          // Count pending evaluations for child role users in active period
-          if (childUserIds.length > 0) {
-            const { count: childCount, error: childError } = await supabase
-              .from('evaluations')
-              .select('id', { count: 'exact', head: true })
-              .eq('period_id', activePeriod.id)
-              .in('status', ['submitted', 'pending', 'rejected', 'draft'])
-              .in('evaluated_user_id', childUserIds);
-
-            if (!childError) {
-              totalCount = childCount ?? 0;
-            }
-          }
-        }
-      }
-
-      // Also get current user's pending evaluations in active period
-      const { count, error } = await supabase
-        .from('evaluations')
-        .select('id', { count: 'exact', head: true })
-        .eq('period_id', activePeriod.id)
-        .in('status', ['submitted', 'pending', 'rejected', 'draft']);
-
-      if (error) throw error;
-      totalCount += (count ?? 0);
-      
-      setPendingEvaluationsCount(totalCount);
+      const count = await countEvaluatorPendingWork(canSubmit, canReview, activePeriod);
+      setPendingEvaluationsCount(count);
     } catch {
-      // fallback local (mode compat table/colonne manquante)
-      try {
-        const rows = await fetchEvaluations();
-        setPendingEvaluationsCount(
-          rows.filter((e) => 
-            e.period_id === activePeriod?.id && 
-            (e.status === 'submitted' || e.status === 'pending' || e.status === 'rejected' || e.status === 'draft')
-          ).length
-        );
-      } catch {
-        setPendingEvaluationsCount(0);
-      }
+      setPendingEvaluationsCount(0);
     }
-  }, [isDeveloper, canReadEvaluations, canWriteEvaluations, user?.role_id, activePeriod?.id]);
+  }, [
+    isDeveloper,
+    canReadEvaluations,
+    canWriteEvaluations,
+    canSubmitEvaluation,
+    canReviewEvaluation,
+    evaluationPeriodOpen,
+    activePeriod?.id,
+    activePeriod?.name,
+    activePeriod?.start_date,
+  ]);
 
   useEffect(() => {
     void loadPendingEvaluationsCount();

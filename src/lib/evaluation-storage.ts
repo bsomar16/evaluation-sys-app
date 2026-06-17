@@ -6,6 +6,8 @@ import {
   type CalculationRuleRecord,
 } from '@/lib/evaluation-calculator';
 import { isCriterionAvailableForEvaluation } from '@/lib/criterion-archive';
+import { dateToPeriodCode } from '@/lib/evaluation-period-label';
+import type { EvaluationPeriod } from '@/lib/evaluation-period-db';
 import {
   appendAuditEntry,
   createAuditEntry,
@@ -251,6 +253,52 @@ export async function getEvaluationPercentageForEmployeePeriod(
   const evaluation = await findEvaluationForEmployeePeriod(employeeId, period);
   if (!evaluation) return null;
   return resolveEvaluationPercentage(evaluation, criteria, rules, employee);
+}
+
+function evaluationMatchesOpenPeriod(
+  evaluation: EvaluationRecord,
+  openPeriod: Pick<EvaluationPeriod, 'id' | 'name' | 'start_date'>
+): boolean {
+  const periodCode = dateToPeriodCode(new Date(openPeriod.start_date));
+  const stored = evaluation.period?.trim();
+  return stored === openPeriod.name || stored === periodCode || stored === openPeriod.id;
+}
+
+function needsEvaluatorAction(
+  status: EvaluationStatus | null | undefined,
+  canSubmit: boolean,
+  canReview: boolean
+): boolean {
+  if (!status) return canSubmit;
+  if (status === 'submitted') return canReview;
+  if (status === 'approved') return false;
+  if (status === 'draft' || status === 'pending' || status === 'rejected') return canSubmit;
+  return false;
+}
+
+/** Nombre d'employés du périmètre nécessitant une action (saisie ou revue) sur la période ouverte. */
+export async function countEvaluatorPendingWork(
+  canSubmit: boolean,
+  canReview: boolean,
+  openPeriod: Pick<EvaluationPeriod, 'id' | 'name' | 'start_date'> | null
+): Promise<number> {
+  if (!openPeriod || (!canSubmit && !canReview)) return 0;
+
+  const [employees, evaluations] = await Promise.all([
+    fetchEmployeesForEvaluation(),
+    fetchEvaluations(),
+  ]);
+
+  let count = 0;
+  for (const employee of employees) {
+    const evaluation = evaluations.find(
+      (row) => row.employee_id === employee.id && evaluationMatchesOpenPeriod(row, openPeriod)
+    );
+    if (needsEvaluatorAction(evaluation?.status ?? null, canSubmit, canReview)) {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 export function filterEmployeesInEvaluatorScope(
