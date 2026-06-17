@@ -158,7 +158,7 @@ export default function Training() {
   const loadEmployees = useCallback(async () => {
     setEmployeesLoading(true);
     try {
-      const list = await fetchEmployeesForEvaluation();
+      const list = await fetchEmployeesForEvaluation({ directSubordinateLevelOnly: false });
       setEmployees(list);
     } catch (e) {
       console.error(e);

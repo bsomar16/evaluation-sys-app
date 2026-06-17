@@ -15,7 +15,11 @@ import {
 } from '@/lib/evaluation-audit';
 import { collectBranchScopeIds, type BranchRecord } from '@/lib/branch-tree';
 import { collectDepartmentScopeIds, type DepartmentRecord } from '@/lib/department-tree';
-import { collectDescendantRoleIds, type RoleRecord } from '@/lib/role-tree';
+import {
+  collectDescendantRoleIds,
+  collectImmediateSubordinateRoleIdsByLevel,
+  type RoleRecord,
+} from '@/lib/role-tree';
 import { getSessionUser, isSiteDeveloper, type SessionUser } from '@/lib/session-user';
 import type {
   EmployeeForEvaluation,
@@ -331,19 +335,28 @@ export async function countEvaluatorPendingWork(
   return count;
 }
 
+export type FetchEmployeesForEvaluationOptions = {
+  /** true (défaut) : section Évaluation — rôles de niveau evaluator.level + 1 uniquement */
+  directSubordinateLevelOnly?: boolean;
+};
+
 export function filterEmployeesInEvaluatorScope(
   session: SessionUser | null,
   employees: EmployeeForEvaluation[],
   roles: RoleRecord[],
   branches: BranchRecord[],
-  departments: DepartmentRecord[]
+  departments: DepartmentRecord[],
+  options: FetchEmployeesForEvaluationOptions = {}
 ): EmployeeForEvaluation[] {
   if (isSiteDeveloper(session)) {
     return employees.filter((e) => e.id !== session?.id);
   }
   if (!session?.role_id || roles.length === 0) return [];
 
-  const allowedRoleIds = collectDescendantRoleIds(session.role_id, roles);
+  const directSubordinateLevelOnly = options.directSubordinateLevelOnly !== false;
+  const allowedRoleIds = directSubordinateLevelOnly
+    ? collectImmediateSubordinateRoleIdsByLevel(session.role_id, roles)
+    : collectDescendantRoleIds(session.role_id, roles);
   const allowedBranchIds =
     session.branch_id && branches.length > 0
       ? collectBranchScopeIds(session.branch_id, branches)
@@ -368,7 +381,9 @@ export function filterEmployeesInEvaluatorScope(
   });
 }
 
-export async function fetchEmployeesForEvaluation(): Promise<EmployeeForEvaluation[]> {
+export async function fetchEmployeesForEvaluation(
+  options: FetchEmployeesForEvaluationOptions = {}
+): Promise<EmployeeForEvaluation[]> {
   const session = getSessionUser();
   const [usersRes, branchesRes, rolesRes, deptsRes] = await Promise.all([
     supabase
@@ -378,7 +393,7 @@ export async function fetchEmployeesForEvaluation(): Promise<EmployeeForEvaluati
       .eq('is_active', true)
       .order('name'),
     supabase.from('branches').select('id, name, child_branches, parent_branch_id'),
-    supabase.from('roles').select('id, name, child_roles, parent_role_id'),
+    supabase.from('roles').select('id, name, level, child_roles, parent_role_id'),
     supabase.from('departments').select('id, name, child_departments, parent_department_id'),
   ]);
 
@@ -407,7 +422,8 @@ export async function fetchEmployeesForEvaluation(): Promise<EmployeeForEvaluati
     all,
     rolesRes.data ?? [],
     branchesRes.data ?? [],
-    deptsRes.data ?? []
+    deptsRes.data ?? [],
+    options
   );
 }
 
