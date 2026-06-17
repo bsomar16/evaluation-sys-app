@@ -3,6 +3,10 @@ import { getSessionUser, isSiteDeveloper, type SessionUser } from '@/lib/session
 
 export const SESSION_PERMISSIONS_UPDATED_EVENT = 'session-permissions-updated';
 
+let refreshInFlight: Promise<SessionUser | null> | null = null;
+let watcherRoleId: string | null = null;
+let watcherCleanup: (() => void) | null = null;
+
 /** Recharge les permissions du rôle courant depuis la BDD et met à jour la session locale. */
 export async function refreshSessionPermissionsFromRole(): Promise<SessionUser | null> {
   const user = getSessionUser();
@@ -36,4 +40,58 @@ export async function refreshSessionPermissionsFromRole(): Promise<SessionUser |
 
 export function notifySessionPermissionsUpdated(): void {
   window.dispatchEvent(new CustomEvent(SESSION_PERMISSIONS_UPDATED_EVENT));
+}
+
+/** Rafraîchit les permissions une seule fois (appels concurrents partagés). */
+export async function refreshSessionPermissionsOnce(): Promise<SessionUser | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshSessionPermissionsFromRole()
+      .then((user) => {
+        notifySessionPermissionsUpdated();
+        return user;
+      })
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
+
+/** Un seul abonnement Realtime par rôle (évite le crash Supabase multi-instances). */
+export function ensureRolePermissionsWatcher(roleId: string | null | undefined): void {
+  if (!roleId || watcherRoleId === roleId) return;
+
+  if (watcherCleanup) {
+    watcherCleanup();
+    watcherCleanup = null;
+  }
+
+  watcherRoleId = roleId;
+
+  const channel = supabase
+    .channel(`role-permissions-${roleId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'roles',
+        filter: `id=eq.${roleId}`,
+      },
+      () => {
+        void refreshSessionPermissionsOnce();
+      }
+    )
+    .subscribe();
+
+  watcherCleanup = () => {
+    void supabase.removeChannel(channel);
+    if (watcherRoleId === roleId) watcherRoleId = null;
+  };
+}
+
+export function stopRolePermissionsWatcher(): void {
+  watcherCleanup?.();
+  watcherCleanup = null;
+  watcherRoleId = null;
 }

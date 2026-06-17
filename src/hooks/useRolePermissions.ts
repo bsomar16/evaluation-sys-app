@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import {
   type SidebarModuleKey,
   parseRolePermissions,
@@ -7,59 +6,16 @@ import {
   canWriteModule,
   canDeleteModule,
 } from '@/lib/role-permissions';
-import {
-  notifySessionPermissionsUpdated,
-  refreshSessionPermissionsFromRole,
-  SESSION_PERMISSIONS_UPDATED_EVENT,
-} from '@/lib/session-permissions';
+import { SESSION_PERMISSIONS_UPDATED_EVENT } from '@/lib/session-permissions';
 import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
 
 export function useRolePermissions() {
   const [permissionVersion, setPermissionVersion] = useState(0);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const bump = () => {
-      if (!cancelled) setPermissionVersion((value) => value + 1);
-    };
-
-    const refresh = async () => {
-      await refreshSessionPermissionsFromRole();
-      bump();
-      notifySessionPermissionsUpdated();
-    };
-
-    void refresh();
-
-    const onUpdated = () => bump();
+    const onUpdated = () => setPermissionVersion((value) => value + 1);
     window.addEventListener(SESSION_PERMISSIONS_UPDATED_EVENT, onUpdated);
-
-    const session = getSessionUser();
-    const channel =
-      session?.role_id && !isSiteDeveloper(session)
-        ? supabase
-            .channel(`role-permissions-${session.role_id}`)
-            .on(
-              'postgres_changes',
-              {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'roles',
-                filter: `id=eq.${session.role_id}`,
-              },
-              () => {
-                void refresh();
-              }
-            )
-            .subscribe()
-        : null;
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener(SESSION_PERMISSIONS_UPDATED_EVENT, onUpdated);
-      if (channel) void supabase.removeChannel(channel);
-    };
+    return () => window.removeEventListener(SESSION_PERMISSIONS_UPDATED_EVENT, onUpdated);
   }, []);
 
   const session = useMemo(() => getSessionUser(), [permissionVersion]);

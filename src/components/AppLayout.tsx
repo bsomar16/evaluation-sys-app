@@ -12,8 +12,10 @@ import { roleBadgeClassName } from '@/lib/role-colors';
 import { supabase } from '@/integrations/supabase/client';
 import { buildNavItems, isNavItemActive, type AppNavItem } from '@/lib/nav-items';
 import {
-  refreshSessionPermissionsFromRole,
+  ensureRolePermissionsWatcher,
+  refreshSessionPermissionsOnce,
   SESSION_PERMISSIONS_UPDATED_EVENT,
+  stopRolePermissionsWatcher,
 } from '@/lib/session-permissions';
 import {
   type SessionUser,
@@ -109,8 +111,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         session = { ...session, role: userRole ?? session.role };
       }
 
-      const refreshed = await refreshSessionPermissionsFromRole();
+      const refreshed = await refreshSessionPermissionsOnce();
       if (refreshed) session = refreshed;
+
+      if (!isSiteDeveloper(session)) {
+        ensureRolePermissionsWatcher(session.role_id);
+      }
 
       setUser(session);
       await rebuildNav(session);
@@ -156,6 +162,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     return () => {
       window.removeEventListener(SESSION_PERMISSIONS_UPDATED_EVENT, onPermissionsUpdated);
+      stopRolePermissionsWatcher();
     };
   }, []);
 
