@@ -15,11 +15,7 @@ import {
 } from '@/lib/evaluation-audit';
 import { collectBranchScopeIds, type BranchRecord } from '@/lib/branch-tree';
 import { collectDepartmentScopeIds, type DepartmentRecord } from '@/lib/department-tree';
-import {
-  collectDescendantRoleIds,
-  collectImmediateSubordinateRoleIdsByLevel,
-  type RoleRecord,
-} from '@/lib/role-tree';
+import { collectDescendantRoleIds, collectImmediateSubordinateRoleIdsByLevel, type RoleRecord } from '@/lib/role-tree';
 import { getSessionUser, isSiteDeveloper, type SessionUser } from '@/lib/session-user';
 import type {
   EmployeeForEvaluation,
@@ -320,13 +316,26 @@ export async function countEvaluatorPendingWork(
 ): Promise<number> {
   if (!openPeriod || (!canSubmit && !canReview)) return 0;
 
-  const [employees, evaluations] = await Promise.all([
+  const session = getSessionUser();
+  const [employees, evaluations, rolesRes] = await Promise.all([
     fetchEmployeesForEvaluation(),
     fetchEvaluations(),
+    supabase.from('roles').select('id, name, level, child_roles, parent_role_id'),
   ]);
 
+  const roles = rolesRes.data ?? [];
+  let scopedEmployees = employees;
+  if (!isSiteDeveloper(session) && session?.role_id) {
+    const immediateRoleIds = new Set(
+      collectImmediateSubordinateRoleIdsByLevel(session.role_id, roles)
+    );
+    scopedEmployees = employees.filter(
+      (employee) => employee.role_id && immediateRoleIds.has(employee.role_id)
+    );
+  }
+
   let count = 0;
-  for (const employee of employees) {
+  for (const employee of scopedEmployees) {
     const evaluation = findEvaluationForOpenPeriod(employee.id, openPeriod, evaluations);
     if (isAwaitingEvaluationAction(evaluation?.status ?? null, canSubmit, canReview)) {
       count += 1;
@@ -335,28 +344,19 @@ export async function countEvaluatorPendingWork(
   return count;
 }
 
-export type FetchEmployeesForEvaluationOptions = {
-  /** true (défaut) : section Évaluation — rôles de niveau evaluator.level + 1 uniquement */
-  directSubordinateLevelOnly?: boolean;
-};
-
 export function filterEmployeesInEvaluatorScope(
   session: SessionUser | null,
   employees: EmployeeForEvaluation[],
   roles: RoleRecord[],
   branches: BranchRecord[],
-  departments: DepartmentRecord[],
-  options: FetchEmployeesForEvaluationOptions = {}
+  departments: DepartmentRecord[]
 ): EmployeeForEvaluation[] {
   if (isSiteDeveloper(session)) {
     return employees.filter((e) => e.id !== session?.id);
   }
   if (!session?.role_id || roles.length === 0) return [];
 
-  const directSubordinateLevelOnly = options.directSubordinateLevelOnly !== false;
-  const allowedRoleIds = directSubordinateLevelOnly
-    ? collectImmediateSubordinateRoleIdsByLevel(session.role_id, roles)
-    : collectDescendantRoleIds(session.role_id, roles);
+  const allowedRoleIds = collectDescendantRoleIds(session.role_id, roles);
   const allowedBranchIds =
     session.branch_id && branches.length > 0
       ? collectBranchScopeIds(session.branch_id, branches)
@@ -381,9 +381,7 @@ export function filterEmployeesInEvaluatorScope(
   });
 }
 
-export async function fetchEmployeesForEvaluation(
-  options: FetchEmployeesForEvaluationOptions = {}
-): Promise<EmployeeForEvaluation[]> {
+export async function fetchEmployeesForEvaluation(): Promise<EmployeeForEvaluation[]> {
   const session = getSessionUser();
   const [usersRes, branchesRes, rolesRes, deptsRes] = await Promise.all([
     supabase
@@ -393,7 +391,7 @@ export async function fetchEmployeesForEvaluation(
       .eq('is_active', true)
       .order('name'),
     supabase.from('branches').select('id, name, child_branches, parent_branch_id'),
-    supabase.from('roles').select('id, name, level, child_roles, parent_role_id'),
+    supabase.from('roles').select('id, name, child_roles, parent_role_id'),
     supabase.from('departments').select('id, name, child_departments, parent_department_id'),
   ]);
 
@@ -422,8 +420,7 @@ export async function fetchEmployeesForEvaluation(
     all,
     rolesRes.data ?? [],
     branchesRes.data ?? [],
-    deptsRes.data ?? [],
-    options
+    deptsRes.data ?? []
   );
 }
 
