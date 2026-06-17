@@ -51,8 +51,8 @@ export function collectDescendantRoleIds(roleId: string, allRoles: RoleRecord[])
 
 /**
  * Rôles exactement un niveau en dessous dans la hiérarchie (evaluator.level + 1),
- * limités aux descendants du rôle évaluateur.
- * Ex. gérant L2 → responsables L3 sous sa branche hiérarchique, pas les employés L4.
+ * parmi les descendants du rôle évaluateur.
+ * Ex. gérant L2 → responsables L3 uniquement ; responsable L3 → employés L4.
  */
 export function collectImmediateSubordinateRoleIdsByLevel(
   evaluatorRoleId: string,
@@ -63,9 +63,9 @@ export function collectImmediateSubordinateRoleIdsByLevel(
 
   const evaluatorLevel = evaluatorRole.level ?? 0;
   const targetLevel = evaluatorLevel + 1;
-  const descendants = new Set(collectDescendantRoleIds(evaluatorRoleId, allRoles));
+  const descendantIds = new Set(collectDescendantRoleIds(evaluatorRoleId, allRoles));
 
   return allRoles
-    .filter((role) => descendants.has(role.id) && (role.level ?? 0) === targetLevel)
+    .filter((role) => (role.level ?? 0) === targetLevel && descendantIds.has(role.id))
     .map((role) => role.id);
 }

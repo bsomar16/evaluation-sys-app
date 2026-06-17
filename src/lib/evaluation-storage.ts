@@ -320,17 +320,18 @@ export async function countEvaluatorPendingWork(
   const [employees, evaluations, rolesRes] = await Promise.all([
     fetchEmployeesForEvaluation(),
     fetchEvaluations(),
-    supabase.from('roles').select('id, name, level, child_roles, parent_role_id'),
+    supabase.from('roles').select('id, name, code, level, child_roles, parent_role_id'),
   ]);
 
-  const roles = rolesRes.data ?? [];
+  const roles = (rolesRes.data ?? []) as RoleRecord[];
   let scopedEmployees = employees;
-  if (!isSiteDeveloper(session) && session?.role_id) {
-    const immediateRoleIds = new Set(
+
+  if (!isSiteDeveloper(session) && session?.role_id && roles.length > 0) {
+    const immediateSubordinateRoleIds = new Set(
       collectImmediateSubordinateRoleIdsByLevel(session.role_id, roles)
     );
     scopedEmployees = employees.filter(
-      (employee) => employee.role_id && immediateRoleIds.has(employee.role_id)
+      (employee) => employee.role_id && immediateSubordinateRoleIds.has(employee.role_id)
     );
   }
 
