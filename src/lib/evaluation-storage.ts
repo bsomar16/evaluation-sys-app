@@ -243,6 +243,19 @@ export async function countEvaluationsUsingCriterion(criterionId: string): Promi
   return count;
 }
 
+export async function getEvaluationPercentageForOpenPeriod(
+  employeeId: string,
+  openPeriod: Pick<EvaluationPeriod, 'id' | 'name' | 'start_date'>,
+  criteria: EvaluationCriterionRecord[],
+  rules: CalculationRuleRecord[],
+  employee: Pick<EmployeeForEvaluation, 'role_id' | 'branch_id' | 'department_id'>
+): Promise<number | null> {
+  const evaluations = await fetchEvaluations();
+  const evaluation = findEvaluationForOpenPeriod(employeeId, openPeriod, evaluations);
+  if (!evaluation) return null;
+  return resolveEvaluationPercentage(evaluation, criteria, rules, employee);
+}
+
 export async function getEvaluationPercentageForEmployeePeriod(
   employeeId: string,
   period: string,
@@ -255,24 +268,43 @@ export async function getEvaluationPercentageForEmployeePeriod(
   return resolveEvaluationPercentage(evaluation, criteria, rules, employee);
 }
 
-function evaluationMatchesOpenPeriod(
-  evaluation: EvaluationRecord,
+function getOpenPeriodKeys(
   openPeriod: Pick<EvaluationPeriod, 'id' | 'name' | 'start_date'>
-): boolean {
-  const periodCode = dateToPeriodCode(new Date(openPeriod.start_date));
-  const stored = evaluation.period?.trim();
-  return stored === openPeriod.name || stored === periodCode || stored === openPeriod.id;
+): string[] {
+  const code = dateToPeriodCode(new Date(openPeriod.start_date));
+  return [openPeriod.name, code, openPeriod.id].filter((key): key is string => Boolean(key?.trim()));
 }
 
-function needsEvaluatorAction(
+export function findEvaluationForOpenPeriod(
+  employeeId: string,
+  openPeriod: Pick<EvaluationPeriod, 'id' | 'name' | 'start_date'>,
+  evaluations: EvaluationRecord[]
+): EvaluationRecord | null {
+  const keys = new Set(getOpenPeriodKeys(openPeriod).map((key) => key.trim()));
+  return (
+    evaluations.find(
+      (row) => row.employee_id === employeeId && keys.has((row.period ?? '').trim())
+    ) ?? null
+  );
+}
+
+export async function getEvaluationStatusForOpenPeriod(
+  employeeId: string,
+  openPeriod: Pick<EvaluationPeriod, 'id' | 'name' | 'start_date'>
+): Promise<EvaluationStatus | null> {
+  const evaluations = await fetchEvaluations();
+  return findEvaluationForOpenPeriod(employeeId, openPeriod, evaluations)?.status ?? null;
+}
+
+export function isAwaitingEvaluationAction(
   status: EvaluationStatus | null | undefined,
   canSubmit: boolean,
   canReview: boolean
 ): boolean {
-  if (!status) return canSubmit;
+  if (status == null || status === 'draft' || status === 'pending' || status === 'rejected') {
+    return canSubmit;
+  }
   if (status === 'submitted') return canReview;
-  if (status === 'approved') return false;
-  if (status === 'draft' || status === 'pending' || status === 'rejected') return canSubmit;
   return false;
 }
 
@@ -291,10 +323,8 @@ export async function countEvaluatorPendingWork(
 
   let count = 0;
   for (const employee of employees) {
-    const evaluation = evaluations.find(
-      (row) => row.employee_id === employee.id && evaluationMatchesOpenPeriod(row, openPeriod)
-    );
-    if (needsEvaluatorAction(evaluation?.status ?? null, canSubmit, canReview)) {
+    const evaluation = findEvaluationForOpenPeriod(employee.id, openPeriod, evaluations);
+    if (isAwaitingEvaluationAction(evaluation?.status ?? null, canSubmit, canReview)) {
       count += 1;
     }
   }
@@ -552,6 +582,8 @@ export async function getEvaluationStatusForEmployeePeriod(
   period: string
 ): Promise<EvaluationStatus | null> {
   const list = await fetchEvaluations();
-  const evaluation = list.find((e) => e.employee_id === employeeId && e.period === period && e.status !== 'draft');
+  const evaluation = list.find(
+    (e) => e.employee_id === employeeId && (e.period ?? '').trim() === period.trim()
+  );
   return evaluation?.status ?? null;
 }

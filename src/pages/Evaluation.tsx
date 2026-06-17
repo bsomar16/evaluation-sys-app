@@ -41,7 +41,9 @@ import {
   getLatestEvaluationScoreForEmployee,
   getLatestEvaluationStatusForEmployee,
   getEvaluationPercentageForEmployeePeriod,
+  getEvaluationPercentageForOpenPeriod,
   getEvaluationStatusForEmployeePeriod,
+  getEvaluationStatusForOpenPeriod,
   upsertEvaluation,
 } from '@/lib/evaluation-storage';
 import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
@@ -105,7 +107,7 @@ export default function Evaluation() {
 
   // Map grouped categories to database statuses
   const mapStatusGroupToDb = (group: string): EvaluationStatus[] => {
-    if (group === 'en-attente') return ['draft', 'rejected'];
+    if (group === 'en-attente') return ['draft', 'rejected', 'pending'];
     if (group === 'soumis') return ['submitted'];
     if (group === 'complet') return ['approved', 'completed'];
     return [];
@@ -308,17 +310,29 @@ export default function Evaluation() {
 
           const scoreMap: Record<string, number | null> = {};
           const statusMap: Record<string, EvaluationStatus | null> = {};
+          const statusPeriod = activePeriod;
           await withTimeout(
             Promise.all(
               emps.map(async (emp) => {
-                scoreMap[emp.id] = await getEvaluationPercentageForEmployeePeriod(
-                  emp.id,
-                  currentPeriod,
-                  crit,
-                  calcRules,
-                  emp
-                );
-                statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
+                if (statusPeriod) {
+                  statusMap[emp.id] = await getEvaluationStatusForOpenPeriod(emp.id, statusPeriod);
+                  scoreMap[emp.id] = await getEvaluationPercentageForOpenPeriod(
+                    emp.id,
+                    statusPeriod,
+                    crit,
+                    calcRules,
+                    emp
+                  );
+                } else {
+                  statusMap[emp.id] = await getEvaluationStatusForEmployeePeriod(emp.id, currentPeriod);
+                  scoreMap[emp.id] = await getEvaluationPercentageForEmployeePeriod(
+                    emp.id,
+                    currentPeriod,
+                    crit,
+                    calcRules,
+                    emp
+                  );
+                }
               })
             ),
             10000,
@@ -335,7 +349,26 @@ export default function Evaluation() {
       }
     };
     init();
-  }, [canReadEvaluations]);
+  }, [canReadEvaluations, activePeriod?.id]);
+
+  useEffect(() => {
+    if (!canReadEvaluations || !activePeriod || employees.length === 0) return;
+
+    let cancelled = false;
+    void (async () => {
+      const statusMap: Record<string, EvaluationStatus | null> = {};
+      await Promise.all(
+        employees.map(async (emp) => {
+          statusMap[emp.id] = await getEvaluationStatusForOpenPeriod(emp.id, activePeriod);
+        })
+      );
+      if (!cancelled) setStatusByEmployee(statusMap);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canReadEvaluations, activePeriod?.id, activePeriod?.name, activePeriod?.start_date, employees]);
 
   // Initialize period with first available period from database
   useEffect(() => {
