@@ -349,6 +349,12 @@ export default function Evaluation() {
     }
   }, [availablePeriods, activePeriod?.start_date, period]);
 
+  const openPeriodName = useMemo(() => {
+    if (!activePeriod) return '';
+    const code = dateToPeriodCode(new Date(activePeriod.start_date));
+    return availablePeriods.find((p) => p.code === code)?.name ?? activePeriod.name;
+  }, [activePeriod, availablePeriods]);
+
   const startEvaluation = async (empId: string) => {
     if (!isPeriodOpen) {
       toast({
@@ -358,17 +364,17 @@ export default function Evaluation() {
       });
       return;
     }
-    if (!period) {
+    if (!openPeriodName) {
       toast({
         variant: 'destructive',
-        title: 'Période non sélectionnée',
-        description: 'Veuillez sélectionner une période.',
+        title: 'Période indisponible',
+        description: 'Aucune période ouverte n’est configurée.',
       });
       return;
     }
     const emp = employees.find((e) => e.id === empId);
     if (!emp) return;
-    const periodCode = availablePeriods.find((p) => p.name === period)?.code || period;
+    const periodCode = availablePeriods.find((p) => p.name === openPeriodName)?.code || openPeriodName;
     const periodLabel = periodCode; // Use the selected period code
     const existing = await findEvaluationForEmployeePeriod(empId, periodLabel);
     const savedCriterionIds = new Set((existing?.responses ?? []).map((r) => r.criterion_id));
@@ -388,7 +394,7 @@ export default function Evaluation() {
 
     setFormValues(initial);
     setNotes(existing?.feedback ?? '');
-    setPeriod(period);
+    setPeriod(openPeriodName);
     setCurrentEvaluationId(existing?.id ?? null);
     setCurrentStatus(existing?.status ?? null);
     setActivityLog(existing?.activity_log ?? []);
@@ -553,7 +559,8 @@ export default function Evaluation() {
   };
 
   const roleName = (id?: string | null) => roles.find((r) => r.id === id)?.name ?? null;
-  const periodCode = availablePeriods.find((p) => p.name === period)?.code || period;
+  const periodCode =
+    availablePeriods.find((p) => p.name === (openPeriodName || period))?.code || openPeriodName || period;
   const periodDescription = describeEvaluationPeriodCode(periodCode);
 
   if (!hasEvaluationModuleAccess(isDeveloper, canReadEvaluations, canWriteEvaluations)) {
@@ -861,24 +868,16 @@ export default function Evaluation() {
 
       <div className="space-y-2">
         <Label htmlFor="evaluation-period">Période d&apos;évaluation (campagne)</Label>
-        <Select value={period} onValueChange={setPeriod} disabled={availablePeriods.length === 0}>
-          <SelectTrigger className="max-w-xs border-2 border-blue-300">
-            <>
-              {period || '—'}
-            </>
-          </SelectTrigger>
-          <SelectContent>
-            {availablePeriods.map((p) => (
-              <SelectItem key={p.name} value={p.name}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Input
+          id="evaluation-period"
+          readOnly
+          value={openPeriodName || period || '—'}
+          className="max-w-xs border-2 border-blue-300 bg-muted/30 cursor-default"
+        />
         <p className="text-xs text-muted-foreground leading-relaxed">
-          {availablePeriods.length > 0 && (
+          {openPeriodName && (
             <>
-              <span className="font-medium">{period}</span>
+              <span className="font-medium">{openPeriodName}</span>
               {periodDescription ? (
                 <> désigne la campagne <span className="font-medium">{periodDescription}</span>.</>
               ) : (
@@ -888,6 +887,7 @@ export default function Evaluation() {
                   <span className="font-medium">2026-T2</span> = 2e trimestre 2026.
                 </>
               )}
+              {' '}Période ouverte actuelle (non modifiable).
             </>
           )}
         </p>
