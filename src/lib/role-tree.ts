@@ -50,9 +50,8 @@ export function collectDescendantRoleIds(roleId: string, allRoles: RoleRecord[])
 }
 
 /**
- * Rôles exactement un niveau en dessous dans la hiérarchie (evaluator.level + 1),
- * parmi les descendants du rôle évaluateur.
- * Ex. gérant L2 → responsables L3 uniquement ; responsable L3 → employés L4.
+ * Rôles exactement un niveau en dessous (evaluator.level + 1).
+ * Priorité : enfants directs → parent_role_id → descendants → tous les rôles au niveau + 1.
  */
 export function collectImmediateSubordinateRoleIdsByLevel(
   evaluatorRoleId: string,
@@ -61,11 +60,31 @@ export function collectImmediateSubordinateRoleIdsByLevel(
   const evaluatorRole = allRoles.find((r) => r.id === evaluatorRoleId);
   if (!evaluatorRole) return [];
 
-  const evaluatorLevel = evaluatorRole.level ?? 0;
-  const targetLevel = evaluatorLevel + 1;
+  const targetLevel = (evaluatorRole.level ?? 0) + 1;
+
+  const directChildren = getDirectChildRoles(evaluatorRoleId, allRoles).filter(
+    (role) => (role.level ?? 0) === targetLevel
+  );
+  if (directChildren.length > 0) {
+    return directChildren.map((role) => role.id);
+  }
+
+  const linkedByParent = allRoles.filter(
+    (role) => role.parent_role_id === evaluatorRoleId && (role.level ?? 0) === targetLevel
+  );
+  if (linkedByParent.length > 0) {
+    return linkedByParent.map((role) => role.id);
+  }
+
   const descendantIds = new Set(collectDescendantRoleIds(evaluatorRoleId, allRoles));
+  const fromDescendants = allRoles.filter(
+    (role) => (role.level ?? 0) === targetLevel && descendantIds.has(role.id)
+  );
+  if (fromDescendants.length > 0) {
+    return fromDescendants.map((role) => role.id);
+  }
 
   return allRoles
-    .filter((role) => (role.level ?? 0) === targetLevel && descendantIds.has(role.id))
+    .filter((role) => (role.level ?? 0) === targetLevel)
     .map((role) => role.id);
 }

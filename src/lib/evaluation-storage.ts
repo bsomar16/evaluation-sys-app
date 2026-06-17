@@ -317,27 +317,67 @@ export async function countEvaluatorPendingWork(
   if (!openPeriod || (!canSubmit && !canReview)) return 0;
 
   const session = getSessionUser();
-  const [employees, evaluations, rolesRes] = await Promise.all([
-    fetchEmployeesForEvaluation(),
-    fetchEvaluations(),
+  const [usersRes, branchesRes, rolesRes, deptsRes, evaluations] = await Promise.all([
+    supabase
+      .from('users')
+      .select('id, role_id, branch_id, department_id')
+      .is('archived_at', null)
+      .eq('is_active', true),
+    supabase.from('branches').select('id, name, child_branches, parent_branch_id'),
     supabase.from('roles').select('id, name, code, level, child_roles, parent_role_id'),
+    supabase.from('departments').select('id, name, child_departments, parent_department_id'),
+    fetchEvaluations(),
   ]);
 
-  const roles = (rolesRes.data ?? []) as RoleRecord[];
-  let scopedEmployees = employees;
+  if (usersRes.error) {
+    if (isMissingTableError(usersRes.error)) return 0;
+    throw usersRes.error;
+  }
 
-  if (!isSiteDeveloper(session) && session?.role_id && roles.length > 0) {
-    const immediateSubordinateRoleIds = new Set(
+  const roles = (rolesRes.data ?? []) as RoleRecord[];
+  const branches = branchesRes.data ?? [];
+  const departments = deptsRes.data ?? [];
+  const users = usersRes.data ?? [];
+
+  let scopedUserIds: string[];
+
+  if (isSiteDeveloper(session)) {
+    scopedUserIds = users.filter((u) => u.id !== session?.id).map((u) => u.id);
+  } else if (!session?.role_id || roles.length === 0) {
+    return 0;
+  } else {
+    const subordinateRoleIds = new Set(
       collectImmediateSubordinateRoleIdsByLevel(session.role_id, roles)
     );
-    scopedEmployees = employees.filter(
-      (employee) => employee.role_id && immediateSubordinateRoleIds.has(employee.role_id)
-    );
+    const allowedBranchIds =
+      session.branch_id && branches.length > 0
+        ? collectBranchScopeIds(session.branch_id, branches)
+        : null;
+    const allowedDepartmentIds =
+      session.department_id && departments.length > 0
+        ? collectDepartmentScopeIds(session.department_id, departments)
+        : null;
+
+    scopedUserIds = users
+      .filter((user) => {
+        if (user.id === session.id) return false;
+        if (!user.role_id || !subordinateRoleIds.has(user.role_id)) return false;
+        if (allowedBranchIds !== null) {
+          if (!user.branch_id || !allowedBranchIds.includes(user.branch_id)) return false;
+        }
+        if (allowedDepartmentIds !== null) {
+          if (!user.department_id || !allowedDepartmentIds.includes(user.department_id)) {
+            return false;
+          }
+        }
+        return true;
+      })
+      .map((user) => user.id);
   }
 
   let count = 0;
-  for (const employee of scopedEmployees) {
-    const evaluation = findEvaluationForOpenPeriod(employee.id, openPeriod, evaluations);
+  for (const userId of scopedUserIds) {
+    const evaluation = findEvaluationForOpenPeriod(userId, openPeriod, evaluations);
     if (isAwaitingEvaluationAction(evaluation?.status ?? null, canSubmit, canReview)) {
       count += 1;
     }
