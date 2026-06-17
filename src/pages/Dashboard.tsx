@@ -617,20 +617,20 @@ export default function Dashboard() {
                 <div key={period} className="flex items-center gap-2">
                   <button
                     onClick={() => setSelectedPeriod(period)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       selectedPeriod === period
                         ? 'bg-primary text-primary-foreground shadow-md'
-                        : isOpen
-                          ? 'bg-primary/10 text-primary border border-primary/40 hover:bg-primary/15'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
                     }`}
                   >
-                    <span>{period}</span>
-                    <span className={`ml-2 text-[10px] uppercase tracking-wide ${
-                      selectedPeriod === period ? 'opacity-90' : 'opacity-70'
-                    }`}>
-                      {isOpen ? 'Ouverte' : 'Fermée'}
-                    </span>
+                    {isOpen && (
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full bg-emerald-500 ring-2 ring-emerald-500/25"
+                        title="Période ouverte"
+                        aria-label="Période ouverte"
+                      />
+                    )}
+                    {period}
                   </button>
                   {idx < periods.length - 1 && (
                     <span className="text-muted-foreground">→</span>
