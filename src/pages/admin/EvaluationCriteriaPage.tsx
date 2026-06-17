@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +18,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle2, Plus, Trash2, Edit2, Search, X } from 'lucide-react';
+import { CheckCircle2, Plus, Trash2, Edit2, Search, X, ChevronDown, ChevronRight } from 'lucide-react';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
@@ -43,6 +45,8 @@ import {
 
 type CriterionFormState = {
   name: string;
+  coefficient: string;
+  description: string;
   calculation_rule_id: string;
   type: CriterionType;
   choice_option_1_label: string;
@@ -62,6 +66,8 @@ function emptyForm(rules: CalculationRuleRecord[]): CriterionFormState {
   const first = rules[0];
   return {
     name: '',
+    coefficient: '1',
+    description: '',
     calculation_rule_id: first?.id ?? '',
     type: first?.type ?? 'binary',
     choice_option_1_label: '',
@@ -251,6 +257,30 @@ function StackedRoleBadges({
   );
 }
 
+function formatCoefficient(weight: number): string {
+  const n = Number(weight);
+  if (!Number.isFinite(n)) return '1';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
+}
+
+function CriterionDescriptionExpand({ description }: { description?: string | null }) {
+  const text = description?.trim();
+  if (!text) return null;
+
+  return (
+    <Collapsible className="mt-1.5 group">
+      <CollapsibleTrigger className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <ChevronRight className="h-3.5 w-3.5 group-data-[state=open]:hidden" />
+        <ChevronDown className="h-3.5 w-3.5 hidden group-data-[state=open]:inline" />
+        <span>Description</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-1.5 text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed max-w-md">
+        {text}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function EvaluationCriteriaPage() {
   const { toast } = useToast();
   const { canRead, canWrite, canDelete } = useRolePermissions();
@@ -319,6 +349,8 @@ export function EvaluationCriteriaPage() {
       (c.department_all ?? c.department_ids.length === 0) || c.department_ids.length === 0;
     setFormData({
       name: c.name,
+      coefficient: formatCoefficient(c.weight ?? 1),
+      description: c.description ?? '',
       calculation_rule_id: linked,
       type: c.type,
       choice_option_1_label: c.choice_option_1_label ?? '',
@@ -349,6 +381,11 @@ export function EvaluationCriteriaPage() {
     }
     if (!formData.calculation_rule_id) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Choisissez un système de calcul' });
+      return;
+    }
+    const coefficientValue = Number.parseFloat(formData.coefficient.replace(',', '.'));
+    if (!Number.isFinite(coefficientValue) || coefficientValue <= 0) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez un coefficient valide (supérieur à 0)' });
       return;
     }
     const selectedRule = calculationRules.find((r) => r.id === formData.calculation_rule_id);
@@ -404,7 +441,8 @@ export function EvaluationCriteriaPage() {
         role_ids: formData.role_all ? [] : formData.role_ids,
         branch_ids: formData.branch_all ? [] : formData.branch_ids,
         department_ids: formData.department_all ? [] : formData.department_ids,
-        weight: editing?.weight ?? 1,
+        weight: coefficientValue,
+        description: formData.description.trim() || null,
         sort_order: editing?.sort_order ?? criteria.length + 1,
         is_active: editing?.is_active ?? true,
       });
@@ -499,6 +537,35 @@ export function EvaluationCriteriaPage() {
                       value={formData.name}
                       onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                       className="border-2 border-blue-300 bg-blue-50"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="criterion-coefficient">Coefficient</Label>
+                    <Input
+                      id="criterion-coefficient"
+                      type="number"
+                      min={0.01}
+                      step={0.01}
+                      placeholder="1"
+                      value={formData.coefficient}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, coefficient: e.target.value }))}
+                      className="border-2 border-blue-300 bg-blue-50 max-w-[160px]"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Poids du critère dans le calcul du score global.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="criterion-description">Description</Label>
+                    <Textarea
+                      id="criterion-description"
+                      placeholder="Description optionnelle du critère..."
+                      value={formData.description}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                      rows={3}
+                      className="border-2 border-blue-300 bg-blue-50 resize-y min-h-[72px]"
                     />
                   </div>
 
@@ -635,6 +702,7 @@ export function EvaluationCriteriaPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-4">Nom du critère</th>
+                    <th className="text-left py-3 px-4 w-28">Coefficient</th>
                     <th className="text-left py-3 px-4">Système de calcul</th>
                     <th className="text-left py-3 px-4">Rôles</th>
                     <th className="text-left py-3 px-4">Filiales</th>
@@ -645,7 +713,15 @@ export function EvaluationCriteriaPage() {
                 <tbody>
                   {pagination.paginatedItems.map((c) => (
                     <tr key={c.id} className="border-b hover:bg-muted/50">
-                      <td className="py-3 px-4 font-medium align-top">{c.name}</td>
+                      <td className="py-3 px-4 align-top">
+                        <p className="font-medium">{c.name}</p>
+                        <CriterionDescriptionExpand description={c.description} />
+                      </td>
+                      <td className="py-3 px-4 align-top">
+                        <Badge variant="outline" className="font-mono tabular-nums">
+                          {formatCoefficient(c.weight ?? 1)}
+                        </Badge>
+                      </td>
                       <td className="py-3 px-4 align-top">
                         <Badge variant="secondary">
                           {calculationSystemLabel(c, calculationRules)}

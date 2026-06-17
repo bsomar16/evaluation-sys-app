@@ -19,8 +19,10 @@ export interface EvaluationCriterionRecord {
   role_ids: string[];
   branch_ids: string[];
   department_ids: string[];
-  /** Poids du critère dans le score total */
+  /** Poids / coefficient du critère dans le score total */
   weight: number;
+  /** Description détaillée du critère */
+  description?: string | null;
   sort_order: number;
   is_active: boolean;
 }

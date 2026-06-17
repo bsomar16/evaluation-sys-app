@@ -65,6 +65,7 @@ function normalizeCriterion(row: CriterionRow): EvaluationCriterionRecord {
     branch_ids,
     department_ids,
     weight: row.weight != null ? Number(row.weight) : 1,
+    description: row.description?.trim() || null,
     sort_order: row.sort_order ?? 0,
     is_active: row.is_active !== false,
   };
@@ -163,7 +164,7 @@ function saveRulesToLocal(rules: CalculationRuleRecord[]) {
 
 
 const SELECT_ARRAYS =
-  'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, sort_order, is_active';
+  'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, description, sort_order, is_active';
 
 const SELECT_LEGACY_SINGLES =
   'id, name, type, role_id, branch_id, department_id, weight, sort_order, is_active';
@@ -200,7 +201,7 @@ function buildPayload(criterion: Omit<EvaluationCriterionRecord, 'id'> & { id?: 
     department_ids: departmentIds,
 
     weight: criterion.weight ?? 1,
-
+    description: criterion.description?.trim() || null,
     sort_order: criterion.sort_order,
 
     is_active: criterion.is_active,
@@ -313,6 +314,8 @@ async function persistCriterion(
 
     weight: fullPayload.weight,
 
+    description: fullPayload.description,
+
     sort_order: fullPayload.sort_order,
 
     is_active: fullPayload.is_active,
@@ -337,6 +340,8 @@ async function persistCriterion(
 
     weight: fullPayload.weight,
 
+    description: fullPayload.description,
+
     sort_order: fullPayload.sort_order,
 
     is_active: fullPayload.is_active,
@@ -357,6 +362,8 @@ async function persistCriterion(
 
     weight: fullPayload.weight,
 
+    description: fullPayload.description,
+
     sort_order: fullPayload.sort_order,
 
     is_active: fullPayload.is_active,
@@ -370,6 +377,8 @@ async function persistCriterion(
     type: fullPayload.type,
 
     weight: fullPayload.weight,
+
+    description: fullPayload.description,
 
     sort_order: fullPayload.sort_order,
 
@@ -457,6 +466,8 @@ async function persistCriterion(
     department_ids: fullPayload.department_ids,
 
     weight: fullPayload.weight,
+
+    description: fullPayload.description,
 
     sort_order: fullPayload.sort_order,
 
