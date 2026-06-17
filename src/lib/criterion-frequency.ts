@@ -24,18 +24,33 @@ export function getCriterionAnchorPeriodIndex(
 ): number {
   if (orderedPeriods.length === 0) return 0;
 
-  const anchorSource = criterion.frequency_anchor_date ?? criterion.created_at;
-  if (!anchorSource) return 0;
+  // Ancrage explicite (case cochée + mois choisi en admin).
+  if (criterion.frequency_anchor_date) {
+    const anchorKey = periodMonthKey(criterion.frequency_anchor_date);
+    const exactIndex = orderedPeriods.findIndex(
+      (period) => periodMonthKey(period.start_date) === anchorKey
+    );
+    if (exactIndex !== -1) return exactIndex;
 
-  const anchorKey = periodMonthKey(anchorSource);
+    const anchorTime = new Date(criterion.frequency_anchor_date).getTime();
+    const onOrAfter = orderedPeriods.findIndex(
+      (period) => new Date(period.start_date).getTime() >= anchorTime
+    );
+    return onOrAfter === -1 ? orderedPeriods.length - 1 : onOrAfter;
+  }
+
+  // Sans ancrage explicite : période en base correspondant au mois de création du critère.
+  if (!criterion.created_at) return 0;
+
+  const createdKey = periodMonthKey(criterion.created_at);
   const exactIndex = orderedPeriods.findIndex(
-    (period) => periodMonthKey(period.start_date) === anchorKey
+    (period) => periodMonthKey(period.start_date) === createdKey
   );
   if (exactIndex !== -1) return exactIndex;
 
-  const anchorTime = new Date(anchorSource).getTime();
+  const createdTime = new Date(criterion.created_at).getTime();
   const onOrAfter = orderedPeriods.findIndex(
-    (period) => new Date(period.start_date).getTime() >= anchorTime
+    (period) => new Date(period.start_date).getTime() >= createdTime
   );
   return onOrAfter === -1 ? orderedPeriods.length - 1 : onOrAfter;
 }

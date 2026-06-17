@@ -100,6 +100,7 @@ export default function Evaluation() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'en-attente' | 'soumis' | 'complet'>('all');
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
   const [availablePeriods, setAvailablePeriods] = useState<EvaluationPeriodOption[]>([]);
+  const [frequencyOrderedPeriods, setFrequencyOrderedPeriods] = useState<{ start_date: string }[]>([]);
   const loadGenerationRef = useRef(0);
 
   // Map grouped categories to database statuses
@@ -140,11 +141,8 @@ export default function Evaluation() {
   }, [activePeriod, availablePeriods]);
 
   const orderedEvaluationPeriods = useMemo(
-    () =>
-      [...availablePeriods].sort(
-        (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
-      ),
-    [availablePeriods]
+    () => frequencyOrderedPeriods,
+    [frequencyOrderedPeriods]
   );
 
   const evaluationPeriodStartDate = useMemo(() => {
@@ -303,6 +301,7 @@ export default function Evaluation() {
     roles: { id: string; name: string }[];
     departments: { id: string; name: string }[];
     availablePeriods: EvaluationPeriodOption[];
+    frequencyOrderedPeriods: { start_date: string }[];
     period: string;
     scoresByEmployee: Record<string, number | null>;
     statusByEmployee: Record<string, EvaluationStatus | null>;
@@ -313,6 +312,7 @@ export default function Evaluation() {
     setRoles(data.roles);
     setDepartments(data.departments);
     setAvailablePeriods(data.availablePeriods);
+    setFrequencyOrderedPeriods(data.frequencyOrderedPeriods);
     setPeriod(data.period);
     setScoresByEmployee(data.scoresByEmployee);
     setStatusByEmployee(data.statusByEmployee);

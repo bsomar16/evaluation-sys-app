@@ -8,6 +8,7 @@ import {
   getAllEvaluationPeriods,
   getCurrentOpenPeriod,
   getDashboardPeriods,
+  sortEvaluationPeriodsAsc,
 } from '@/lib/evaluation-period-db';
 import {
   fetchEmployeesForEvaluation,
@@ -32,6 +33,7 @@ export interface EvaluationPageData {
   roles: { id: string; name: string }[];
   departments: { id: string; name: string }[];
   availablePeriods: EvaluationPeriodOption[];
+  frequencyOrderedPeriods: { start_date: string }[];
   evaluations: EvaluationRecord[];
   period: string;
   scoresByEmployee: Record<string, number | null>;
@@ -134,6 +136,10 @@ export async function fetchEvaluationPageData(
     start_date: p.start_date,
   }));
 
+  const frequencyOrderedPeriods = sortEvaluationPeriodsAsc(dbPeriods).map((p) => ({
+    start_date: p.start_date,
+  }));
+
   const period = resolveDefaultPeriodName(
     availablePeriods,
     preferredPeriodName,
@@ -149,6 +155,7 @@ export async function fetchEvaluationPageData(
     roles: rolesRes.data ?? [],
     departments: deptsRes.data ?? [],
     availablePeriods,
+    frequencyOrderedPeriods,
     evaluations,
     period,
     scoresByEmployee: maps.scoresByEmployee,

@@ -21,4 +21,16 @@ describe('isCriterionDueForPeriod', () => {
     expect(isCriterionDueForPeriod(criterion, '2026-03-01', periods)).toBe(true);
     expect(isCriterionDueForPeriod(criterion, '2026-04-01', periods)).toBe(false);
   });
+
+  it('uses creation date when no explicit anchor is set', () => {
+    const criterion = {
+      frequency: 2,
+      frequency_anchor_date: null,
+      created_at: '2026-01-15T12:00:00.000Z',
+    };
+    expect(isCriterionDueForPeriod(criterion, '2026-01-01', periods)).toBe(true);
+    expect(isCriterionDueForPeriod(criterion, '2026-02-01', periods)).toBe(false);
+    expect(isCriterionDueForPeriod(criterion, '2026-03-01', periods)).toBe(true);
+    expect(isCriterionDueForPeriod(criterion, '2026-04-01', periods)).toBe(false);
+  });
 });

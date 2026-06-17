@@ -51,12 +51,19 @@ import { formatCriterionFrequencyLabel } from '@/lib/criterion-frequency';
 import { partitionCriteriaByArchive } from '@/lib/criterion-archive';
 import { countEvaluationsUsingCriterion } from '@/lib/evaluation-storage';
 import { formatArchivedAt } from '@/lib/user-archive';
+import {
+  getAllEvaluationPeriods,
+  sortEvaluationPeriodsAsc,
+  type EvaluationPeriod,
+} from '@/lib/evaluation-period-db';
+import { dateToPeriodCode, describeEvaluationPeriodCode } from '@/lib/evaluation-period-label';
 
 type CriterionFormState = {
   name: string;
   coefficient: string;
   frequency: string;
-  frequency_anchor_date: string;
+  use_frequency_anchor: boolean;
+  frequency_anchor_period_id: string;
   description: string;
   calculation_rule_id: string;
   type: CriterionType;
@@ -73,13 +80,27 @@ type CriterionFormState = {
 
 type NamedEntity = { id: string; name: string };
 
+function formatPeriodMonthLabel(period: EvaluationPeriod): string {
+  return describeEvaluationPeriodCode(dateToPeriodCode(new Date(period.start_date))) ?? period.name;
+}
+
+function findPeriodIdForAnchorDate(
+  periods: EvaluationPeriod[],
+  anchorDate: string | null | undefined
+): string {
+  if (!anchorDate) return '';
+  const anchorCode = dateToPeriodCode(new Date(anchorDate));
+  return periods.find((p) => dateToPeriodCode(new Date(p.start_date)) === anchorCode)?.id ?? '';
+}
+
 function emptyForm(rules: CalculationRuleRecord[]): CriterionFormState {
   const first = rules[0];
   return {
     name: '',
     coefficient: '1',
     frequency: '1',
-    frequency_anchor_date: '',
+    use_frequency_anchor: false,
+    frequency_anchor_period_id: '',
     description: '',
     calculation_rule_id: first?.id ?? '',
     type: first?.type ?? 'binary',
@@ -284,6 +305,7 @@ export function EvaluationCriteriaPage() {
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
+  const [evaluationPeriods, setEvaluationPeriods] = useState<EvaluationPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
@@ -294,17 +316,24 @@ export function EvaluationCriteriaPage() {
   const [criterionTab, setCriterionTab] = useState<'active' | 'archived'>('active');
   const [formData, setFormData] = useState<CriterionFormState>(() => emptyForm([]));
 
+  const orderedEvaluationPeriods = useMemo(
+    () => sortEvaluationPeriodsAsc(evaluationPeriods),
+    [evaluationPeriods]
+  );
+
   const load = async () => {
     try {
-      const [rows, rules, rolesRes, branchesRes, deptsRes] = await Promise.all([
+      const [rows, rules, rolesRes, branchesRes, deptsRes, dbPeriods] = await Promise.all([
         fetchEvaluationCriteria(),
         fetchCalculationRules(),
         supabase.from('roles').select('id, name, color'),
         supabase.from('branches').select('id, name'),
         supabase.from('departments').select('id, name'),
+        getAllEvaluationPeriods(),
       ]);
       setCriteria(rows.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)));
       setCalculationRules(rules);
+      setEvaluationPeriods(dbPeriods);
       if (!rolesRes.error) setRoles(rolesRes.data || []);
       if (!branchesRes.error) setBranches(branchesRes.data || []);
       if (!deptsRes.error) setDepartments(deptsRes.data || []);
@@ -349,7 +378,11 @@ export function EvaluationCriteriaPage() {
       name: c.name,
       coefficient: formatCoefficient(c.weight ?? 1),
       frequency: String(Math.max(1, c.frequency ?? 1)),
-      frequency_anchor_date: c.frequency_anchor_date?.slice(0, 10) ?? '',
+      use_frequency_anchor: Boolean(c.frequency_anchor_date),
+      frequency_anchor_period_id: findPeriodIdForAnchorDate(
+        sortEvaluationPeriodsAsc(evaluationPeriods),
+        c.frequency_anchor_date
+      ),
       description: c.description ?? '',
       calculation_rule_id: linked,
       type: c.type,
@@ -392,6 +425,21 @@ export function EvaluationCriteriaPage() {
     if (!Number.isFinite(frequencyValue) || frequencyValue < 1) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez une fréquence valide (entier ≥ 1)' });
       return;
+    }
+    let frequency_anchor_date: string | null = null;
+    if (frequencyValue > 1 && formData.use_frequency_anchor) {
+      const anchorPeriod = orderedEvaluationPeriods.find(
+        (p) => p.id === formData.frequency_anchor_period_id
+      );
+      if (!anchorPeriod) {
+        toast({
+          variant: 'destructive',
+          title: 'Erreur',
+          description: 'Choisissez le mois de départ pour la fréquence.',
+        });
+        return;
+      }
+      frequency_anchor_date = anchorPeriod.start_date.slice(0, 10);
     }
     const selectedRule = calculationRules.find((r) => r.id === formData.calculation_rule_id);
     if ((selectedRule?.type ?? formData.type) === 'choice') {
@@ -448,7 +496,7 @@ export function EvaluationCriteriaPage() {
         department_ids: formData.department_all ? [] : formData.department_ids,
         weight: coefficientValue,
         frequency: frequencyValue,
-        frequency_anchor_date: formData.frequency_anchor_date.trim() || null,
+        frequency_anchor_date,
         description: formData.description.trim() || null,
         sort_order: editing?.sort_order ?? criteria.length + 1,
         is_active: editing?.is_active ?? true,
@@ -651,21 +699,52 @@ export function EvaluationCriteriaPage() {
                         1 = chaque période · 2 = une période sur deux (ex. janv. → mars).
                       </p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="criterion-frequency-anchor">Période de départ</Label>
-                      <Input
-                        id="criterion-frequency-anchor"
-                        type="date"
-                        value={formData.frequency_anchor_date}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, frequency_anchor_date: e.target.value }))
-                        }
-                        className="border-2 border-blue-300 bg-blue-50"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Optionnel — sinon date de création du critère.
-                      </p>
-                    </div>
+                    {Math.max(1, Number.parseInt(formData.frequency, 10) || 1) > 1 && (
+                      <div className="space-y-2">
+                        <label className="inline-flex items-center gap-2 text-sm font-medium leading-none">
+                          <Checkbox
+                            id="criterion-use-frequency-anchor"
+                            checked={formData.use_frequency_anchor}
+                            onCheckedChange={(checked) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                use_frequency_anchor: checked === true,
+                                frequency_anchor_period_id:
+                                  checked === true ? prev.frequency_anchor_period_id : '',
+                              }))
+                            }
+                          />
+                          <span>Période de départ</span>
+                        </label>
+                        {formData.use_frequency_anchor ? (
+                          <Select
+                            value={formData.frequency_anchor_period_id || undefined}
+                            onValueChange={(value) =>
+                              setFormData((prev) => ({ ...prev, frequency_anchor_period_id: value }))
+                            }
+                          >
+                            <SelectTrigger
+                              id="criterion-frequency-anchor"
+                              className="border-2 border-blue-300 bg-blue-50"
+                            >
+                              <SelectValue placeholder="Choisir un mois" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {orderedEvaluationPeriods.map((period) => (
+                                <SelectItem key={period.id} value={period.id}>
+                                  {formatPeriodMonthLabel(period)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            Calcul selon les périodes en base (ordre chronologique), à partir de la
+                            création du critère.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">

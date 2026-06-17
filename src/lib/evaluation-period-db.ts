@@ -333,6 +333,13 @@ export async function deletePeriodInterval(id: string): Promise<boolean> {
   }
 }
 
+/** Toutes les périodes triées par date de début (plus ancienne en premier). */
+export function sortEvaluationPeriodsAsc(periods: EvaluationPeriod[]): EvaluationPeriod[] {
+  return [...periods].sort(
+    (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+  );
+}
+
 /**
  * Périodes éligibles au tableau de bord : déjà commencées (ouvertes ou fermées), pas les campagnes futures.
  * Tri chronologique (plus ancienne en premier) pour la ligne de sélection.
