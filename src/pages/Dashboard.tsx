@@ -10,8 +10,11 @@ import {
 } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
-import { getCurrentQuarterPeriod } from '@/lib/evaluation-period-label';
-import { getAllEvaluationPeriods } from '@/lib/evaluation-period-db';
+import {
+  getAllEvaluationPeriods,
+  getCurrentOpenPeriod,
+  getDashboardPeriods,
+} from '@/lib/evaluation-period-db';
 import { collectBranchScopeIds } from '@/lib/branch-tree';
 import {
   fetchEvaluationCriteria,
@@ -78,8 +81,8 @@ export default function Dashboard() {
   
   // Selector data states
   const [currentUser, setCurrentUser] = useState<any>(null);
-  // Load periods from database only - no fallbacks
   const [periods, setPeriods] = useState<string[]>([]);
+  const [openPeriodName, setOpenPeriodName] = useState<string | null>(null);
   const [branches, setBranches] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -99,6 +102,7 @@ export default function Dashboard() {
   
   // Initialization tracking
   const hasInitializedSelection = useRef(false);
+  const hasInitializedPeriod = useRef(false);
   
   // Selected employee details
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeePerformance | null>(null);
@@ -282,13 +286,24 @@ export default function Dashboard() {
       setCurrentUser(JSON.parse(userData));
     }
     
-    // Load periods from database
     const loadPeriods = async () => {
       const dbPeriods = await getAllEvaluationPeriods();
-      const periodNames = dbPeriods.map(p => p.name);
-      setPeriods(periodNames);
+      const eligible = getDashboardPeriods(dbPeriods);
+      setPeriods(eligible.map((p) => p.name));
+
+      const openPeriod = await getCurrentOpenPeriod();
+      setOpenPeriodName(openPeriod?.name ?? null);
+
+      if (!hasInitializedPeriod.current && eligible.length > 0) {
+        hasInitializedPeriod.current = true;
+        if (openPeriod?.name) {
+          setSelectedPeriod(openPeriod.name);
+        } else {
+          setSelectedPeriod(eligible[eligible.length - 1].name);
+        }
+      }
     };
-    
+
     loadPeriods();
     loadInitialData();
   }, []);
@@ -596,23 +611,33 @@ export default function Dashboard() {
           <h3 className="text-sm font-semibold text-foreground mb-3">Période d'Évaluation (Mois)</h3>
           <div className="flex items-center gap-2 flex-wrap">
             {periods.length > 0 ? (
-              periods.map((period, idx) => (
+              periods.map((period, idx) => {
+                const isOpen = period === openPeriodName;
+                return (
                 <div key={period} className="flex items-center gap-2">
                   <button
                     onClick={() => setSelectedPeriod(period)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       selectedPeriod === period
                         ? 'bg-primary text-primary-foreground shadow-md'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
+                        : isOpen
+                          ? 'bg-primary/10 text-primary border border-primary/40 hover:bg-primary/15'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/80 border border-border'
                     }`}
                   >
-                    {period}
+                    <span>{period}</span>
+                    <span className={`ml-2 text-[10px] uppercase tracking-wide ${
+                      selectedPeriod === period ? 'opacity-90' : 'opacity-70'
+                    }`}>
+                      {isOpen ? 'Ouverte' : 'Fermée'}
+                    </span>
                   </button>
                   {idx < periods.length - 1 && (
                     <span className="text-muted-foreground">→</span>
                   )}
                 </div>
-              ))
+                );
+              })
             ) : (
               <p className="text-muted-foreground text-sm">Aucune période disponible</p>
             )}

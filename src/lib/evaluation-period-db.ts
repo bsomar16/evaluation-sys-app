@@ -334,6 +334,26 @@ export async function deletePeriodInterval(id: string): Promise<boolean> {
 }
 
 /**
+ * Périodes éligibles au tableau de bord : déjà commencées (ouvertes ou fermées), pas les campagnes futures.
+ * Tri chronologique (plus ancienne en premier) pour la ligne de sélection.
+ */
+export function getDashboardPeriods(periods: EvaluationPeriod[]): EvaluationPeriod[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return periods
+    .filter((period) => {
+      const start = new Date(period.start_date);
+      start.setHours(0, 0, 0, 0);
+      return start <= today;
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+    );
+}
+
+/**
  * Check if a period is currently open (any active interval is ongoing)
  */
 export async function isPeriodOpen(period_id: string): Promise<boolean> {
