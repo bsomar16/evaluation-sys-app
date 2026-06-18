@@ -61,13 +61,12 @@ import {
   refreshEvaluationPageEvaluations,
   type EvaluationPeriodOption,
 } from '@/lib/evaluation-page-cache';
-import type { EmployeeForEvaluation, EvaluationRecord, EvaluationResponseItem } from '@/lib/evaluation-types';
+import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evaluation-types';
 import { getSessionUser } from '@/lib/session-user';
 import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
 import { hideLoadingOverlay, runWithLoadingOverlay } from '@/lib/loading-overlay';
 import {
-  buildDefaultEvaluationExportFields,
-  buildEvaluationExportFieldTree,
+  EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS,
   exportEvaluationListToExcel,
   type EvaluationExportFieldKey,
 } from '@/lib/evaluation-list-export';
@@ -103,7 +102,6 @@ export default function Evaluation() {
   const [rules, setRules] = useState<CalculationRuleRecord[]>([]);
   const [scoresByEmployee, setScoresByEmployee] = useState<Record<string, number | null>>({});
   const [statusByEmployee, setStatusByEmployee] = useState<Record<string, EvaluationStatus | null>>({});
-  const [evaluations, setEvaluations] = useState<EvaluationRecord[]>([]);
 
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [period, setPeriod] = useState('');
@@ -200,35 +198,6 @@ export default function Evaluation() {
   const totalPercentage = scoreBreakdown.percentage;
   const departmentName = (id?: string | null) => departments.find((d) => d.id === id)?.name ?? null;
   const roleName = (id?: string | null) => roles.find((r) => r.id === id)?.name ?? null;
-
-  const activePeriodName = openPeriodName || period;
-
-  const evaluationsByEmployeeId = useMemo(() => {
-    const map = new Map<string, EvaluationRecord>();
-    const periodName = activePeriodName.trim();
-    if (!periodName) return map;
-    for (const evaluation of evaluations) {
-      if (
-        evaluation.employee_id &&
-        (evaluation.period ?? '').trim() === periodName
-      ) {
-        map.set(evaluation.employee_id, evaluation);
-      }
-    }
-    return map;
-  }, [evaluations, activePeriodName]);
-
-  const criteriaById = useMemo(
-    () => new Map(criteria.map((criterion) => [criterion.id, criterion])),
-    [criteria]
-  );
-
-  const exportFieldTree = useMemo(() => buildEvaluationExportFieldTree(criteria), [criteria]);
-
-  const defaultExportFields = useMemo(
-    () => buildDefaultEvaluationExportFields(criteria),
-    [criteria]
-  );
 
   const branchFilterOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -354,22 +323,57 @@ export default function Evaluation() {
     });
   };
 
-  const handleBulkExport = (fields: EvaluationExportFieldKey[]) => {
+  const handleBulkExport = async (fields: EvaluationExportFieldKey[]) => {
     if (selectedEmployees.length === 0) return;
-    exportEvaluationListToExcel(selectedEmployees, fields, {
-      departmentName,
-      roleName,
-      scoresByEmployee,
-      statusByEmployee,
-      evaluationsByEmployeeId,
-      criteriaById,
-      fieldTree: exportFieldTree,
-      periodLabel: activePeriodName,
-    });
-    toast({
-      title: 'Export terminé',
-      description: `${selectedEmployees.length} ligne(s) exportée(s) en Excel.`,
-    });
+
+    const periodName = (openPeriodName || period).trim();
+    const periodOption = availablePeriods.find((item) => item.name === periodName);
+
+    try {
+      const evaluations = await runWithLoadingOverlay(
+        () => fetchEvaluations(),
+        'Préparation de l’export...'
+      );
+
+      const evaluationsByEmployeeId: Record<string, EvaluationRecord | null> = {};
+      for (const employee of selectedEmployees) {
+        if (periodOption) {
+          evaluationsByEmployeeId[employee.id] = findEvaluationForOpenPeriod(
+            employee.id,
+            periodOption,
+            evaluations
+          );
+        } else {
+          evaluationsByEmployeeId[employee.id] =
+            evaluations.find(
+              (row) =>
+                row.employee_id === employee.id &&
+                (row.period ?? '').trim() === periodName
+            ) ?? null;
+        }
+      }
+
+      exportEvaluationListToExcel(selectedEmployees, fields, {
+        departmentName,
+        roleName,
+        scoresByEmployee,
+        statusByEmployee,
+        criteria,
+        rules,
+        evaluationsByEmployeeId,
+        evaluationPeriodStartDate: periodOption?.start_date ?? evaluationPeriodStartDate,
+        orderedEvaluationPeriods: frequencyOrderedPeriods,
+        periodLabel: periodName,
+      });
+
+      toast({
+        title: 'Export terminé',
+        description: `Export Excel généré pour ${selectedEmployees.length} employé(s).`,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Export impossible';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    }
   };
 
   const handleBulkDelete = async () => {
@@ -467,7 +471,6 @@ export default function Evaluation() {
     departments: { id: string; name: string }[];
     availablePeriods: EvaluationPeriodOption[];
     frequencyOrderedPeriods: { start_date: string }[];
-    evaluations: EvaluationRecord[];
     period: string;
     scoresByEmployee: Record<string, number | null>;
     statusByEmployee: Record<string, EvaluationStatus | null>;
@@ -479,7 +482,6 @@ export default function Evaluation() {
     setDepartments(data.departments);
     setAvailablePeriods(data.availablePeriods);
     setFrequencyOrderedPeriods(data.frequencyOrderedPeriods);
-    setEvaluations(data.evaluations);
     setPeriod(data.period);
     setScoresByEmployee(data.scoresByEmployee);
     setStatusByEmployee(data.statusByEmployee);
@@ -493,8 +495,6 @@ export default function Evaluation() {
     if (maps) {
       setScoresByEmployee(maps.scoresByEmployee);
       setStatusByEmployee(maps.statusByEmployee);
-      const cached = getEvaluationPageSnapshot();
-      if (cached) setEvaluations(cached.evaluations);
       return;
     }
 
@@ -504,8 +504,6 @@ export default function Evaluation() {
         if (maps) {
           setScoresByEmployee(maps.scoresByEmployee);
           setStatusByEmployee(maps.statusByEmployee);
-          const cached = getEvaluationPageSnapshot();
-          if (cached) setEvaluations(cached.evaluations);
         }
       })
       .finally(() => setListRefreshing(false));
@@ -1096,9 +1094,7 @@ export default function Evaluation() {
         <EvaluationExportDialog
           open={exportDialogOpen}
           onOpenChange={setExportDialogOpen}
-          fieldTree={exportFieldTree}
-          criteriaById={criteriaById}
-          defaultSelectedFields={defaultExportFields}
+          defaultSelectedFields={EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS}
           onExport={handleBulkExport}
         />
 

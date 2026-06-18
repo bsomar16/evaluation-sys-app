@@ -1,8 +1,7 @@
 import * as XLSX from 'xlsx';
-import {
-  formatEvaluationPercentage,
-  type EvaluationCriterionRecord,
-} from '@/lib/evaluation-calculator';
+import { formatEvaluationPercentage, type CalculationRuleRecord, type EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
+import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
+import { criterionAppliesToEmployee } from '@/lib/evaluation-storage';
 import {
   EVALUATION_STATUS_LABELS,
   type EmployeeForEvaluation,
@@ -20,9 +19,8 @@ export interface EvaluationExportFieldNode {
   children?: EvaluationExportFieldNode[];
 }
 
-const CRITERION_FIELD_RE = /^criterion\.([^.]+)\.(value|points)$/;
-
-const STATIC_EVALUATION_EXPORT_FIELD_TREE: EvaluationExportFieldNode[] = [
+/** Arborescence alignée sur le tableau Évaluation + critères détaillés. */
+export const EVALUATION_EXPORT_FIELD_TREE: EvaluationExportFieldNode[] = [
   {
     key: 'employee',
     label: 'Employé',
@@ -66,12 +64,17 @@ const STATIC_EVALUATION_EXPORT_FIELD_TREE: EvaluationExportFieldNode[] = [
     ],
   },
   {
-    key: 'evaluation-meta',
-    label: 'Évaluation',
-    children: [{ key: 'evaluation.feedback', label: 'Commentaire' }],
+    key: 'criterion',
+    label: 'Critère',
+    children: [
+      { key: 'criterion.name', label: 'Nom du critère' },
+      { key: 'criterion.note', label: 'Note (points)' },
+      { key: 'criterion.value', label: 'Valeur saisie' },
+    ],
   },
 ];
 
+/** Colonnes par défaut = tableau + critère et note. */
 export const EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS: EvaluationExportFieldKey[] = [
   'employee.name',
   'position',
@@ -79,6 +82,8 @@ export const EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS: EvaluationExportFieldKey[] 
   'department.name',
   'score.display',
   'status.label',
+  'criterion.name',
+  'criterion.note',
 ];
 
 const TABLE_COLUMN_HEADER_BY_FIELD: Record<string, string> = {
@@ -88,116 +93,50 @@ const TABLE_COLUMN_HEADER_BY_FIELD: Record<string, string> = {
   'department.name': 'Service',
   'score.display': 'Dernier score',
   'status.label': 'Statut',
-  'evaluation.feedback': 'Commentaire',
+  'criterion.name': 'Critère',
+  'criterion.note': 'Note',
 };
 
-export function getExportableCriteria(
-  criteria: EvaluationCriterionRecord[]
-): EvaluationCriterionRecord[] {
-  return criteria
-    .filter((criterion) => criterion.is_active !== false && !criterion.archived_at)
-    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'fr'));
+function isLeafNode(node: EvaluationExportFieldNode): boolean {
+  return !node.children || node.children.length === 0;
 }
 
-export function buildEvaluationExportFieldTree(
-  criteria: EvaluationCriterionRecord[]
-): EvaluationExportFieldNode[] {
-  const activeCriteria = getExportableCriteria(criteria);
-
-  return [
-    ...STATIC_EVALUATION_EXPORT_FIELD_TREE,
-    {
-      key: 'criteria',
-      label: "Critères d'évaluation",
-      children: activeCriteria.map((criterion) => ({
-        key: `criterion-group-${criterion.id}`,
-        label: criterion.name,
-        children: [
-          { key: `criterion.${criterion.id}.value`, label: 'Valeur' },
-          { key: `criterion.${criterion.id}.points`, label: 'Points' },
-        ],
-      })),
-    },
-  ];
-}
-
-/** Colonnes tableau + valeur et points de chaque critère. */
-export function buildDefaultEvaluationExportFields(
-  criteria: EvaluationCriterionRecord[]
-): EvaluationExportFieldKey[] {
-  const activeCriteria = getExportableCriteria(criteria);
-  return [
-    ...EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS,
-    ...activeCriteria.flatMap((criterion) => [
-      `criterion.${criterion.id}.value`,
-      `criterion.${criterion.id}.points`,
-    ]),
-  ];
+function isCriterionField(key: EvaluationExportFieldKey): boolean {
+  return key.startsWith('criterion.');
 }
 
 export function collectEvaluationExportLeafNodes(
-  nodes: EvaluationExportFieldNode[]
+  nodes: EvaluationExportFieldNode[] = EVALUATION_EXPORT_FIELD_TREE
 ): EvaluationExportFieldNode[] {
   const leaves: EvaluationExportFieldNode[] = [];
-
-  const walk = (list: EvaluationExportFieldNode[]) => {
-    for (const node of list) {
-      if (!node.children?.length) {
-        leaves.push(node);
-        continue;
-      }
-      walk(node.children);
+  for (const node of nodes) {
+    if (isLeafNode(node)) {
+      leaves.push(node);
+      continue;
     }
-  };
-
-  walk(nodes);
+    for (const child of node.children ?? []) {
+      leaves.push(child);
+    }
+  }
   return leaves;
 }
 
-function findFieldLabelPath(
-  nodes: EvaluationExportFieldNode[],
-  targetKey: string,
-  trail: string[] = []
-): string[] | null {
-  for (const node of nodes) {
-    const nextTrail = [...trail, node.label];
-    if (node.key === targetKey && !node.children?.length) {
-      return nextTrail;
-    }
-    if (node.children?.length) {
-      const nested = findFieldLabelPath(node.children, targetKey, nextTrail);
-      if (nested) return nested;
+export function getEvaluationExportFieldLabel(key: EvaluationExportFieldKey): string {
+  const leaf = collectEvaluationExportLeafNodes().find((node) => node.key === key);
+  if (!leaf) return key;
+
+  for (const group of EVALUATION_EXPORT_FIELD_TREE) {
+    if (group.key === key) return group.label;
+    if (group.children?.some((child) => child.key === key)) {
+      return `${group.label} — ${leaf.label}`;
     }
   }
-  return null;
+
+  return leaf.label;
 }
 
-export function getEvaluationExportFieldLabel(
-  key: EvaluationExportFieldKey,
-  fieldTree: EvaluationExportFieldNode[]
-): string {
-  const path = findFieldLabelPath(fieldTree, key);
-  if (path?.length) return path.join(' — ');
-  return key;
-}
-
-export function getEvaluationExportColumnHeader(
-  key: EvaluationExportFieldKey,
-  criteriaById: Map<string, EvaluationCriterionRecord>,
-  fieldTree: EvaluationExportFieldNode[]
-): string {
-  if (TABLE_COLUMN_HEADER_BY_FIELD[key]) {
-    return TABLE_COLUMN_HEADER_BY_FIELD[key];
-  }
-
-  const criterionMatch = key.match(CRITERION_FIELD_RE);
-  if (criterionMatch) {
-    const [, criterionId, part] = criterionMatch;
-    const name = criteriaById.get(criterionId)?.name ?? 'Critère';
-    return part === 'points' ? `${name} (points)` : `${name} (valeur)`;
-  }
-
-  return getEvaluationExportFieldLabel(key, fieldTree);
+export function getEvaluationExportColumnHeader(key: EvaluationExportFieldKey): string {
+  return TABLE_COLUMN_HEADER_BY_FIELD[key] ?? getEvaluationExportFieldLabel(key);
 }
 
 function escapeCsvCell(value: string): string {
@@ -207,51 +146,16 @@ function escapeCsvCell(value: string): string {
   return value;
 }
 
-export function formatCriterionResponseValue(response: EvaluationResponseItem): string {
-  if (response.type === 'binary') {
-    return response.value === true || response.value === 1 ? 'Oui' : 'Non';
-  }
-  if (typeof response.value === 'boolean') {
-    return response.value ? 'Oui' : 'Non';
-  }
-  return String(response.value);
-}
-
-function getCriterionResponse(
-  employeeId: string,
-  criterionId: string,
-  evaluationsByEmployeeId: Map<string, EvaluationRecord>
-): EvaluationResponseItem | null {
-  const evaluation = evaluationsByEmployeeId.get(employeeId);
-  if (!evaluation?.responses?.length) return null;
-  return evaluation.responses.find((response) => response.criterion_id === criterionId) ?? null;
-}
-
-export interface EvaluationExportContext {
-  departmentName: (id?: string | null) => string | null;
-  roleName: (id?: string | null) => string | null;
-  scoresByEmployee: Record<string, number | null>;
-  statusByEmployee: Record<string, EvaluationStatus | null>;
-  evaluationsByEmployeeId: Map<string, EvaluationRecord>;
-  criteriaById: Map<string, EvaluationCriterionRecord>;
-  fieldTree: EvaluationExportFieldNode[];
-  periodLabel?: string;
-}
-
 export function resolveEvaluationExportFieldValue(
   key: EvaluationExportFieldKey,
   employee: EmployeeForEvaluation,
-  context: EvaluationExportContext
-): string {
-  const criterionMatch = key.match(CRITERION_FIELD_RE);
-  if (criterionMatch) {
-    const [, criterionId, part] = criterionMatch;
-    const response = getCriterionResponse(employee.id, criterionId, context.evaluationsByEmployeeId);
-    if (!response) return '—';
-    if (part === 'points') return response.points.toFixed(1);
-    return formatCriterionResponseValue(response);
+  context: {
+    departmentName: (id?: string | null) => string | null;
+    roleName: (id?: string | null) => string | null;
+    score: number | null | undefined;
+    status: EvaluationStatus | null | undefined;
   }
-
+): string {
   switch (key) {
     case 'employee.name':
       return employee.name?.trim() || '—';
@@ -270,38 +174,154 @@ export function resolveEvaluationExportFieldValue(
     case 'department.id':
       return employee.department_id?.trim() || '—';
     case 'score.display':
-      return context.scoresByEmployee[employee.id] != null
-        ? formatEvaluationPercentage(context.scoresByEmployee[employee.id])
-        : '—';
+      return context.score != null ? formatEvaluationPercentage(context.score) : '—';
     case 'score.value':
-      return context.scoresByEmployee[employee.id] != null
-        ? String(context.scoresByEmployee[employee.id])
-        : '—';
-    case 'status.label': {
-      const status = context.statusByEmployee[employee.id];
-      return status ? (EVALUATION_STATUS_LABELS[status] ?? status) : '—';
-    }
+      return context.score != null ? String(context.score) : '—';
+    case 'status.label':
+      return context.status ? (EVALUATION_STATUS_LABELS[context.status] ?? context.status) : '—';
     case 'status.code':
-      return context.statusByEmployee[employee.id] ?? '—';
-    case 'evaluation.feedback':
-      return context.evaluationsByEmployeeId.get(employee.id)?.feedback?.trim() || '—';
+      return context.status ?? '—';
     default:
       return '—';
   }
 }
 
+function formatCriterionResponseValue(response: EvaluationResponseItem): string {
+  if (typeof response.value === 'boolean') {
+    return response.value ? 'Oui' : 'Non';
+  }
+  return String(response.value);
+}
+
+function resolveCriterionExportFieldValue(
+  key: EvaluationExportFieldKey,
+  criterion: EvaluationCriterionRecord,
+  response: EvaluationResponseItem | undefined
+): string {
+  switch (key) {
+    case 'criterion.name':
+      return criterion.name;
+    case 'criterion.note':
+      return response != null ? response.points.toFixed(1) : '—';
+    case 'criterion.value':
+      return response != null ? formatCriterionResponseValue(response) : '—';
+    default:
+      return '—';
+  }
+}
+
+function getApplicableCriteriaForEmployee(
+  employee: EmployeeForEvaluation,
+  context: EvaluationExportBuildContext
+): EvaluationCriterionRecord[] {
+  const evaluation = context.evaluationsByEmployeeId[employee.id];
+  const savedCriterionIds = new Set((evaluation?.responses ?? []).map((response) => response.criterion_id));
+
+  return context.criteria
+    .filter((criterion) => criterionAppliesToEmployee(criterion, employee))
+    .filter((criterion) =>
+      criterionIsApplicableForEvaluation(criterion, {
+        savedCriterionIds,
+        periodStartDate: context.evaluationPeriodStartDate,
+        orderedPeriods: context.orderedEvaluationPeriods,
+      })
+    )
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'fr'));
+}
+
+export interface EvaluationExportBuildContext {
+  departmentName: (id?: string | null) => string | null;
+  roleName: (id?: string | null) => string | null;
+  scoresByEmployee: Record<string, number | null>;
+  statusByEmployee: Record<string, EvaluationStatus | null>;
+  criteria: EvaluationCriterionRecord[];
+  rules: CalculationRuleRecord[];
+  evaluationsByEmployeeId: Record<string, EvaluationRecord | null>;
+  evaluationPeriodStartDate?: string;
+  orderedEvaluationPeriods: { start_date: string }[];
+}
+
 function buildEvaluationExportRows(
   employees: EmployeeForEvaluation[],
   fields: EvaluationExportFieldKey[],
-  context: EvaluationExportContext
-): { header: string[]; rows: string[][] } {
-  const header = fields.map((field) =>
-    getEvaluationExportColumnHeader(field, context.criteriaById, context.fieldTree)
-  );
-  const rows = employees.map((employee) =>
-    fields.map((field) => resolveEvaluationExportFieldValue(field, employee, context))
-  );
-  return { header, rows };
+  context: EvaluationExportBuildContext
+): { header: string[]; rows: string[][]; merges: XLSX.Range[] } {
+  const header = fields.map((field) => getEvaluationExportColumnHeader(field));
+  const rows: string[][] = [];
+  const merges: XLSX.Range[] = [];
+  const includesCriterionColumns = fields.some(isCriterionField);
+  const employeeFieldIndexes = fields
+    .map((field, index) => (!isCriterionField(field) ? index : -1))
+    .filter((index) => index >= 0);
+
+  let excelRowIndex = 1;
+
+  for (const employee of employees) {
+    const employeeContext = {
+      departmentName: context.departmentName,
+      roleName: context.roleName,
+      score: context.scoresByEmployee[employee.id],
+      status: context.statusByEmployee[employee.id],
+    };
+
+    const evaluation = context.evaluationsByEmployeeId[employee.id];
+    const applicableCriteria = includesCriterionColumns
+      ? getApplicableCriteriaForEmployee(employee, context)
+      : [];
+
+    const criterionRows =
+      applicableCriteria.length > 0
+        ? applicableCriteria
+        : includesCriterionColumns
+          ? [null]
+          : [];
+
+    const groupStartRow = excelRowIndex;
+
+    if (criterionRows.length === 0) {
+      rows.push(
+        fields.map((field) =>
+          isCriterionField(field) ? '—' : resolveEvaluationExportFieldValue(field, employee, employeeContext)
+        )
+      );
+      excelRowIndex += 1;
+      continue;
+    }
+
+    criterionRows.forEach((criterion, criterionIndex) => {
+      const response =
+        criterion != null
+          ? evaluation?.responses?.find((item) => item.criterion_id === criterion.id)
+          : undefined;
+
+      rows.push(
+        fields.map((field) => {
+          if (isCriterionField(field)) {
+            return criterion != null
+              ? resolveCriterionExportFieldValue(field, criterion, response)
+              : '—';
+          }
+          if (criterionIndex === 0) {
+            return resolveEvaluationExportFieldValue(field, employee, employeeContext);
+          }
+          return '';
+        })
+      );
+      excelRowIndex += 1;
+    });
+
+    const groupEndRow = excelRowIndex - 1;
+    if (groupEndRow > groupStartRow) {
+      for (const columnIndex of employeeFieldIndexes) {
+        merges.push({
+          s: { r: groupStartRow, c: columnIndex },
+          e: { r: groupEndRow, c: columnIndex },
+        });
+      }
+    }
+  }
+
+  return { header, rows, merges };
 }
 
 function buildExportFilename(periodLabel?: string, extension: 'xlsx' | 'csv' = 'xlsx'): string {
@@ -309,16 +329,19 @@ function buildExportFilename(periodLabel?: string, extension: 'xlsx' | 'csv' = '
   return `evaluations-${periodPart}-${new Date().toISOString().slice(0, 10)}.${extension}`;
 }
 
-/** Export Excel (.xlsx) — colonnes structurées. */
 export function exportEvaluationListToExcel(
   employees: EmployeeForEvaluation[],
   fields: EvaluationExportFieldKey[],
-  context: EvaluationExportContext
+  context: EvaluationExportBuildContext & { periodLabel?: string }
 ): void {
   if (fields.length === 0 || employees.length === 0) return;
 
-  const { header, rows } = buildEvaluationExportRows(employees, fields, context);
+  const { header, rows, merges } = buildEvaluationExportRows(employees, fields, context);
   const worksheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+
+  if (merges.length > 0) {
+    worksheet['!merges'] = merges;
+  }
 
   worksheet['!cols'] = header.map((title, columnIndex) => {
     const maxCellLength = Math.max(
@@ -333,11 +356,10 @@ export function exportEvaluationListToExcel(
   XLSX.writeFile(workbook, buildExportFilename(context.periodLabel, 'xlsx'));
 }
 
-/** Export CSV (séparateur virgule). */
 export function exportEvaluationListToCsv(
   employees: EmployeeForEvaluation[],
   fields: EvaluationExportFieldKey[],
-  context: EvaluationExportContext
+  context: EvaluationExportBuildContext & { periodLabel?: string }
 ): void {
   if (fields.length === 0 || employees.length === 0) return;
 

@@ -10,12 +10,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  EVALUATION_EXPORT_FIELD_TREE,
   getEvaluationExportColumnHeader,
   getEvaluationExportFieldLabel,
   type EvaluationExportFieldKey,
   type EvaluationExportFieldNode,
 } from '@/lib/evaluation-list-export';
-import type { EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
 import { cn } from '@/lib/utils';
 
 type ExportColumn = 'selected' | 'available';
@@ -23,51 +23,32 @@ type ExportColumn = 'selected' | 'available';
 interface EvaluationExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  fieldTree: EvaluationExportFieldNode[];
-  criteriaById: Map<string, EvaluationCriterionRecord>;
   defaultSelectedFields: EvaluationExportFieldKey[];
-  onExport: (fields: EvaluationExportFieldKey[]) => void;
+  onExport: (fields: EvaluationExportFieldKey[]) => void | Promise<void>;
 }
 
 function isGroupNode(node: EvaluationExportFieldNode): boolean {
   return Boolean(node.children && node.children.length > 0);
 }
 
-function collectGroupKeys(nodes: EvaluationExportFieldNode[]): string[] {
-  const keys: string[] = [];
-  const walk = (list: EvaluationExportFieldNode[]) => {
-    for (const node of list) {
-      if (node.children?.length) {
-        keys.push(node.key);
-        walk(node.children);
-      }
-    }
-  };
-  walk(nodes);
-  return keys;
-}
-
 export function EvaluationExportDialog({
   open,
   onOpenChange,
-  fieldTree,
-  criteriaById,
   defaultSelectedFields,
   onExport,
 }: EvaluationExportDialogProps) {
   const [selectedFields, setSelectedFields] = useState<EvaluationExportFieldKey[]>(defaultSelectedFields);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(['employee', 'branch', 'department', 'score', 'status']));
   const [draggingField, setDraggingField] = useState<EvaluationExportFieldKey | null>(null);
   const [dragSource, setDragSource] = useState<ExportColumn | null>(null);
 
   const selectedSet = useMemo(() => new Set(selectedFields), [selectedFields]);
-  const allGroupKeys = useMemo(() => collectGroupKeys(fieldTree), [fieldTree]);
 
   useEffect(() => {
     if (!open) return;
     setSelectedFields([...defaultSelectedFields]);
-    setExpandedGroups(new Set(allGroupKeys));
-  }, [open, defaultSelectedFields, allGroupKeys]);
+    setExpandedGroups(new Set(['employee', 'branch', 'department', 'score', 'status']));
+  }, [open, defaultSelectedFields]);
 
   const moveField = (
     field: EvaluationExportFieldKey,
@@ -154,61 +135,58 @@ export function EvaluationExportDialog({
       )}
     >
       <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span>
-        {column === 'selected'
-          ? getEvaluationExportColumnHeader(fieldKey, criteriaById, fieldTree)
-          : getEvaluationExportFieldLabel(fieldKey, fieldTree)}
-      </span>
+      <span>{column === 'selected' ? getEvaluationExportColumnHeader(fieldKey) : getEvaluationExportFieldLabel(fieldKey)}</span>
     </div>
   );
 
-  const renderAvailableNodes = (nodes: EvaluationExportFieldNode[], depth = 0): ReactNode[] => {
+  const renderAvailableTree = () => {
     const items: ReactNode[] = [];
 
-    for (const node of nodes) {
-      if (!isGroupNode(node)) {
-        if (!selectedSet.has(node.key)) {
-          items.push(renderDraggableLeaf(node.key, 'available', items.length, depth > 0));
-        }
+    for (const node of EVALUATION_EXPORT_FIELD_TREE) {
+      if (isGroupNode(node)) {
+        const visibleChildren = (node.children ?? []).filter((child) => !selectedSet.has(child.key));
+        if (visibleChildren.length === 0) continue;
+
+        const expanded = expandedGroups.has(node.key);
+        items.push(
+          <div key={`group-${node.key}`} className="space-y-1">
+            <button
+              type="button"
+              onClick={() => toggleGroup(node.key)}
+              className="flex w-full items-center gap-1 rounded-md px-1 py-1 text-left text-sm font-medium hover:bg-muted/60"
+            >
+              {expanded ? (
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+              <span>{node.label}</span>
+            </button>
+            {expanded &&
+              visibleChildren.map((child, index) =>
+                renderDraggableLeaf(child.key, 'available', index, true)
+              )}
+          </div>
+        );
         continue;
       }
 
-      const childItems = renderAvailableNodes(node.children ?? [], depth + 1);
-      if (childItems.length === 0) continue;
-
-      const expanded = expandedGroups.has(node.key);
-      items.push(
-        <div key={`group-${node.key}`} className={cn('space-y-1', depth > 0 && 'ml-4')}>
-          <button
-            type="button"
-            onClick={() => toggleGroup(node.key)}
-            className="flex w-full items-center gap-1 rounded-md px-1 py-1 text-left text-sm font-medium hover:bg-muted/60"
-          >
-            {expanded ? (
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            )}
-            <span>{node.label}</span>
-          </button>
-          {expanded ? childItems : null}
-        </div>
-      );
+      if (!selectedSet.has(node.key)) {
+        items.push(renderDraggableLeaf(node.key, 'available', items.length));
+      }
     }
 
     return items;
   };
 
-  const availableItems = renderAvailableNodes(fieldTree);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Exporter les lignes sélectionnées</DialogTitle>
           <DialogDescription>
-            Par défaut : colonnes du tableau + valeur et points de chaque critère pour la période.
-            Dépliez un critère pour choisir un sous-champ précis.
+            Les champs par défaut correspondent aux colonnes du tableau. Dépliez un groupe dans « Tous
+            les champs » pour glisser un sous-champ précis.
           </DialogDescription>
         </DialogHeader>
 
@@ -251,12 +229,12 @@ export function EvaluationExportDialog({
                 handleDrop('available');
               }}
             >
-              {availableItems.length === 0 ? (
+              {renderAvailableTree().length === 0 ? (
                 <p className="px-2 py-6 text-center text-xs text-muted-foreground">
                   Tous les champs sont déjà sélectionnés
                 </p>
               ) : (
-                availableItems
+                renderAvailableTree()
               )}
             </div>
           </div>
@@ -269,8 +247,10 @@ export function EvaluationExportDialog({
           <Button
             disabled={selectedFields.length === 0}
             onClick={() => {
-              onExport(selectedFields);
-              onOpenChange(false);
+              void (async () => {
+                await onExport(selectedFields);
+                onOpenChange(false);
+              })();
             }}
           >
             Exporter (Excel)
