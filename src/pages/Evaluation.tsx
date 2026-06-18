@@ -62,7 +62,7 @@ import {
   type EvaluationPeriodOption,
 } from '@/lib/evaluation-page-cache';
 import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evaluation-types';
-import { getSessionUser } from '@/lib/session-user';
+import { getSessionUser, formatRoleServiceLabel } from '@/lib/session-user';
 import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
 import { hideLoadingOverlay, runWithLoadingOverlay } from '@/lib/loading-overlay';
 import {
@@ -71,7 +71,7 @@ import {
   type EvaluationExportFieldKey,
 } from '@/lib/evaluation-list-export';
 
-const EVALUATION_TABLE_COLUMN_COUNT = 8;
+const EVALUATION_TABLE_COLUMN_COUNT = 7;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
   return Promise.race([
@@ -198,6 +198,10 @@ export default function Evaluation() {
   const totalPercentage = scoreBreakdown.percentage;
   const departmentName = (id?: string | null) => departments.find((d) => d.id === id)?.name ?? null;
   const roleName = (id?: string | null) => roles.find((r) => r.id === id)?.name ?? null;
+  const employeePosteLabel = (emp: EmployeeForEvaluation) => {
+    const label = formatRoleServiceLabel(roleName(emp.role_id), departmentName(emp.department_id));
+    return label || '—';
+  };
 
   const branchFilterOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -1035,7 +1039,6 @@ export default function Evaluation() {
                   <TableHead>Employé</TableHead>
                   <TableHead>Poste</TableHead>
                   <TableHead>Filiale</TableHead>
-                  <TableHead>Service</TableHead>
                   <TableHead className="text-right">Dernier score</TableHead>
                   <TableHead className="text-center">Statut</TableHead>
                   <TableHead />
@@ -1108,11 +1111,8 @@ export default function Evaluation() {
                               />
                             </TableCell>
                             <TableCell className="font-medium">{emp.name}</TableCell>
-                            <TableCell className="text-muted-foreground">{emp.position ?? '—'}</TableCell>
+                            <TableCell className="text-muted-foreground">{employeePosteLabel(emp)}</TableCell>
                             <TableCell className="text-muted-foreground">{emp.branch_name ?? '—'}</TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {departmentName(emp.department_id) ?? '—'}
-                            </TableCell>
                             <TableCell className="text-right">
                               {last != null ? (
                                 <Badge variant={last >= 70 ? 'default' : 'secondary'}>

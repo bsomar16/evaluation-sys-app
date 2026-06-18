@@ -84,6 +84,16 @@ export function getSessionHeaderSubtitle(user: SessionUser | null): string {
   return user?.branchName?.trim() || '—';
 }
 
+/** Libellé poste header / listes : rôle + service (ex. « Gérant RH ») */
+export function formatRoleServiceLabel(
+  roleName?: string | null,
+  departmentName?: string | null
+): string {
+  const role = roleName?.trim() || '';
+  const department = departmentName?.trim() ? ` ${departmentName.trim()}` : '';
+  return `${role}${department}`.trim();
+}
+
 export function getSessionRoleBadge(user: SessionUser | null): {
   label: string;
   style: ReturnType<typeof getRoleBadgeStyleFromColor>;
@@ -95,9 +105,8 @@ export function getSessionRoleBadge(user: SessionUser | null): {
     };
   }
   const roleName = user?.roleName || user?.role || 'User';
-  const departmentName = user?.departmentName ? ` ${user.departmentName}` : '';
   return {
-    label: `${roleName}${departmentName}`,
+    label: formatRoleServiceLabel(roleName, user?.departmentName) || 'User',
     style: getRoleBadgeStyleFromColor(user?.roleColor),
   };
 }

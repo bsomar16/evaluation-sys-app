@@ -571,11 +571,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 User
               </div>
             )}
-            <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+            <div className="text-xs text-muted-foreground mt-1">
               <p>{user ? getSessionHeaderSubtitle(user) : '—'}</p>
-              {user?.departmentName && (
-                <p className="text-muted-foreground/80">{user.departmentName}</p>
-              )}
             </div>
           </div>
           

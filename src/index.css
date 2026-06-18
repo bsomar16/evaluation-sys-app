@@ -131,16 +131,9 @@ body.app-loading-active #root {
   }
 }
 
-/* Standard appearance — banded table headers */
+/* Standard appearance — table headers */
 html[data-appearance="standard"] .app-table-header-banded th {
   font-weight: 700;
   color: hsl(var(--foreground));
-}
-
-html[data-appearance="standard"] .app-table-header-banded th:nth-child(odd) {
-  background-color: hsl(214 36% 84%);
-}
-
-html[data-appearance="standard"] .app-table-header-banded th:nth-child(even) {
-  background-color: hsl(210 30% 91%);
+  background-color: hsl(var(--header-bg, 0 0% 94%));
 }
