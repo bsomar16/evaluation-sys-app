@@ -251,7 +251,7 @@ export function EvaluationExportDialog({
               onOpenChange(false);
             }}
           >
-            Exporter (CSV)
+            Exporter (Excel)
           </Button>
         </DialogFooter>
       </DialogContent>

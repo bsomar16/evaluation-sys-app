@@ -67,7 +67,7 @@ import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
 import { hideLoadingOverlay, runWithLoadingOverlay } from '@/lib/loading-overlay';
 import {
   EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS,
-  exportEvaluationListToCsv,
+  exportEvaluationListToExcel,
   type EvaluationExportFieldKey,
 } from '@/lib/evaluation-list-export';
 
@@ -325,7 +325,7 @@ export default function Evaluation() {
 
   const handleBulkExport = (fields: EvaluationExportFieldKey[]) => {
     if (selectedEmployees.length === 0) return;
-    exportEvaluationListToCsv(selectedEmployees, fields, {
+    exportEvaluationListToExcel(selectedEmployees, fields, {
       departmentName,
       roleName,
       scoresByEmployee,
@@ -334,7 +334,7 @@ export default function Evaluation() {
     });
     toast({
       title: 'Export terminé',
-      description: `${selectedEmployees.length} ligne(s) exportée(s).`,
+      description: `${selectedEmployees.length} ligne(s) exportée(s) en Excel.`,
     });
   };
 

@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import { formatEvaluationPercentage } from '@/lib/evaluation-calculator';
 import {
   EVALUATION_STATUS_LABELS,
@@ -165,6 +166,66 @@ export function resolveEvaluationExportFieldValue(
   }
 }
 
+function buildEvaluationExportRows(
+  employees: EmployeeForEvaluation[],
+  fields: EvaluationExportFieldKey[],
+  context: {
+    departmentName: (id?: string | null) => string | null;
+    roleName: (id?: string | null) => string | null;
+    scoresByEmployee: Record<string, number | null>;
+    statusByEmployee: Record<string, EvaluationStatus | null>;
+  }
+): { header: string[]; rows: string[][] } {
+  const header = fields.map((field) => getEvaluationExportColumnHeader(field));
+  const rows = employees.map((employee) =>
+    fields.map((field) =>
+      resolveEvaluationExportFieldValue(field, employee, {
+        departmentName: context.departmentName,
+        roleName: context.roleName,
+        score: context.scoresByEmployee[employee.id],
+        status: context.statusByEmployee[employee.id],
+      })
+    )
+  );
+  return { header, rows };
+}
+
+function buildExportFilename(periodLabel?: string, extension: 'xlsx' | 'csv' = 'xlsx'): string {
+  const periodPart = periodLabel?.trim().replace(/\s+/g, '-') ?? 'export';
+  return `evaluations-${periodPart}-${new Date().toISOString().slice(0, 10)}.${extension}`;
+}
+
+/** Export Excel (.xlsx) — colonnes structurées. */
+export function exportEvaluationListToExcel(
+  employees: EmployeeForEvaluation[],
+  fields: EvaluationExportFieldKey[],
+  context: {
+    departmentName: (id?: string | null) => string | null;
+    roleName: (id?: string | null) => string | null;
+    scoresByEmployee: Record<string, number | null>;
+    statusByEmployee: Record<string, EvaluationStatus | null>;
+    periodLabel?: string;
+  }
+): void {
+  if (fields.length === 0 || employees.length === 0) return;
+
+  const { header, rows } = buildEvaluationExportRows(employees, fields, context);
+  const worksheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+
+  worksheet['!cols'] = header.map((title, columnIndex) => {
+    const maxCellLength = Math.max(
+      title.length,
+      ...rows.map((row) => String(row[columnIndex] ?? '').length)
+    );
+    return { wch: Math.min(Math.max(maxCellLength + 2, 10), 48) };
+  });
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Évaluations');
+  XLSX.writeFile(workbook, buildExportFilename(context.periodLabel, 'xlsx'));
+}
+
+/** Export CSV (séparateur virgule). */
 export function exportEvaluationListToCsv(
   employees: EmployeeForEvaluation[],
   fields: EvaluationExportFieldKey[],
@@ -178,28 +239,16 @@ export function exportEvaluationListToCsv(
 ): void {
   if (fields.length === 0 || employees.length === 0) return;
 
-  const header = fields.map((field) => escapeCsvCell(getEvaluationExportColumnHeader(field)));
-  const rows = employees.map((employee) =>
-    fields
-      .map((field) =>
-        escapeCsvCell(
-          resolveEvaluationExportFieldValue(field, employee, {
-            departmentName: context.departmentName,
-            roleName: context.roleName,
-            score: context.scoresByEmployee[employee.id],
-            status: context.statusByEmployee[employee.id],
-          })
-        )
-      )
-  );
+  const { header, rows } = buildEvaluationExportRows(employees, fields, context);
+  const csv = [header, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(','))
+    .join('\n');
 
-  const csv = [header, ...rows].map((row) => row.join(';')).join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  const periodPart = context.periodLabel?.trim().replace(/\s+/g, '-') ?? 'export';
   link.href = url;
-  link.download = `evaluations-${periodPart}-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = buildExportFilename(context.periodLabel, 'csv');
   link.click();
   URL.revokeObjectURL(url);
 }
