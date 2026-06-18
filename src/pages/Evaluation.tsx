@@ -8,7 +8,16 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, ChevronRight, Loader2, Send, XCircle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { CheckCircle, ChevronRight, Download, Loader2, Send, Trash2, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { usePagination } from '@/hooks/usePagination';
@@ -19,6 +28,7 @@ import {
   getDefaultCriterionValue,
 } from '@/components/evaluation/EvaluationCriterionInputs';
 import { CriterionDescriptionExpand } from '@/components/evaluation/CriterionDescriptionExpand';
+import { EvaluationExportDialog } from '@/components/evaluation/EvaluationExportDialog';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 import {
   calculateCriterionScore,
@@ -32,6 +42,7 @@ import {
 import { hasEvaluationModuleAccess, showEvaluationManageButton } from '@/lib/evaluation-access';
 import {
   criterionAppliesToEmployee,
+  deleteEvaluation,
   fetchEvaluations,
   findEvaluationForOpenPeriod,
   upsertEvaluation,
@@ -54,6 +65,13 @@ import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evalua
 import { getSessionUser } from '@/lib/session-user';
 import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
 import { hideLoadingOverlay, runWithLoadingOverlay } from '@/lib/loading-overlay';
+import {
+  EVALUATION_LIST_TABLE_FIELDS,
+  exportEvaluationListToCsv,
+  type EvaluationListExportFieldKey,
+} from '@/lib/evaluation-list-export';
+
+const EVALUATION_TABLE_COLUMN_COUNT = 8;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
   return Promise.race([
@@ -68,7 +86,7 @@ export default function Evaluation() {
   const FILTER_ALL = '__all__';
   const location = useLocation();
   const { toast } = useToast();
-  const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation, canViewEvaluationValues } = useRolePermissions();
+  const { isDeveloper, canRead, canWrite, canDelete, canSubmitEvaluation, canReviewEvaluation, canViewEvaluationValues } = useRolePermissions();
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canSubmitEvaluations = canSubmitEvaluation();
@@ -99,6 +117,9 @@ export default function Evaluation() {
   const [departmentFilter, setDepartmentFilter] = useState(FILTER_ALL);
   const [statusFilter, setStatusFilter] = useState<'all' | 'en-attente' | 'soumis' | 'complet'>('all');
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(() => new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [availablePeriods, setAvailablePeriods] = useState<EvaluationPeriodOption[]>([]);
   const [frequencyOrderedPeriods, setFrequencyOrderedPeriods] = useState<{ start_date: string }[]>([]);
   const loadGenerationRef = useRef(0);
@@ -176,6 +197,7 @@ export default function Evaluation() {
   );
   const totalPercentage = scoreBreakdown.percentage;
   const departmentName = (id?: string | null) => departments.find((d) => d.id === id)?.name ?? null;
+  const roleName = (id?: string | null) => roles.find((r) => r.id === id)?.name ?? null;
 
   const branchFilterOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -261,6 +283,111 @@ export default function Evaluation() {
       .map(([key, emps]) => ({ key, label: toLabel(key), employees: emps }))
       .sort((a, b) => (a.label ?? '').localeCompare(b.label ?? '', 'fr'));
   }, [pagination.paginatedItems, groupBy, departments]);
+
+  const currentPageEmployeeIds = useMemo(
+    () => paginatedGroupedEmployees.flatMap((group) => group.employees.map((employee) => employee.id)),
+    [paginatedGroupedEmployees]
+  );
+
+  const selectedCount = selectedEmployeeIds.size;
+  const allCurrentPageSelected =
+    currentPageEmployeeIds.length > 0 &&
+    currentPageEmployeeIds.every((id) => selectedEmployeeIds.has(id));
+  const someCurrentPageSelected =
+    currentPageEmployeeIds.some((id) => selectedEmployeeIds.has(id)) && !allCurrentPageSelected;
+
+  const selectedEmployees = useMemo(
+    () => employees.filter((employee) => selectedEmployeeIds.has(employee.id)),
+    [employees, selectedEmployeeIds]
+  );
+
+  const canBulkDeleteEvaluations = canDelete('evaluations') || canDelete('evaluations_management');
+
+  const toggleEmployeeSelection = (employeeId: string, checked: boolean) => {
+    setSelectedEmployeeIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(employeeId);
+      else next.delete(employeeId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllCurrentPage = (checked: boolean) => {
+    setSelectedEmployeeIds((prev) => {
+      const next = new Set(prev);
+      for (const employeeId of currentPageEmployeeIds) {
+        if (checked) next.add(employeeId);
+        else next.delete(employeeId);
+      }
+      return next;
+    });
+  };
+
+  const handleBulkExport = (fields: EvaluationListExportFieldKey[]) => {
+    if (selectedEmployees.length === 0) return;
+    exportEvaluationListToCsv(selectedEmployees, fields, {
+      departmentName,
+      roleName,
+      scoresByEmployee,
+      statusByEmployee,
+      periodLabel: openPeriodName || period,
+    });
+    toast({
+      title: 'Export terminé',
+      description: `${selectedEmployees.length} ligne(s) exportée(s).`,
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (!canBulkDeleteEvaluations || selectedEmployees.length === 0) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission suppression requise.' });
+      return;
+    }
+
+    const periodName = (openPeriodName || period).trim();
+    if (!periodName) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Aucune période sélectionnée.' });
+      return;
+    }
+
+    try {
+      const evaluations = await fetchEvaluations();
+      const targets = evaluations.filter(
+        (evaluation) =>
+          evaluation.employee_id &&
+          selectedEmployeeIds.has(evaluation.employee_id) &&
+          (evaluation.period ?? '').trim() === periodName
+      );
+
+      if (targets.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Aucune évaluation',
+          description: 'Aucune évaluation à supprimer pour la sélection et la période courante.',
+        });
+        setBulkDeleteOpen(false);
+        return;
+      }
+
+      await runWithLoadingOverlay(async () => {
+        for (const evaluation of targets) {
+          await deleteEvaluation(evaluation.id);
+        }
+      }, 'Suppression des évaluations...');
+
+      setSelectedEmployeeIds(new Set());
+      setBulkDeleteOpen(false);
+      void refreshEvaluationPageEvaluations(periodName);
+      toast({
+        title: 'Succès',
+        description: `${targets.length} évaluation(s) supprimée(s).`,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Suppression impossible';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    }
+  };
+
   // Initialize filter from navigation state
   useEffect(() => {
     if (location.state?.filterByStatus) {
@@ -293,6 +420,10 @@ export default function Evaluation() {
   useEffect(() => {
     pagination.setCurrentPage(1);
   }, [filteredEmployees, pagination.itemsPerPage, groupBy]);
+
+  useEffect(() => {
+    setSelectedEmployeeIds(new Set());
+  }, [period, branchFilter, departmentFilter, statusFilter, groupBy]);
 
   const applyPageData = (data: {
     employees: EmployeeForEvaluation[];
@@ -610,7 +741,6 @@ export default function Evaluation() {
     }
   };
 
-  const roleName = (id?: string | null) => roles.find((r) => r.id === id)?.name ?? null;
   const periodCode =
     availablePeriods.find((p) => p.name === (openPeriodName || period))?.code || openPeriodName || period;
   const periodDescription = describeEvaluationPeriodCode(periodCode);
@@ -761,9 +891,43 @@ export default function Evaluation() {
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               )}
+            {selectedCount > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+                <span className="text-sm text-muted-foreground">
+                  {selectedCount} ligne{selectedCount > 1 ? 's' : ''} sélectionnée{selectedCount > 1 ? 's' : ''}
+                </span>
+                {canBulkDeleteEvaluations && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Supprimer
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setExportDialogOpen(true)}
+                >
+                  <Download className="h-4 w-4" />
+                  Exporter
+                </Button>
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allCurrentPageSelected ? true : someCurrentPageSelected ? 'indeterminate' : false}
+                      onCheckedChange={(checked) => toggleSelectAllCurrentPage(checked === true)}
+                      aria-label="Sélectionner toutes les lignes de la page"
+                    />
+                  </TableHead>
                   <TableHead>Employé</TableHead>
                   <TableHead>Poste</TableHead>
                   <TableHead>Filiale</TableHead>
@@ -776,19 +940,19 @@ export default function Evaluation() {
               <TableBody>
                 {filteredEmployees.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={EVALUATION_TABLE_COLUMN_COUNT} className="text-center text-muted-foreground py-8">
                       Aucun employé pour ce filtre
                     </TableCell>
                   </TableRow>
                 ) : paginatedGroupedEmployees.length === 0 && groupedEmployees.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={EVALUATION_TABLE_COLUMN_COUNT} className="text-center text-muted-foreground py-8">
                       Aucun employé pour ce filtre
                     </TableCell>
                   </TableRow>
                 ) : paginatedGroupedEmployees.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={EVALUATION_TABLE_COLUMN_COUNT} className="text-center text-muted-foreground py-8">
                       Aucun employé pour cette page
                     </TableCell>
                   </TableRow>
@@ -797,7 +961,7 @@ export default function Evaluation() {
                     <Fragment key={`group-block-${group.key}`}>
                       {group.label && (
                         <TableRow className="bg-muted/30">
-                          <TableCell colSpan={7} className="font-medium">
+                          <TableCell colSpan={EVALUATION_TABLE_COLUMN_COUNT} className="font-medium">
                             {group.label} ({group.employees.length})
                           </TableCell>
                         </TableRow>
@@ -827,6 +991,18 @@ export default function Evaluation() {
                               }
                             }}
                           >
+                            <TableCell
+                              className="w-10"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <Checkbox
+                                checked={selectedEmployeeIds.has(emp.id)}
+                                onCheckedChange={(checked) =>
+                                  toggleEmployeeSelection(emp.id, checked === true)
+                                }
+                                aria-label={`Sélectionner ${emp.name}`}
+                              />
+                            </TableCell>
                             <TableCell className="font-medium">{emp.name}</TableCell>
                             <TableCell className="text-muted-foreground">{emp.position ?? '—'}</TableCell>
                             <TableCell className="text-muted-foreground">{emp.branch_name ?? '—'}</TableCell>
@@ -876,6 +1052,35 @@ export default function Evaluation() {
             )}
           </CardContent>
         </Card>
+
+        <EvaluationExportDialog
+          open={exportDialogOpen}
+          onOpenChange={setExportDialogOpen}
+          defaultSelectedFields={EVALUATION_LIST_TABLE_FIELDS}
+          onExport={handleBulkExport}
+        />
+
+        <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogTitle>
+              Supprimer {selectedCount} évaluation{selectedCount > 1 ? 's' : ''} ?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Les évaluations de la période « {openPeriodName || period || '—'} » pour les employés
+              sélectionnés seront supprimées définitivement.
+            </AlertDialogDescription>
+            <div className="flex gap-2 justify-end">
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => void handleBulkDelete()}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Supprimer
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {!isPeriodOpen && (
           <Card className="border-destructive/40 bg-destructive/5">
             <CardContent className="py-4 text-sm text-destructive">
