@@ -66,9 +66,9 @@ import { getSessionUser } from '@/lib/session-user';
 import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
 import { hideLoadingOverlay, runWithLoadingOverlay } from '@/lib/loading-overlay';
 import {
-  EVALUATION_LIST_TABLE_FIELDS,
+  EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS,
   exportEvaluationListToCsv,
-  type EvaluationListExportFieldKey,
+  type EvaluationExportFieldKey,
 } from '@/lib/evaluation-list-export';
 
 const EVALUATION_TABLE_COLUMN_COUNT = 8;
@@ -323,7 +323,7 @@ export default function Evaluation() {
     });
   };
 
-  const handleBulkExport = (fields: EvaluationListExportFieldKey[]) => {
+  const handleBulkExport = (fields: EvaluationExportFieldKey[]) => {
     if (selectedEmployees.length === 0) return;
     exportEvaluationListToCsv(selectedEmployees, fields, {
       departmentName,
@@ -1056,7 +1056,7 @@ export default function Evaluation() {
         <EvaluationExportDialog
           open={exportDialogOpen}
           onOpenChange={setExportDialogOpen}
-          defaultSelectedFields={EVALUATION_LIST_TABLE_FIELDS}
+          defaultSelectedFields={EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS}
           onExport={handleBulkExport}
         />
 
