@@ -191,6 +191,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       document.documentElement.classList.remove('dark');
     }
 
+    document.documentElement.setAttribute('data-appearance', appearanceMode);
+
     // Get current selected palette
     let paletteKey = getSelectedPaletteKey();
 

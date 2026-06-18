@@ -289,16 +289,25 @@ export default function Evaluation() {
     [paginatedGroupedEmployees]
   );
 
+  const filteredEmployeeIds = useMemo(
+    () => filteredEmployees.map((employee) => employee.id),
+    [filteredEmployees]
+  );
+
   const selectedCount = selectedEmployeeIds.size;
   const allCurrentPageSelected =
     currentPageEmployeeIds.length > 0 &&
     currentPageEmployeeIds.every((id) => selectedEmployeeIds.has(id));
   const someCurrentPageSelected =
     currentPageEmployeeIds.some((id) => selectedEmployeeIds.has(id)) && !allCurrentPageSelected;
+  const allFilteredSelected =
+    filteredEmployeeIds.length > 0 &&
+    filteredEmployeeIds.every((id) => selectedEmployeeIds.has(id));
+  const tableHasMoreRowsThanPage = filteredEmployeeIds.length > currentPageEmployeeIds.length;
 
   const selectedEmployees = useMemo(
-    () => employees.filter((employee) => selectedEmployeeIds.has(employee.id)),
-    [employees, selectedEmployeeIds]
+    () => filteredEmployees.filter((employee) => selectedEmployeeIds.has(employee.id)),
+    [filteredEmployees, selectedEmployeeIds]
   );
 
   const canBulkDeleteEvaluations = canDelete('evaluations') || canDelete('evaluations_management');
@@ -321,6 +330,35 @@ export default function Evaluation() {
       }
       return next;
     });
+  };
+
+  const toggleSelectAllFiltered = (checked: boolean) => {
+    setSelectedEmployeeIds((prev) => {
+      const next = new Set(prev);
+      for (const employeeId of filteredEmployeeIds) {
+        if (checked) next.add(employeeId);
+        else next.delete(employeeId);
+      }
+      return next;
+    });
+  };
+
+  const headerCheckboxChecked: boolean | 'indeterminate' = allFilteredSelected
+    ? true
+    : allCurrentPageSelected && tableHasMoreRowsThanPage
+      ? 'indeterminate'
+      : allCurrentPageSelected
+        ? true
+        : someCurrentPageSelected
+          ? 'indeterminate'
+          : false;
+
+  const handleHeaderCheckboxChange = (checked: boolean) => {
+    if (allFilteredSelected) {
+      toggleSelectAllFiltered(false);
+      return;
+    }
+    toggleSelectAllCurrentPage(checked);
   };
 
   const handleBulkExport = async (fields: EvaluationExportFieldKey[]) => {
@@ -933,7 +971,20 @@ export default function Evaluation() {
               <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
                 <span className="text-sm text-muted-foreground">
                   {selectedCount} ligne{selectedCount > 1 ? 's' : ''} sélectionnée{selectedCount > 1 ? 's' : ''}
+                  {allFilteredSelected && filteredEmployeeIds.length > 0
+                    ? ` sur ${filteredEmployeeIds.length}`
+                    : ''}
                 </span>
+                {tableHasMoreRowsThanPage && !allFilteredSelected && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto px-0 text-sm"
+                    onClick={() => toggleSelectAllFiltered(true)}
+                  >
+                    Sélectionner les {filteredEmployeeIds.length} lignes du tableau
+                  </Button>
+                )}
                 {canBulkDeleteEvaluations && (
                   <Button
                     variant="destructive"
@@ -956,13 +1007,28 @@ export default function Evaluation() {
                 </Button>
               </div>
             )}
+            {tableHasMoreRowsThanPage && !allFilteredSelected && allCurrentPageSelected && (
+              <div className="mb-3 flex flex-wrap items-center gap-1 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-sm">
+                <span>
+                  Les {currentPageEmployeeIds.length} lignes de cette page sont sélectionnées.
+                </span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto px-1 text-sm font-medium"
+                  onClick={() => toggleSelectAllFiltered(true)}
+                >
+                  Sélectionner les {filteredEmployeeIds.length} lignes du tableau
+                </Button>
+              </div>
+            )}
             <Table>
-              <TableHeader>
+              <TableHeader className="evaluation-table-header app-table-header-banded">
                 <TableRow>
                   <TableHead className="w-10">
                     <Checkbox
-                      checked={allCurrentPageSelected ? true : someCurrentPageSelected ? 'indeterminate' : false}
-                      onCheckedChange={(checked) => toggleSelectAllCurrentPage(checked === true)}
+                      checked={headerCheckboxChecked}
+                      onCheckedChange={(checked) => handleHeaderCheckboxChange(checked === true)}
                       aria-label="Sélectionner toutes les lignes de la page"
                     />
                   </TableHead>
