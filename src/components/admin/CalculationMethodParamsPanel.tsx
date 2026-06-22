@@ -216,15 +216,24 @@ export function CalculationMethodParamsPanel({ draft, onPatchConfig, onMaxPoints
             <div className="space-y-2">
               {getChoiceOptionsFromConfig(cfg).map((opt, idx) => (
                 <div key={`choice-opt-${idx + 1}`} className="grid grid-cols-[1fr_180px] gap-2 items-center">
-                  <div className="text-sm text-muted-foreground px-3 py-2 rounded-md border bg-muted/30">
-                    Choix {idx + 1}
-                  </div>
+                  <Input
+                    type="text"
+                    placeholder={`Nom du choix ${idx + 1}`}
+                    value={opt.label ?? ''}
+                    onChange={(e) => {
+                      const next = getChoiceOptionsFromConfig(cfg);
+                      next[idx] = { ...next[idx], label: e.target.value };
+                      onPatchConfig({ choice_options: next });
+                    }}
+                    disabled={disabled}
+                    className={fieldClass}
+                  />
                   <HintNumberInput
                     placeholder="Points"
                     value={opt.points}
                     onChange={(v) => {
                       const next = getChoiceOptionsFromConfig(cfg);
-                      next[idx] = { ...next[idx], label: `Choix ${idx + 1}`, points: v ?? 0 };
+                      next[idx] = { ...next[idx], points: v ?? 0 };
                       onPatchConfig({ choice_options: next });
                     }}
                     disabled={disabled}
