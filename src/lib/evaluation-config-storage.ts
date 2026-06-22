@@ -15,7 +15,6 @@ import { CriterionInUseError, countEvaluationsUsingCriterion } from '@/lib/evalu
 
 const CRITERIA_STORAGE_KEY = 'hr_pulse_evaluation_criteria';
 
-const RULES_STORAGE_KEY = 'hr_pulse_calculation_rules';
 
 
 
@@ -142,33 +141,6 @@ function saveCriteriaToLocal(criteria: EvaluationCriterionRecord[]) {
 
 
 
-function loadRulesFromLocal(): CalculationRuleRecord[] {
-
-  try {
-
-    const raw = localStorage.getItem(RULES_STORAGE_KEY);
-
-    if (!raw) return [...DEFAULT_CALCULATION_RULES];
-
-    const parsed = JSON.parse(raw) as CalculationRuleRecord[];
-
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : [...DEFAULT_CALCULATION_RULES];
-
-  } catch {
-
-    return [...DEFAULT_CALCULATION_RULES];
-
-  }
-
-}
-
-
-
-function saveRulesToLocal(rules: CalculationRuleRecord[]) {
-
-  localStorage.setItem(RULES_STORAGE_KEY, JSON.stringify(rules));
-
-}
 
 
 
@@ -678,12 +650,8 @@ export async function fetchCalculationRules(): Promise<CalculationRuleRecord[]> 
     error = legacy.error;
   }
 
-  if (error && isMissingTableError(error)) {
-    return loadRulesFromLocal().map(normalizeCalculationRule);
-  }
   if (error) throw error;
-  if (!data?.length) return loadRulesFromLocal().map(normalizeCalculationRule);
-  return (data as Partial<CalculationRuleRecord>[]).map(normalizeCalculationRule);
+  return ((data ?? []) as Partial<CalculationRuleRecord>[]).map(normalizeCalculationRule);
 }
 
 export async function countCriteriaUsingCalculationRule(ruleId: string, method: CriterionType): Promise<number> {
@@ -715,9 +683,7 @@ export async function deleteCalculationRule(ruleId: string): Promise<void> {
       error = retry.error;
     }
   }
-  if (error && !isMissingTableError(error)) throw error;
-  const next = loadRulesFromLocal().filter((r) => r.id !== ruleId);
-  saveRulesToLocal(next);
+  if (error) throw error;
 }
 
 export async function upsertCalculationRule(rule: CalculationRuleRecord): Promise<CalculationRuleRecord> {
@@ -752,24 +718,9 @@ export async function upsertCalculationRule(rule: CalculationRuleRecord): Promis
     error = retry.error;
   }
 
-  if (!error && data) {
-    const saved = normalizeCalculationRule(data as Partial<CalculationRuleRecord>);
-    const local = loadRulesFromLocal();
-    const next = local.some((r) => r.id === saved.id)
-      ? local.map((r) => (r.id === saved.id ? saved : r))
-      : [...local, saved];
-    saveRulesToLocal(next);
-    return saved;
-  }
-
-  if (error && !isMissingTableError(error)) throw error;
-
-  const local = loadRulesFromLocal();
-  const next = local.some((r) => r.id === normalized.id)
-    ? local.map((r) => (r.id === normalized.id ? normalized : r))
-    : [...local, normalized];
-  saveRulesToLocal(next);
-  return normalized;
+  if (error) throw error;
+  if (!data) throw new Error('Aucune donnée retournée après enregistrement');
+  return normalizeCalculationRule(data as Partial<CalculationRuleRecord>);
 }
 
 export async function saveCalculationRules(rules: CalculationRuleRecord[]): Promise<void> {

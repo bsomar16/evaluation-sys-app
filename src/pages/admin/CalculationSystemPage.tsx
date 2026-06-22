@@ -128,7 +128,15 @@ export function CalculationSystemPage() {
       setOpenDialog(false);
       setDraft(null);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Enregistrement impossible';
+      const err = error as { code?: string; message?: string; details?: string; hint?: string };
+      let message = err?.message || (error instanceof Error ? error.message : 'Enregistrement impossible');
+      if (err?.code === '23505') {
+        message =
+          "Un système avec ce type existe déjà (contrainte unique sur 'type'). " +
+          "Exécutez dans Supabase : ALTER TABLE calculation_rules DROP CONSTRAINT IF EXISTS calculation_rules_type_key;";
+      } else if (err?.details) {
+        message = `${message} — ${err.details}`;
+      }
       toast({ variant: 'destructive', title: 'Erreur', description: message });
     } finally {
       setSaving(false);
