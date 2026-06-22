@@ -58,6 +58,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canReadEvaluationsManagement = canRead('evaluations_management');
+  const canWriteEvaluationsManagement = canWrite('evaluations_management');
   const canReadTraining = canRead('training');
   const canWriteTraining = canWrite('training');
   const [collapsed, setCollapsed] = useState(false);
@@ -479,7 +480,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           isDeveloper,
           canReadEvaluations,
           canWriteEvaluations,
-          evaluationPeriodOpen
+          evaluationPeriodOpen,
+          canWriteEvaluationsManagement
         )
       ) {
         toast({
@@ -748,7 +750,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               const active = isNavItemActive(location.pathname, item.path);
               const evaluationLocked =
                 item.path === EVALUATION_PATH &&
-                shouldLockEvaluationNav(isDeveloper, evaluationPeriodOpen);
+                shouldLockEvaluationNav(isDeveloper, evaluationPeriodOpen, canWriteEvaluationsManagement);
               return (
                 <button
                   type="button"

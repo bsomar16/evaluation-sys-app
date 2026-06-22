@@ -11,11 +11,13 @@ export function canAccessEvaluationPage(
   isDeveloper: boolean,
   canReadEvaluations: boolean,
   canWriteEvaluations: boolean,
-  periodOpen: boolean
+  periodOpen: boolean,
+  canWriteEvaluationsManagement = false
 ): boolean {
   if (isDeveloper) return true;
   const hasAccess = canReadEvaluations || canWriteEvaluations;
-  return hasAccess && periodOpen;
+  if (!hasAccess) return false;
+  return periodOpen || canWriteEvaluationsManagement;
 }
 
 export function hasEvaluationModuleAccess(
@@ -35,8 +37,14 @@ export function canAccessEvaluationManagement(
   return canReadEvaluationsManagement;
 }
 
-export function shouldLockEvaluationNav(isDeveloper: boolean, periodOpen: boolean): boolean {
-  return !isDeveloper && !periodOpen;
+export function shouldLockEvaluationNav(
+  isDeveloper: boolean,
+  periodOpen: boolean,
+  canWriteEvaluationsManagement = false
+): boolean {
+  if (isDeveloper) return false;
+  if (periodOpen) return false;
+  return !canWriteEvaluationsManagement;
 }
 
 /** Bouton « Gestion des évaluations » (pas d’entrée sidebar). */

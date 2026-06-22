@@ -14,6 +14,7 @@ export function EvaluationPeriodGuard({ children }: { children: React.ReactNode 
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canReadEvaluationsManagement = canRead('evaluations_management');
+  const canWriteEvaluationsManagement = canWrite('evaluations_management');
   const { isOpen: periodOpen, loading } = useCurrentOpenPeriod();
 
   if (!hasEvaluationModuleAccess(isDeveloper, canReadEvaluations, canWriteEvaluations)) {
@@ -30,7 +31,8 @@ export function EvaluationPeriodGuard({ children }: { children: React.ReactNode 
       isDeveloper,
       canReadEvaluations,
       canWriteEvaluations,
-      periodOpen
+      periodOpen,
+      canWriteEvaluationsManagement
     )
   ) {
     const canManage = canAccessEvaluationManagement(
