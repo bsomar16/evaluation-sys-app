@@ -38,6 +38,7 @@ import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
+import { useToast } from '@/hooks/use-toast';
 import {
   deleteEvaluation,
   fetchEvaluations,
