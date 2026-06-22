@@ -93,6 +93,7 @@ export const EXPECTED_DB_SCHEMA: ExpectedDbSchema = {
     { name: 'updated_at', type: 'timestamp', default: 'now()', nullable: true },
   ],
   calculation_rules: [
+    { name: 'id', type: 'uuid', default: 'gen_random_uuid()', nullable: false },
     { name: 'type', type: 'varchar(50)', nullable: false },
     { name: 'label', type: 'varchar(100)', nullable: true },
     { name: 'max_points', type: 'numeric(5,2)', default: '10', nullable: true },

@@ -77,10 +77,74 @@ export async function autoMigrateSchema() {
     }
   }
 
+  // Migrations ciblées de contraintes (legacy → schéma actuel)
+  await migrateCalculationRulesConstraints();
+
   // Migrate evaluation period schedule from localStorage to database
   await migratePeriodScheduleToDatabase();
 
   console.log('✅ Auto-migration complétée');
+}
+
+/**
+ * Migre la table `calculation_rules` héritée (PK sur `type`, sans `id`) vers
+ * le nouveau schéma (PK sur `id` uuid, plusieurs règles par type autorisées).
+ * Idempotent : ne fait rien si déjà migrée.
+ */
+async function migrateCalculationRulesConstraints() {
+  const statements: { label: string; sql: string }[] = [
+    {
+      label: 'backfill id',
+      sql: `UPDATE calculation_rules SET id = gen_random_uuid() WHERE id IS NULL`,
+    },
+    {
+      label: 'id NOT NULL',
+      sql: `ALTER TABLE calculation_rules ALTER COLUMN id SET NOT NULL`,
+    },
+    {
+      label: 'id DEFAULT gen_random_uuid()',
+      sql: `ALTER TABLE calculation_rules ALTER COLUMN id SET DEFAULT gen_random_uuid()`,
+    },
+    {
+      label: 'drop UNIQUE(type) legacy',
+      sql: `ALTER TABLE calculation_rules DROP CONSTRAINT IF EXISTS calculation_rules_type_key`,
+    },
+    {
+      label: 'PK sur id (si manquante)',
+      sql: `DO $migrate_calc_pk$
+            BEGIN
+              IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conrelid = 'calculation_rules'::regclass
+                  AND contype = 'p'
+                  AND (SELECT array_agg(attname ORDER BY attname)
+                       FROM pg_attribute
+                       WHERE attrelid = 'calculation_rules'::regclass
+                         AND attnum = ANY(conkey)) = ARRAY['id']::name[]
+              ) THEN
+                BEGIN
+                  ALTER TABLE calculation_rules DROP CONSTRAINT IF EXISTS calculation_rules_pkey;
+                EXCEPTION WHEN OTHERS THEN NULL;
+                END;
+                ALTER TABLE calculation_rules ADD PRIMARY KEY (id);
+              END IF;
+            END
+            $migrate_calc_pk$`,
+    },
+    {
+      label: 'reload schema cache PostgREST',
+      sql: `NOTIFY pgrst, 'reload schema'`,
+    },
+  ];
+
+  for (const { label, sql } of statements) {
+    const { error } = await supabase.rpc('execute_sql', { sql });
+    if (error) {
+      console.warn(`⚠️  Migration calculation_rules [${label}] ignorée: ${error.message}`);
+    } else {
+      console.log(`✅ Migration calculation_rules [${label}]`);
+    }
+  }
 }
 
 export async function executeSQLMigration(sql: string) {

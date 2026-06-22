@@ -7,7 +7,7 @@ import { initializeDatabaseTables, seedAllDefaults } from "@/services/database";
 import { autoMigrateSchema } from "@/lib/db-auto-migrate";
 
 let initPromise: Promise<boolean> | null = null;
-const DB_INIT_CACHE_KEY = "db_init_success_v1";
+const DB_INIT_CACHE_KEY = "db_init_success_v2";
 const DB_INIT_TTL_MS = 12 * 60 * 60 * 1000; // 12h
 
 export async function initializeDatabase(): Promise<boolean> {

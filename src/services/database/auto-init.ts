@@ -93,6 +93,38 @@ const SQL_STATEMENTS = [
     config jsonb DEFAULT '{}'::jsonb,
     updated_at timestamp DEFAULT now()
   )`,
+  // Migration legacy : tables anciennes sans colonne id / avec UNIQUE(type)
+  `ALTER TABLE calculation_rules ADD COLUMN IF NOT EXISTS id uuid DEFAULT gen_random_uuid()`,
+  `UPDATE calculation_rules SET id = gen_random_uuid() WHERE id IS NULL`,
+  `ALTER TABLE calculation_rules ALTER COLUMN id SET NOT NULL`,
+  `ALTER TABLE calculation_rules ALTER COLUMN id SET DEFAULT gen_random_uuid()`,
+  `ALTER TABLE calculation_rules ADD COLUMN IF NOT EXISTS label varchar(100)`,
+  `ALTER TABLE calculation_rules ADD COLUMN IF NOT EXISTS max_points numeric(5,2) DEFAULT 10`,
+  `ALTER TABLE calculation_rules ADD COLUMN IF NOT EXISTS config jsonb DEFAULT '{}'::jsonb`,
+  `ALTER TABLE calculation_rules ADD COLUMN IF NOT EXISTS updated_at timestamp DEFAULT now()`,
+  // Supprime l'unicité historique sur 'type' pour permettre plusieurs règles du même type
+  `ALTER TABLE calculation_rules DROP CONSTRAINT IF EXISTS calculation_rules_type_key`,
+  // Garantit la PK sur id (si l'ancienne PK était sur 'type')
+  `DO $migrate_calc_pk$
+   BEGIN
+     IF NOT EXISTS (
+       SELECT 1 FROM pg_constraint
+       WHERE conrelid = 'calculation_rules'::regclass
+         AND contype = 'p'
+         AND (SELECT array_agg(attname) FROM pg_attribute
+              WHERE attrelid = 'calculation_rules'::regclass
+                AND attnum = ANY(conkey)) = ARRAY['id']::name[]
+     ) THEN
+       BEGIN
+         ALTER TABLE calculation_rules DROP CONSTRAINT IF EXISTS calculation_rules_pkey;
+       EXCEPTION WHEN OTHERS THEN NULL;
+       END;
+       ALTER TABLE calculation_rules ADD PRIMARY KEY (id);
+     END IF;
+   END
+   $migrate_calc_pk$`,
+  // Recharge le cache du schéma PostgREST pour exposer la nouvelle colonne id
+  `NOTIFY pgrst, 'reload schema'`,
 
   // TABLE: EVALUATIONS
   `CREATE TABLE IF NOT EXISTS evaluations (
