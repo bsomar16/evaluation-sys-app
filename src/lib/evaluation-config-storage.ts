@@ -622,6 +622,25 @@ export async function restoreEvaluationCriterion(id: string): Promise<void> {
   );
 }
 
+/**
+ * Active ou désactive un critère (sans l'archiver).
+ * Un critère désactivé reste dans la liste mais n'apparaît plus dans les
+ * nouvelles évaluations tant qu'il n'est pas réactivé.
+ */
+export async function setEvaluationCriterionActive(id: string, isActive: boolean): Promise<void> {
+  const remoteId = sanitizeUuid(id);
+  if (remoteId) {
+    const { error } = await supabase
+      .from('evaluation_criteria')
+      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .eq('id', remoteId);
+    if (error && !isMissingColumnError(error) && !isMissingTableError(error)) throw error;
+  }
+
+  const local = loadCriteriaFromLocal();
+  saveCriteriaToLocal(local.map((c) => (c.id === id ? { ...c, is_active: isActive } : c)));
+}
+
 export { CriterionInUseError };
 
 

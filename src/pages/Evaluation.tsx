@@ -1303,12 +1303,23 @@ export default function Evaluation() {
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <CriterionDescriptionExpand
-                    description={criterion.description}
-                    variant="icon"
-                  >
-                    <CardTitle className="text-sm font-medium leading-tight">{criterion.name}</CardTitle>
-                  </CriterionDescriptionExpand>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <CriterionDescriptionExpand
+                      description={criterion.description}
+                      variant="icon"
+                    >
+                      <CardTitle className="text-sm font-medium leading-tight">{criterion.name}</CardTitle>
+                    </CriterionDescriptionExpand>
+                    <Badge
+                      variant="secondary"
+                      className="font-mono tabular-nums text-[11px] shrink-0"
+                      title="Coefficient du critère"
+                    >
+                      ×{Number.isInteger(criterion.weight ?? 1)
+                        ? (criterion.weight ?? 1)
+                        : (criterion.weight ?? 1).toFixed(2).replace(/\.?0+$/, '')}
+                    </Badge>
+                  </div>
                 </div>
                 {showEvaluationValues && formValues[criterion.id] !== undefined && (
                   <Badge variant="outline" className="font-normal text-xs shrink-0">
@@ -1338,7 +1349,7 @@ export default function Evaluation() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Commentaire du manager</CardTitle>
+          <CardTitle className="text-sm">Commentaire de l&apos;évaluateur</CardTitle>
         </CardHeader>
         <CardContent>
           <Textarea

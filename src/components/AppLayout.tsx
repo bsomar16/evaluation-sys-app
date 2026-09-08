@@ -41,7 +41,6 @@ import { useToast } from '@/hooks/use-toast';
 import { countEvaluatorPendingWork } from '@/lib/evaluation-storage';
 import { fetchTrainingRequests } from '@/lib/training-storage';
 import { hasTrainingModuleAccess } from '@/lib/training-access';
-import { CompanyLogo } from '@/components/CompanyLogo';
 
 type AppearanceMode = 'light' | 'dark' | 'standard';
 type ConnectionBannerState = 'offline' | 'online';
@@ -552,9 +551,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <button onClick={() => setMobileOpen(true)} className="md:hidden mr-3 text-muted-foreground">
           <Menu size={22} />
         </button>
-        
-        <CompanyLogo height={56} appearanceMode={appearanceMode} />
-        
+
         <div className="flex-1" />
         
         <div className="flex items-center gap-3 relative">

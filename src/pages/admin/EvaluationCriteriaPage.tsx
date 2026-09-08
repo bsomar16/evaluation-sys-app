@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Archive, CheckCircle2, Plus, RotateCcw, Trash2, Edit2, Search, X } from 'lucide-react';
@@ -45,25 +46,20 @@ import {
   fetchCalculationRules,
   fetchEvaluationCriteria,
   restoreEvaluationCriterion,
+  setEvaluationCriterionActive,
   upsertEvaluationCriterion,
 } from '@/lib/evaluation-config-storage';
-import { formatCriterionFrequencyLabel } from '@/lib/criterion-frequency';
 import { partitionCriteriaByArchive } from '@/lib/criterion-archive';
 import { countEvaluationsUsingCriterion } from '@/lib/evaluation-storage';
 import { formatArchivedAt } from '@/lib/user-archive';
 import {
-  getAllEvaluationPeriods,
-  sortEvaluationPeriodsAsc,
-  type EvaluationPeriod,
-} from '@/lib/evaluation-period-db';
-import { dateToPeriodCode, describeEvaluationPeriodCode } from '@/lib/evaluation-period-label';
+  isEvaluationPeriodOpen,
+  subscribeEvaluationPeriodChange,
+} from '@/lib/evaluation-period-storage';
 
 type CriterionFormState = {
   name: string;
   coefficient: string;
-  frequency: string;
-  use_frequency_anchor: boolean;
-  frequency_anchor_period_id: string;
   description: string;
   calculation_rule_id: string;
   type: CriterionType;
@@ -80,27 +76,11 @@ type CriterionFormState = {
 
 type NamedEntity = { id: string; name: string };
 
-function formatPeriodMonthLabel(period: EvaluationPeriod): string {
-  return describeEvaluationPeriodCode(dateToPeriodCode(new Date(period.start_date))) ?? period.name;
-}
-
-function findPeriodIdForAnchorDate(
-  periods: EvaluationPeriod[],
-  anchorDate: string | null | undefined
-): string {
-  if (!anchorDate) return '';
-  const anchorCode = dateToPeriodCode(new Date(anchorDate));
-  return periods.find((p) => dateToPeriodCode(new Date(p.start_date)) === anchorCode)?.id ?? '';
-}
-
 function emptyForm(rules: CalculationRuleRecord[]): CriterionFormState {
   const first = rules[0];
   return {
     name: '',
     coefficient: '1',
-    frequency: '1',
-    use_frequency_anchor: false,
-    frequency_anchor_period_id: '',
     description: '',
     calculation_rule_id: first?.id ?? '',
     type: first?.type ?? 'binary',
@@ -305,7 +285,7 @@ export function EvaluationCriteriaPage() {
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [branches, setBranches] = useState<BranchRecord[]>([]);
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
-  const [evaluationPeriods, setEvaluationPeriods] = useState<EvaluationPeriod[]>([]);
+  const [periodOpen, setPeriodOpen] = useState<boolean>(() => isEvaluationPeriodOpen());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
@@ -316,24 +296,17 @@ export function EvaluationCriteriaPage() {
   const [criterionTab, setCriterionTab] = useState<'active' | 'archived'>('active');
   const [formData, setFormData] = useState<CriterionFormState>(() => emptyForm([]));
 
-  const orderedEvaluationPeriods = useMemo(
-    () => sortEvaluationPeriodsAsc(evaluationPeriods),
-    [evaluationPeriods]
-  );
-
   const load = async () => {
     try {
-      const [rows, rules, rolesRes, branchesRes, deptsRes, dbPeriods] = await Promise.all([
+      const [rows, rules, rolesRes, branchesRes, deptsRes] = await Promise.all([
         fetchEvaluationCriteria(),
         fetchCalculationRules(),
         supabase.from('roles').select('id, name, color'),
         supabase.from('branches').select('id, name'),
         supabase.from('departments').select('id, name'),
-        getAllEvaluationPeriods(),
       ]);
       setCriteria(rows.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)));
       setCalculationRules(rules);
-      setEvaluationPeriods(dbPeriods);
       if (!rolesRes.error) setRoles(rolesRes.data || []);
       if (!branchesRes.error) setBranches(branchesRes.data || []);
       if (!deptsRes.error) setDepartments(deptsRes.data || []);
@@ -348,6 +321,11 @@ export function EvaluationCriteriaPage() {
 
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    setPeriodOpen(isEvaluationPeriodOpen());
+    return subscribeEvaluationPeriodChange(setPeriodOpen);
   }, []);
 
   const openCreate = () => {
@@ -385,12 +363,6 @@ export function EvaluationCriteriaPage() {
     setFormData({
       name: c.name,
       coefficient: formatCoefficient(c.weight ?? 1),
-      frequency: String(Math.max(1, c.frequency ?? 1)),
-      use_frequency_anchor: Boolean(c.frequency_anchor_date),
-      frequency_anchor_period_id: findPeriodIdForAnchorDate(
-        sortEvaluationPeriodsAsc(evaluationPeriods),
-        c.frequency_anchor_date
-      ),
       description: c.description ?? '',
       calculation_rule_id: linked,
       type: c.type,
@@ -432,26 +404,6 @@ export function EvaluationCriteriaPage() {
     if (!Number.isFinite(coefficientValue) || coefficientValue <= 0) {
       toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez un coefficient valide (supérieur à 0)' });
       return;
-    }
-    const frequencyValue = Math.floor(Number.parseInt(formData.frequency, 10));
-    if (!Number.isFinite(frequencyValue) || frequencyValue < 1) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez une fréquence valide (entier ≥ 1)' });
-      return;
-    }
-    let frequency_anchor_date: string | null = null;
-    if (frequencyValue > 1 && formData.use_frequency_anchor) {
-      const anchorPeriod = orderedEvaluationPeriods.find(
-        (p) => p.id === formData.frequency_anchor_period_id
-      );
-      if (!anchorPeriod) {
-        toast({
-          variant: 'destructive',
-          title: 'Erreur',
-          description: 'Choisissez le mois de départ pour la fréquence.',
-        });
-        return;
-      }
-      frequency_anchor_date = anchorPeriod.start_date.slice(0, 10);
     }
     const selectedRule = calculationRules.find((r) => r.id === formData.calculation_rule_id);
     if ((selectedRule?.type ?? formData.type) === 'choice') {
@@ -507,8 +459,8 @@ export function EvaluationCriteriaPage() {
         branch_ids: formData.branch_all ? [] : formData.branch_ids,
         department_ids: formData.department_all ? [] : formData.department_ids,
         weight: coefficientValue,
-        frequency: frequencyValue,
-        frequency_anchor_date,
+        frequency: 1,
+        frequency_anchor_date: null,
         description: formData.description.trim() || null,
         sort_order: editing?.sort_order ?? criteria.length + 1,
         is_active: editing?.is_active ?? true,
@@ -588,6 +540,37 @@ export function EvaluationCriteriaPage() {
     }
   };
 
+  const handleToggleActive = async (criterion: EvaluationCriterionRecord, nextActive: boolean) => {
+    if (!canWrite('evaluation_criteria')) {
+      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission écriture requise.' });
+      return;
+    }
+    if (periodOpen) {
+      toast({
+        variant: 'destructive',
+        title: 'Période ouverte',
+        description: "Fermez la période d'évaluation pour activer/désactiver les critères.",
+      });
+      return;
+    }
+    // Optimiste
+    setCriteria((prev) => prev.map((c) => (c.id === criterion.id ? { ...c, is_active: nextActive } : c)));
+    try {
+      await setEvaluationCriterionActive(criterion.id, nextActive);
+      toast({
+        title: nextActive ? 'Critère activé' : 'Critère désactivé',
+        description: nextActive
+          ? 'Le critère apparaîtra dans les nouvelles évaluations.'
+          : 'Le critère est masqué des nouvelles évaluations.',
+      });
+    } catch (error: unknown) {
+      // Rollback en cas d'échec
+      setCriteria((prev) => prev.map((c) => (c.id === criterion.id ? { ...c, is_active: !nextActive } : c)));
+      const message = error instanceof Error ? error.message : 'Modification impossible';
+      toast({ variant: 'destructive', title: 'Erreur', description: message });
+    }
+  };
+
   const requestDelete = async (criterion: EvaluationCriterionRecord) => {
     try {
       const usageCount = await countEvaluationsUsingCriterion(criterion.id);
@@ -633,8 +616,14 @@ export function EvaluationCriteriaPage() {
       <div>
         <h1 className="text-3xl font-bold">Critères d&apos;évaluation</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Associez chaque critère à un système de calcul et ciblez les rôles, filiales et services souhaités.
+          Associez chaque critère à un système de calcul et ciblez les postes (rôles), filiales et services souhaités.
         </p>
+        {periodOpen && (
+          <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Une période d&apos;évaluation est ouverte : l&apos;activation/désactivation des critères est
+            verrouillée. Fermez la période pour la modifier.
+          </p>
+        )}
       </div>
 
       <Card>
@@ -704,71 +693,6 @@ export function EvaluationCriteriaPage() {
                     <p className="text-xs text-muted-foreground">
                       Poids du critère dans le calcul du score global (colonne BDD : weight).
                     </p>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="criterion-frequency">Fréquence</Label>
-                      <Input
-                        id="criterion-frequency"
-                        type="number"
-                        min={1}
-                        step={1}
-                        placeholder="1"
-                        value={formData.frequency}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, frequency: e.target.value }))}
-                        className="border-2 border-blue-300 bg-blue-50 max-w-[160px]"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        1 = chaque période · 2 = une période sur deux (ex. janv. → mars).
-                      </p>
-                    </div>
-                    {Math.max(1, Number.parseInt(formData.frequency, 10) || 1) > 1 && (
-                      <div className="space-y-2">
-                        <label className="inline-flex items-center gap-2 text-sm font-medium leading-none">
-                          <Checkbox
-                            id="criterion-use-frequency-anchor"
-                            checked={formData.use_frequency_anchor}
-                            onCheckedChange={(checked) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                use_frequency_anchor: checked === true,
-                                frequency_anchor_period_id:
-                                  checked === true ? prev.frequency_anchor_period_id : '',
-                              }))
-                            }
-                          />
-                          <span>Période de départ</span>
-                        </label>
-                        {formData.use_frequency_anchor ? (
-                          <Select
-                            value={formData.frequency_anchor_period_id || undefined}
-                            onValueChange={(value) =>
-                              setFormData((prev) => ({ ...prev, frequency_anchor_period_id: value }))
-                            }
-                          >
-                            <SelectTrigger
-                              id="criterion-frequency-anchor"
-                              className="border-2 border-blue-300 bg-blue-50"
-                            >
-                              <SelectValue placeholder="Choisir un mois" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {orderedEvaluationPeriods.map((period) => (
-                                <SelectItem key={period.id} value={period.id}>
-                                  {formatPeriodMonthLabel(period)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">
-                            Calcul selon les périodes en base (ordre chronologique), à partir de la
-                            création du critère.
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -851,8 +775,8 @@ export function EvaluationCriteriaPage() {
                   )}
 
                   <ScopeMultiField
-                    label="Rôles"
-                    emptyLabel="Ajouter un rôle"
+                    label="Poste (Rôle)"
+                    emptyLabel="Ajouter un poste (rôle)"
                     allLabel="Pour tous"
                     allChecked={formData.role_all}
                     onAllCheckedChange={(role_all) => setFormData((prev) => ({ ...prev, role_all }))}
@@ -919,11 +843,13 @@ export function EvaluationCriteriaPage() {
                   <tr className="border-b">
                     <th className="text-left py-3 px-4">Nom du critère</th>
                     <th className="text-left py-3 px-4 w-28">Coefficient</th>
-                    <th className="text-left py-3 px-4 w-36">Fréquence</th>
                     <th className="text-left py-3 px-4">Système de calcul</th>
                     <th className="text-left py-3 px-4">Rôles</th>
                     <th className="text-left py-3 px-4">Filiales</th>
                     <th className="text-left py-3 px-4">Services</th>
+                    {criterionTab === 'active' && (
+                      <th className="text-left py-3 px-4 w-24">Actif</th>
+                    )}
                     {criterionTab === 'archived' && (
                       <th className="text-left py-3 px-4">Archivé le</th>
                     )}
@@ -942,9 +868,6 @@ export function EvaluationCriteriaPage() {
                           {formatCoefficient(c.weight ?? 1)}
                         </Badge>
                       </td>
-                      <td className="py-3 px-4 align-top text-muted-foreground">
-                        {formatCriterionFrequencyLabel(c.frequency)}
-                      </td>
                       <td className="py-3 px-4 align-top">
                         <Badge variant="secondary">
                           {calculationSystemLabel(c, calculationRules)}
@@ -959,6 +882,27 @@ export function EvaluationCriteriaPage() {
                       <td className="py-3 px-4 align-top">
                         <StackedNames ids={c.department_ids} options={departments} allLabel="Tous" allSelected={c.department_all ?? c.department_ids.length === 0} />
                       </td>
+                      {criterionTab === 'active' && (
+                        <td className="py-3 px-4 align-top">
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={c.is_active !== false}
+                              disabled={!canWrite('evaluation_criteria') || periodOpen}
+                              onCheckedChange={(checked) => void handleToggleActive(c, checked)}
+                              title={
+                                periodOpen
+                                  ? "Fermez la période d'évaluation pour modifier l'activation"
+                                  : c.is_active !== false
+                                    ? 'Désactiver le critère'
+                                    : 'Activer le critère'
+                              }
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {c.is_active !== false ? 'Actif' : 'Inactif'}
+                            </span>
+                          </div>
+                        </td>
+                      )}
                       {criterionTab === 'archived' && (
                         <td className="py-3 px-4 align-top text-muted-foreground text-xs">
                           {formatArchivedAt(c.archived_at)}

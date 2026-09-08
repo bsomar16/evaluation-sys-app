@@ -5,8 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
-import { CompanyLogo } from "@/components/CompanyLogo";
-import { getStoredAppearanceMode } from "@/lib/company-branding";
 import { supabase } from "@/integrations/supabase/client";
 import { SITE_DEVELOPER, DEFAULT_DEMO } from "@/types/roles";
 import { saveSiteDeveloperSession } from "@/lib/session-user";
@@ -183,11 +181,8 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 animate-fade-in">
       <div className="w-full max-w-md space-y-6">
-        {/* Logo et titre */}
+        {/* Titre */}
         <div className="text-center space-y-3">
-          <div className="flex justify-center mb-2">
-            <CompanyLogo height={120} appearanceMode={getStoredAppearanceMode()} />
-          </div>
           <p className="text-muted-foreground text-sm">Plateforme de gestion des ressources humaines</p>
         </div>
 

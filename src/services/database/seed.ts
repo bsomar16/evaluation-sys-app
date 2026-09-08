@@ -67,21 +67,6 @@ const DEFAULT_ROLES: Role[] = [
   },
 ];
 
-const DEFAULT_BRANCHES: Branch[] = [
-  {
-    name: "Siège Principal",
-    code: "HEAD",
-  },
-  {
-    name: "Agence Nord",
-    code: "NORTH",
-  },
-  {
-    name: "Agence Sud",
-    code: "SOUTH",
-  },
-];
-
 /**
  * Seed les rôles par défaut avec hiérarchie parent-child
  */
@@ -148,43 +133,13 @@ export async function seedDefaultRoles() {
 }
 
 /**
- * Seed les branches par défaut
+ * Les filiales ne sont plus créées automatiquement : elles sont entièrement
+ * gérées par l'administrateur depuis la page Filiales. On évite ainsi que des
+ * filiales par défaut réapparaissent après leur suppression à chaque
+ * rechargement de l'application.
  */
 export async function seedDefaultBranches() {
-  try {
-    console.log("🌱 Seeding des branches par défaut...");
-
-    // Vérifier si les branches existent déjà
-    const { data: existingBranches } = await supabase
-      .from("branches")
-      .select("code")
-      .in("code", DEFAULT_BRANCHES.map((b) => b.code));
-
-    if (existingBranches && existingBranches.length > 0) {
-      console.log("✓ Branches par défaut déjà existantes");
-      return true;
-    }
-
-    // Insérer les branches
-    for (const branch of DEFAULT_BRANCHES) {
-      const { error } = await supabase.from("branches").insert({
-        name: branch.name,
-        code: branch.code,
-        is_active: true,
-      });
-
-      if (error) {
-        console.warn(`⚠️ Erreur lors de l'insertion de la branche ${branch.code}:`, error);
-      } else {
-        console.log(`✅ Branche créée: ${branch.name}`);
-      }
-    }
-
-    return true;
-  } catch (error) {
-    console.error("❌ Erreur lors du seeding des branches:", error);
-    return false;
-  }
+  return true;
 }
 
 /**

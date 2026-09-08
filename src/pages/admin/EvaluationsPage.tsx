@@ -409,7 +409,7 @@ export function EvaluationsPage() {
               </div>
               {viewTarget.feedback && (
                 <div>
-                  <p className="text-muted-foreground mb-1">Commentaire</p>
+                  <p className="text-muted-foreground mb-1">Commentaire de l&apos;évaluateur</p>
                   <p className="rounded-md border p-3 bg-muted/30">{viewTarget.feedback}</p>
                 </div>
               )}
