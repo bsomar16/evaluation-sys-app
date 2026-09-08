@@ -564,6 +564,38 @@ export function RolesPage() {
                                   ) : null;
                                 })()}
 
+                                {/* Motifs de refus */}
+                                {(() => {
+                                  const mod = SIDEBAR_MODULE_DEFS.find(m => m.key === 'rejection_reasons');
+                                  const row = formData.permissions['rejection_reasons'] ?? { read: false, write: false, delete: false };
+                                  return mod ? (
+                                    <tr className="border-b bg-muted/20">
+                                      <td className="py-2 px-1"><span className="inline-block w-6" /></td>
+                                      <td className="py-2 px-3 text-sm text-muted-foreground">{mod.label}</td>
+                                      <td className="text-center py-2 px-2">
+                                        <Checkbox
+                                          checked={row.read}
+                                          onCheckedChange={(v) => setModulePerm(mod.key, 'read', v === true)}
+                                        />
+                                      </td>
+                                      <td className="text-center py-2 px-2">
+                                        <Checkbox
+                                          checked={row.write}
+                                          disabled={!row.read}
+                                          onCheckedChange={(v) => setModulePerm(mod.key, 'write', v === true)}
+                                        />
+                                      </td>
+                                      <td className="text-center py-2 px-2">
+                                        <Checkbox
+                                          checked={row.delete}
+                                          disabled={!row.read}
+                                          onCheckedChange={(v) => setModulePerm(mod.key, 'delete', v === true)}
+                                        />
+                                      </td>
+                                    </tr>
+                                  ) : null;
+                                })()}
+
                                 {/* Valeur (lecture seule) */}
                                 <tr className="border-b bg-muted/20">
                                   <td className="py-2 px-1"><span className="inline-block w-6" /></td>

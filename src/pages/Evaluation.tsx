@@ -29,6 +29,11 @@ import {
 } from '@/components/evaluation/EvaluationCriterionInputs';
 import { CriterionDescriptionExpand } from '@/components/evaluation/CriterionDescriptionExpand';
 import { EvaluationExportDialog } from '@/components/evaluation/EvaluationExportDialog';
+import {
+  fetchActiveRejectionReasons,
+  getRejectionReasonLabel,
+  type RejectionReasonRecord,
+} from '@/lib/rejection-reasons';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 import {
   calculateCriterionScore,
@@ -75,12 +80,7 @@ import {
 
 const EVALUATION_TABLE_COLUMN_COUNT = 7;
 
-const REJECT_REASON_PRESET_KEYS = [
-  'insufficientScore',
-  'missingData',
-  'inputError',
-  'criteriaNotMet',
-] as const;
+const OTHER_REASON_VALUE = '__other__';
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
   return Promise.race([
@@ -130,6 +130,8 @@ export default function Evaluation() {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(() => new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectionReasons, setRejectionReasons] = useState<RejectionReasonRecord[]>([]);
+  const [selectedReasonId, setSelectedReasonId] = useState('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [availablePeriods, setAvailablePeriods] = useState<EvaluationPeriodOption[]>([]);
   const [frequencyOrderedPeriods, setFrequencyOrderedPeriods] = useState<{ start_date: string }[]>([]);
@@ -515,6 +517,12 @@ export default function Evaluation() {
   useEffect(() => {
     setSelectedEmployeeIds(new Set());
   }, [period, branchFilter, departmentFilter, statusFilter, groupBy]);
+
+  useEffect(() => {
+    fetchActiveRejectionReasons()
+      .then(setRejectionReasons)
+      .catch(() => setRejectionReasons([]));
+  }, []);
 
   const applyPageData = (data: {
     employees: EmployeeForEvaluation[];
@@ -1419,7 +1427,10 @@ export default function Evaluation() {
                   <Button
                     variant="destructive"
                     className="gap-2"
-                    onClick={() => setRejectDialogOpen(true)}
+                    onClick={() => {
+                      setSelectedReasonId('');
+                      setRejectDialogOpen(true);
+                    }}
                     disabled={submitting}
                   >
                     {submitting ? (
@@ -1442,31 +1453,32 @@ export default function Evaluation() {
           <AlertDialogDescription>{t('evaluation.rejectDialogDesc')}</AlertDialogDescription>
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground">
-                {t('evaluation.rejectQuickReasons')}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {REJECT_REASON_PRESET_KEYS.map((key) => {
-                  const reasonLabel = t(
-                    `evaluation.reason${key.charAt(0).toUpperCase()}${key.slice(1)}`
-                  );
-                  return (
-                    <Button
-                      key={key}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-auto py-1 px-2 text-xs"
-                      onClick={() => setNotes(reasonLabel)}
-                    >
-                      {reasonLabel}
-                    </Button>
-                  );
-                })}
-              </div>
+              <Label>{t('evaluation.rejectReasonLabel')}</Label>
+              <Select
+                value={selectedReasonId}
+                onValueChange={(id) => {
+                  setSelectedReasonId(id);
+                  if (id === OTHER_REASON_VALUE) return;
+                  const reason = rejectionReasons.find((r) => r.id === id);
+                  if (reason) setNotes(getRejectionReasonLabel(reason, lang));
+                }}
+              >
+                <SelectTrigger className="border-2 border-blue-300 bg-blue-50">
+                  <SelectValue placeholder={t('evaluation.rejectReasonPlaceholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {rejectionReasons
+                    .filter((r) => r.is_active !== false)
+                    .map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {getRejectionReasonLabel(r, lang)}
+                      </SelectItem>
+                    ))}
+                  <SelectItem value={OTHER_REASON_VALUE}>{t('evaluation.rejectReasonOther')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <Textarea
-              autoFocus
               placeholder={t('evaluation.commentPlaceholderReview')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

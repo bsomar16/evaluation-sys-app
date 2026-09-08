@@ -555,29 +555,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Menu size={22} />
         </button>
 
-        <div className="flex-1" />
-        
-        <div className="flex items-center gap-3 relative">
-          <div className="text-right hidden sm:block">
-            {user ? (
-              (() => {
-                const badge = getSessionRoleBadge(user);
-                return (
-                  <div className={roleBadgeClassName} style={badge.style}>
-                    {badge.label}
-                  </div>
-                );
-              })()
-            ) : (
-              <div className="px-1.5 py-0 rounded-full border-2 border-muted-foreground bg-muted text-muted-foreground font-semibold text-xs inline-block">
-                User
-              </div>
-            )}
-            <div className="text-xs text-muted-foreground mt-1">
-              <p>{user ? getSessionHeaderSubtitle(user) : '—'}</p>
+        <div className="hidden sm:block">
+          {user ? (
+            (() => {
+              const badge = getSessionRoleBadge(user);
+              return (
+                <div className={roleBadgeClassName} style={badge.style}>
+                  {badge.label}
+                </div>
+              );
+            })()
+          ) : (
+            <div className="px-1.5 py-0 rounded-full border-2 border-muted-foreground bg-muted text-muted-foreground font-semibold text-xs inline-block">
+              User
             </div>
+          )}
+          <div className="text-xs text-muted-foreground mt-1">
+            <p>{user ? getSessionHeaderSubtitle(user) : '—'}</p>
           </div>
-          
+        </div>
+
+        <div className="flex-1" />
+
+        <div className="flex items-center gap-3 relative">
           <LanguageToggle />
 
           {/* Notification Button */}

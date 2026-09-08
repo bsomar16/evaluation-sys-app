@@ -11,6 +11,7 @@ import {
   Calculator,
   ClipboardCheck,
   GraduationCap,
+  Ban,
 } from 'lucide-react';
 import { isSiteDeveloper } from '@/lib/session-user';
 import { collectDescendantRoleIds, type RoleRecord } from '@/lib/role-tree';
@@ -112,6 +113,15 @@ export function buildNavItems(
       labelKey: 'nav.evaluations',
       icon: ClipboardCheck,
       moduleKey: 'evaluations',
+    });
+  }
+  if (canReadModule('rejection_reasons', effective)) {
+    items.push({
+      path: '/admin/rejection-reasons',
+      label: 'Motifs de refus',
+      labelKey: 'nav.rejection_reasons',
+      icon: Ban,
+      moduleKey: 'rejection_reasons',
     });
   }
   if (canReadModule('training', effective)) {

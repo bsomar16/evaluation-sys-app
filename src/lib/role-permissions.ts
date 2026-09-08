@@ -13,6 +13,7 @@ export type SidebarModuleKey =
   | 'calculation_system'
   | 'evaluations'
   | 'evaluations_management'
+  | 'rejection_reasons'
   | 'training'
   | 'training_management';
 
@@ -57,6 +58,11 @@ export const SIDEBAR_MODULE_DEFS: { key: SidebarModuleKey; label: string; paths:
     label: 'Gestion des évaluations',
     paths: ['/admin/evaluations'],
   },
+  {
+    key: 'rejection_reasons',
+    label: 'Motifs de refus',
+    paths: ['/admin/rejection-reasons'],
+  },
   { key: 'training', label: 'Formation', paths: ['/training'] },
   {
     key: 'training_management',
@@ -75,6 +81,7 @@ const MODULE_KEYS: SidebarModuleKey[] = [
   'calculation_system',
   'evaluations',
   'evaluations_management',
+  'rejection_reasons',
   'training',
   'training_management',
 ];
