@@ -34,9 +34,11 @@ import {
   calculateCriterionScore,
   computeWeightedEvaluationBreakdown,
   formatEvaluationPercentage,
+  getCriterionDisplayName,
   type CalculationRuleRecord,
   type EvaluationCriterionRecord,
 } from '@/lib/evaluation-calculator';
+import { useI18n } from '@/lib/i18n';
 import {
   appendAuditEntry, createAuditEntry, type EvaluationAuditEntry } from '@/lib/evaluation-audit';
 import { hasEvaluationModuleAccess, showEvaluationManageButton } from '@/lib/evaluation-access';
@@ -87,6 +89,7 @@ export default function Evaluation() {
   const location = useLocation();
   const { toast } = useToast();
   const { isDeveloper, canRead, canWrite, canDelete, canSubmitEvaluation, canReviewEvaluation, canViewEvaluationValues } = useRolePermissions();
+  const { lang } = useI18n();
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canSubmitEvaluations = canSubmitEvaluation();
@@ -1308,7 +1311,7 @@ export default function Evaluation() {
                       description={criterion.description}
                       variant="icon"
                     >
-                      <CardTitle className="text-sm font-medium leading-tight">{criterion.name}</CardTitle>
+                      <CardTitle className="text-sm font-medium leading-tight">{getCriterionDisplayName(criterion, lang)}</CardTitle>
                     </CriterionDescriptionExpand>
                     <Badge
                       variant="secondary"

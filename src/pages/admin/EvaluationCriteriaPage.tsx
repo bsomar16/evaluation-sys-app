@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Archive, CheckCircle2, Plus, RotateCcw, Trash2, Edit2, Search, X } from 'lucide-react';
 import { CriterionDescriptionExpand } from '@/components/evaluation/CriterionDescriptionExpand';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { useI18n } from '@/lib/i18n';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
@@ -59,6 +60,7 @@ import {
 
 type CriterionFormState = {
   name: string;
+  name_ar: string;
   coefficient: string;
   description: string;
   calculation_rule_id: string;
@@ -80,6 +82,7 @@ function emptyForm(rules: CalculationRuleRecord[]): CriterionFormState {
   const first = rules[0];
   return {
     name: '',
+    name_ar: '',
     coefficient: '1',
     description: '',
     calculation_rule_id: first?.id ?? '',
@@ -279,6 +282,7 @@ function formatCoefficient(weight: number): string {
 
 export function EvaluationCriteriaPage() {
   const { toast } = useToast();
+  const { t } = useI18n();
   const { canRead, canWrite, canDelete } = useRolePermissions();
   const [criteria, setCriteria] = useState<EvaluationCriterionRecord[]>([]);
   const [calculationRules, setCalculationRules] = useState<CalculationRuleRecord[]>([]);
@@ -362,6 +366,7 @@ export function EvaluationCriteriaPage() {
       (c.department_all ?? c.department_ids.length === 0) || c.department_ids.length === 0;
     setFormData({
       name: c.name,
+      name_ar: c.name_ar ?? '',
       coefficient: formatCoefficient(c.weight ?? 1),
       description: c.description ?? '',
       calculation_rule_id: linked,
@@ -438,6 +443,7 @@ export function EvaluationCriteriaPage() {
       await upsertEvaluationCriterion({
         id: editing?.id,
         name: formData.name.trim(),
+        name_ar: formData.name_ar.trim() || null,
         type: linkedRule?.type ?? formData.type,
         calculation_rule_id: formData.calculation_rule_id,
         choice_option_labels:
@@ -614,27 +620,24 @@ export function EvaluationCriteriaPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Critères d&apos;évaluation</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Associez chaque critère à un système de calcul et ciblez les postes (rôles), filiales et services souhaités.
-        </p>
+        <h1 className="text-3xl font-bold">{t('criteria.title')}</h1>
+        <p className="text-muted-foreground text-sm mt-1">{t('criteria.subtitle')}</p>
         {periodOpen && (
           <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Une période d&apos;évaluation est ouverte : l&apos;activation/désactivation des critères est
-            verrouillée. Fermez la période pour la modifier.
+            {t('criteria.periodLockedNote')}
           </p>
         )}
       </div>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Liste des critères</CardTitle>
+          <CardTitle className="text-lg">{t('criteria.listTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Tabs value={criterionTab} onValueChange={(v) => setCriterionTab(v as 'active' | 'archived')}>
             <TabsList>
-              <TabsTrigger value="active">Actifs ({activeCriteria.length})</TabsTrigger>
-              <TabsTrigger value="archived">Archivés ({archivedCriteria.length})</TabsTrigger>
+              <TabsTrigger value="active">{t('criteria.tabActive')} ({activeCriteria.length})</TabsTrigger>
+              <TabsTrigger value="archived">{t('criteria.tabArchived')} ({archivedCriteria.length})</TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -642,7 +645,7 @@ export function EvaluationCriteriaPage() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Chercher..."
+                placeholder={t('common.search')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -656,22 +659,22 @@ export function EvaluationCriteriaPage() {
                   onClick={openCreate}
                 >
                   <Plus className="h-4 w-4" />
-                  Nouveau
+                  {t('criteria.new')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>{editing ? 'Modifier' : 'Créer'} un critère</DialogTitle>
+                  <DialogTitle>{editing ? t('criteria.editTitle') : t('criteria.createTitle')}</DialogTitle>
                   <DialogDescription>
-                    Renseignez le nom, le système de calcul et le périmètre (rôles, filiales, services).
+                    {t('criteria.dialogDescription')}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="criterion-name">Nom du critère</Label>
+                    <Label htmlFor="criterion-name">{t('criteria.nameFr')}</Label>
                     <Input
                       id="criterion-name"
-                      placeholder="Nom du critère"
+                      placeholder={t('criteria.nameFr')}
                       value={formData.name}
                       onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                       className="border-2 border-blue-300 bg-blue-50"
@@ -679,7 +682,20 @@ export function EvaluationCriteriaPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="criterion-coefficient">Coefficient</Label>
+                    <Label htmlFor="criterion-name-ar">{t('criteria.nameAr')}</Label>
+                    <Input
+                      id="criterion-name-ar"
+                      dir="rtl"
+                      lang="ar"
+                      placeholder={t('criteria.nameAr')}
+                      value={formData.name_ar}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, name_ar: e.target.value }))}
+                      className="border-2 border-blue-300 bg-blue-50 text-right"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="criterion-coefficient">{t('criteria.coefficient')}</Label>
                     <Input
                       id="criterion-coefficient"
                       type="number"
@@ -691,7 +707,7 @@ export function EvaluationCriteriaPage() {
                       className="border-2 border-blue-300 bg-blue-50 max-w-[160px]"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Poids du critère dans le calcul du score global (colonne BDD : weight).
+                      {t('criteria.coefficientHint')}
                     </p>
                   </div>
 
@@ -708,7 +724,7 @@ export function EvaluationCriteriaPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                  <Label>Système de calcul</Label>
+                  <Label>{t('criteria.calculationSystem')}</Label>
                   <Select
                     value={formData.calculation_rule_id}
                     onValueChange={(ruleId) => {
@@ -775,9 +791,9 @@ export function EvaluationCriteriaPage() {
                   )}
 
                   <ScopeMultiField
-                    label="Poste (Rôle)"
-                    emptyLabel="Ajouter un poste (rôle)"
-                    allLabel="Pour tous"
+                    label={t('criteria.roles')}
+                    emptyLabel={t('common.add')}
+                    allLabel={t('criteria.forAll')}
                     allChecked={formData.role_all}
                     onAllCheckedChange={(role_all) => setFormData((prev) => ({ ...prev, role_all }))}
                     options={roles}
@@ -800,9 +816,9 @@ export function EvaluationCriteriaPage() {
                   />
 
                   <ScopeMultiField
-                    label="Filiales"
-                    emptyLabel="Ajouter une filiale"
-                    allLabel="Pour toutes"
+                    label={t('criteria.branches')}
+                    emptyLabel={t('common.add')}
+                    allLabel={t('criteria.forAllF')}
                     allChecked={formData.branch_all}
                     onAllCheckedChange={(branch_all) => setFormData((prev) => ({ ...prev, branch_all }))}
                     options={branches}
@@ -811,9 +827,9 @@ export function EvaluationCriteriaPage() {
                   />
 
                   <ScopeMultiField
-                    label="Services"
-                    emptyLabel="Ajouter un service"
-                    allLabel="Pour tous"
+                    label={t('criteria.departments')}
+                    emptyLabel={t('common.add')}
+                    allLabel={t('criteria.forAll')}
                     allChecked={formData.department_all}
                     onAllCheckedChange={(department_all) => setFormData((prev) => ({ ...prev, department_all }))}
                     options={departments}
@@ -822,7 +838,7 @@ export function EvaluationCriteriaPage() {
                   />
 
                   <Button onClick={handleSave} className="w-full" disabled={!canWrite('evaluation_criteria')}>
-                    {editing ? 'Modifier' : 'Créer'}
+                    {editing ? t('common.edit') : t('common.create')}
                   </Button>
                 </div>
               </DialogContent>
@@ -830,10 +846,10 @@ export function EvaluationCriteriaPage() {
           </div>
 
           {loading ? (
-            <p>Chargement...</p>
+            <p>{t('common.loading')}</p>
           ) : filtered.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              {criterionTab === 'active' ? 'Aucun critère actif' : 'Aucun critère archivé'}
+              {criterionTab === 'active' ? t('criteria.noActive') : t('criteria.noArchived')}
             </p>
           ) : (
             <>
@@ -841,19 +857,19 @@ export function EvaluationCriteriaPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-3 px-4">Nom du critère</th>
-                    <th className="text-left py-3 px-4 w-28">Coefficient</th>
-                    <th className="text-left py-3 px-4">Système de calcul</th>
-                    <th className="text-left py-3 px-4">Rôles</th>
-                    <th className="text-left py-3 px-4">Filiales</th>
-                    <th className="text-left py-3 px-4">Services</th>
+                    <th className="text-left py-3 px-4">{t('criteria.colName')}</th>
+                    <th className="text-left py-3 px-4 w-28">{t('criteria.colCoefficient')}</th>
+                    <th className="text-left py-3 px-4">{t('criteria.colCalculation')}</th>
+                    <th className="text-left py-3 px-4">{t('criteria.colRoles')}</th>
+                    <th className="text-left py-3 px-4">{t('criteria.colBranches')}</th>
+                    <th className="text-left py-3 px-4">{t('criteria.colDepartments')}</th>
                     {criterionTab === 'active' && (
-                      <th className="text-left py-3 px-4 w-24">Actif</th>
+                      <th className="text-left py-3 px-4 w-24">{t('criteria.colActive')}</th>
                     )}
                     {criterionTab === 'archived' && (
-                      <th className="text-left py-3 px-4">Archivé le</th>
+                      <th className="text-left py-3 px-4">{t('criteria.colArchivedAt')}</th>
                     )}
-                    <th className="text-right py-3 px-4">Actions</th>
+                    <th className="text-right py-3 px-4">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -861,6 +877,9 @@ export function EvaluationCriteriaPage() {
                     <tr key={c.id} className="border-b hover:bg-muted/50">
                       <td className="py-3 px-4 align-top">
                         <p className="font-medium">{c.name}</p>
+                        {c.name_ar?.trim() && (
+                          <p className="text-sm text-muted-foreground" dir="rtl" lang="ar">{c.name_ar}</p>
+                        )}
                         <CriterionDescriptionExpand description={c.description} />
                       </td>
                       <td className="py-3 px-4 align-top">
@@ -898,7 +917,7 @@ export function EvaluationCriteriaPage() {
                               }
                             />
                             <span className="text-xs text-muted-foreground">
-                              {c.is_active !== false ? 'Actif' : 'Inactif'}
+                              {c.is_active !== false ? t('common.active') : t('common.inactive')}
                             </span>
                           </div>
                         </td>

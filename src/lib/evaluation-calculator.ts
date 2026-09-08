@@ -2,8 +2,10 @@ export type CriterionType = 'binary' | 'threshold' | 'direct' | 'choice' | 'scal
 
 export interface EvaluationCriterionRecord {
   id: string;
-  /** Nom de critère (libellé) */
+  /** Nom de critère (libellé — français, langue de référence) */
   name: string;
+  /** Nom du critère en arabe (affiché quand la langue est l'arabe) */
+  name_ar?: string | null;
   /** Méthode de saisie / calcul (dérivée du système choisi) */
   type: CriterionType;
   /** Système de calcul configuré (plusieurs peuvent exister pour une même méthode) */
@@ -66,6 +68,17 @@ export interface CalculationRuleRecord {
   label: string;
   max_points?: number;
   config: CalculationRuleConfig;
+}
+
+/** Nom du critère à afficher selon la langue (arabe si disponible, sinon français). */
+export function getCriterionDisplayName(
+  criterion: Pick<EvaluationCriterionRecord, 'name' | 'name_ar'>,
+  lang: 'fr' | 'ar'
+): string {
+  if (lang === 'ar' && criterion.name_ar && criterion.name_ar.trim()) {
+    return criterion.name_ar.trim();
+  }
+  return criterion.name;
 }
 
 export const CRITERION_TYPE_LABELS: Record<CriterionType, string> = {

@@ -41,6 +41,8 @@ import { useToast } from '@/hooks/use-toast';
 import { countEvaluatorPendingWork } from '@/lib/evaluation-storage';
 import { fetchTrainingRequests } from '@/lib/training-storage';
 import { hasTrainingModuleAccess } from '@/lib/training-access';
+import { useI18n } from '@/lib/i18n';
+import { LanguageToggle } from '@/components/LanguageToggle';
 
 type AppearanceMode = 'light' | 'dark' | 'standard';
 type ConnectionBannerState = 'offline' | 'online';
@@ -54,6 +56,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation } = useRolePermissions();
+  const { t } = useI18n();
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canReadEvaluationsManagement = canRead('evaluations_management');
@@ -575,6 +578,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           
+          <LanguageToggle />
+
           {/* Notification Button */}
           <button
             onClick={() => setNotificationsOpen(!notificationsOpen)}
@@ -595,7 +600,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               data-notification-menu
             >
               <div className="p-3 border-b border-border flex items-center justify-between">
-                <p className="text-sm font-semibold">Notifications</p>
+                <p className="text-sm font-semibold">{t('header.notifications')}</p>
                 <span className="text-xs bg-accent/20 text-accent px-2 py-1 rounded">{notifications.length}</span>
               </div>
 
@@ -623,7 +628,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 ) : (
                   <div className="p-8 text-center">
                     <Bell size={32} className="mx-auto text-muted-foreground/30 mb-2" />
-                    <p className="text-sm text-muted-foreground">Aucune notification</p>
+                    <p className="text-sm text-muted-foreground">{t('header.noNotifications')}</p>
                   </div>
                 )}
               </div>
@@ -657,13 +662,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors"
                 >
                   <Settings size={16} />
-                  Paramètres
+                  {t('header.settings')}
                 </Link>
 
                 <div className="flex items-center justify-between px-3 py-2">
                   <div className="flex items-center gap-2">
                     <Palette size={16} />
-                    <span className="text-sm font-medium">Apparence</span>
+                    <span className="text-sm font-medium">{t('header.appearance')}</span>
                   </div>
                   <div className="relative w-12 h-6 bg-muted rounded-full cursor-pointer" onClick={(e) => e.stopPropagation()}>
                     {/* Slider track */}
@@ -707,7 +712,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-destructive/10 text-destructive transition-colors"
                 >
                   <LogOut size={16} />
-                  Déconnexion
+                  {t('header.logout')}
                 </button>
               </div>
             </div>
@@ -767,7 +772,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <item.icon size={20} className={active && !evaluationLocked ? "text-sidebar-accent-foreground" : ""} />
                   {!collapsed && (
                     <span className={cn("flex-1", active && !evaluationLocked ? "font-semibold" : "")}>
-                      {item.label}
+                      {item.labelKey ? t(item.labelKey) : item.label}
                     </span>
                   )}
                   {item.path === EVALUATION_PATH && pendingEvaluationsCount > 0 && (

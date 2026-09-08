@@ -3,8 +3,12 @@ import App from "./App.tsx";
 import "./index.css";
 import { migrateCompanyBrandingIfNeeded } from './lib/company-branding';
 import { colorPalettes } from './lib/palette-utils';
+import { applyDocumentLanguage, getStoredLanguage } from './lib/i18n';
 
 try {
+  // Applique la langue + direction (RTL/LTR) avant le rendu React.
+  applyDocumentLanguage(getStoredLanguage());
+
   migrateCompanyBrandingIfNeeded();
 
   // Initialize palette variables BEFORE React renders to prevent flash of unstyled content

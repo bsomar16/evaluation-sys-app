@@ -36,6 +36,7 @@ import Settings from "@/pages/Settings";
 import { useEffect } from "react";
 import { initializeDatabase } from "@/lib/db-init";
 import { isAdminRole } from "@/lib/auth-roles";
+import { LanguageProvider } from "@/lib/i18n";
 
 const queryClient = new QueryClient();
 
@@ -80,6 +81,7 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <LanguageProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -276,6 +278,7 @@ const App = () => {
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 };

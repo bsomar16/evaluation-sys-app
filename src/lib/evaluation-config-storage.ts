@@ -52,6 +52,7 @@ function normalizeCriterion(row: CriterionRow): EvaluationCriterionRecord {
   const department_ids = normalizeScopeIds(row.department_ids, row.department_id);
   return {
     ...row,
+    name_ar: row.name_ar ?? null,
     calculation_rule_id: row.calculation_rule_id ?? null,
     choice_option_1_label: row.choice_option_1_label ?? null,
     choice_option_2_label: row.choice_option_2_label ?? null,
@@ -147,6 +148,9 @@ function saveCriteriaToLocal(criteria: EvaluationCriterionRecord[]) {
 const SELECT_ARRAYS =
   'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, frequency, frequency_anchor_date, description, sort_order, is_active, archived_at, created_at';
 
+/** Comme SELECT_ARRAYS mais avec la colonne name_ar (repli si la colonne n'existe pas encore). */
+const SELECT_ARRAYS_WITH_NAME_AR = `${SELECT_ARRAYS}, name_ar`;
+
 const SELECT_WITHOUT_DESCRIPTION =
   'id, name, type, calculation_rule_id, choice_option_1_label, choice_option_2_label, choice_option_labels, role_all, branch_all, department_all, role_ids, branch_ids, department_ids, weight, sort_order, is_active';
 
@@ -168,6 +172,7 @@ function buildPayload(criterion: Omit<EvaluationCriterionRecord, 'id'> & { id?: 
   return {
 
     name: criterion.name,
+    name_ar: criterion.name_ar?.trim() || null,
     type: criterion.type,
     calculation_rule_id: sanitizeUuid(criterion.calculation_rule_id),
     choice_option_1_label: criterion.choice_option_1_label?.trim() || null,
@@ -237,9 +242,19 @@ export async function fetchEvaluationCriteria(): Promise<EvaluationCriterionReco
 
     .from('evaluation_criteria')
 
-    .select(SELECT_ARRAYS)
+    .select(SELECT_ARRAYS_WITH_NAME_AR)
 
     .order('sort_order', { ascending: true });
+
+  // Repli si la colonne name_ar n'existe pas encore (migration non appliquée).
+  if (error && isMissingColumnError(error)) {
+    const withoutNameAr = await supabase
+      .from('evaluation_criteria')
+      .select(SELECT_ARRAYS)
+      .order('sort_order', { ascending: true });
+    data = withoutNameAr.data as typeof data;
+    error = withoutNameAr.error;
+  }
 
 
 
@@ -457,6 +472,8 @@ async function persistCriterion(
 
 
 
+  const arrayPayloadWithNameAr = { ...arrayPayload, name_ar: fullPayload.name_ar } as Record<string, unknown>;
+
   const arrayPayloadWithoutDescription = { ...arrayPayload } as Record<string, unknown>;
   delete arrayPayloadWithoutDescription.description;
 
@@ -465,6 +482,7 @@ async function persistCriterion(
 
   const attempts: { payload: Record<string, unknown>; select: string }[] = [
 
+    { payload: arrayPayloadWithNameAr, select: SELECT_ARRAYS_WITH_NAME_AR },
     { payload: arrayPayload, select: SELECT_ARRAYS },
     { payload: arrayPayloadWithoutDescription, select: SELECT_WITHOUT_DESCRIPTION },
     { payload: compatibilityPayload, select: SELECT_ARRAYS },
@@ -489,6 +507,7 @@ async function persistCriterion(
       const merged: EvaluationCriterionRecord = {
         ...normalized,
         description: normalized.description ?? fullPayload.description ?? null,
+        name_ar: normalized.name_ar ?? fullPayload.name_ar ?? null,
       };
       syncCriterionToLocal(merged);
       return merged;
@@ -510,6 +529,7 @@ async function persistCriterion(
     id: criterion.id ?? crypto.randomUUID(),
 
     name: fullPayload.name,
+    name_ar: fullPayload.name_ar,
 
     type: fullPayload.type as EvaluationCriterionRecord['type'],
     calculation_rule_id: fullPayload.calculation_rule_id,

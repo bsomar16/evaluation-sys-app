@@ -24,14 +24,16 @@ import {
 export interface AppNavItem {
   path: string;
   label: string;
+  /** Clé i18n (nav.*) pour traduire le libellé à l'affichage */
+  labelKey?: string;
   icon: typeof LayoutDashboard;
   moduleKey?: SidebarModuleKey;
 }
 
 const developerOnlyItems: AppNavItem[] = [
-  { path: '/admin/users', label: 'Utilisateurs', icon: Users },
-  { path: '/admin/schema', label: 'Schéma BD', icon: Database },
-  { path: '/admin/config', label: 'Configuration', icon: Settings },
+  { path: '/admin/users', label: 'Utilisateurs', labelKey: 'nav.users', icon: Users },
+  { path: '/admin/schema', label: 'Schéma BD', labelKey: 'nav.schema', icon: Database },
+  { path: '/admin/config', label: 'Configuration', labelKey: 'nav.config', icon: Settings },
 ];
 
 /** Menu sidebar selon rôle, hiérarchie et permissions lecture */
@@ -51,6 +53,7 @@ export function buildNavItems(
     items.push({
       path: '/',
       label: 'Tableau de bord',
+      labelKey: 'nav.dashboard',
       icon: LayoutDashboard,
       moduleKey: 'dashboard',
     });
@@ -65,20 +68,21 @@ export function buildNavItems(
   ) {
     const descendantIds = collectDescendantRoleIds(session.role_id, allRoles);
     if (descendantIds.length > 0) {
-      items.push({ path: '/equipe', label: 'Employés', icon: Users, moduleKey: 'employees' });
+      items.push({ path: '/equipe', label: 'Employés', labelKey: 'nav.employees', icon: Users, moduleKey: 'employees' });
     }
   }
 
   if (canReadModule('roles', effective)) {
-    items.push({ path: '/admin/roles', label: 'Rôles', icon: Shield, moduleKey: 'roles' });
+    items.push({ path: '/admin/roles', label: 'Rôles', labelKey: 'nav.roles', icon: Shield, moduleKey: 'roles' });
   }
   if (canReadModule('branches', effective)) {
-    items.push({ path: '/admin/branches', label: 'Filiale', icon: Building2, moduleKey: 'branches' });
+    items.push({ path: '/admin/branches', label: 'Filiale', labelKey: 'nav.branches', icon: Building2, moduleKey: 'branches' });
   }
   if (canReadModule('departments', effective)) {
     items.push({
       path: '/admin/departments',
       label: 'Services',
+      labelKey: 'nav.departments',
       icon: Briefcase,
       moduleKey: 'departments',
     });
@@ -87,6 +91,7 @@ export function buildNavItems(
     items.push({
       path: '/admin/evaluation-criteria',
       label: "Critères d'évaluation",
+      labelKey: 'nav.evaluation_criteria',
       icon: ClipboardList,
       moduleKey: 'evaluation_criteria',
     });
@@ -95,6 +100,7 @@ export function buildNavItems(
     items.push({
       path: '/admin/calculation-system',
       label: 'Système de calcul',
+      labelKey: 'nav.calculation_system',
       icon: Calculator,
       moduleKey: 'calculation_system',
     });
@@ -103,6 +109,7 @@ export function buildNavItems(
     items.push({
       path: '/evaluation',
       label: 'Évaluation',
+      labelKey: 'nav.evaluations',
       icon: ClipboardCheck,
       moduleKey: 'evaluations',
     });
@@ -111,6 +118,7 @@ export function buildNavItems(
     items.push({
       path: '/training',
       label: 'Formation',
+      labelKey: 'nav.training',
       icon: GraduationCap,
       moduleKey: 'training',
     });

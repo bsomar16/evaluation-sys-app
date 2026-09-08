@@ -11,10 +11,13 @@ import { saveSiteDeveloperSession } from "@/lib/session-user";
 import { passwordService } from "@/services/passwordService";
 import { getHomePathForRole, roleSlugFromRoleCode } from "@/lib/auth-roles";
 import { isUserArchived } from "@/lib/user-archive";
+import { useI18n } from "@/lib/i18n";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 export default function Login() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -183,18 +186,21 @@ export default function Login() {
       <div className="w-full max-w-md space-y-6">
         {/* Titre */}
         <div className="text-center space-y-3">
-          <p className="text-muted-foreground text-sm">Plateforme de gestion des ressources humaines</p>
+          <div className="flex justify-center">
+            <LanguageToggle variant="segmented" />
+          </div>
+          <p className="text-muted-foreground text-sm">{t('login.subtitle')}</p>
         </div>
 
         {/* Formulaire */}
         <Card className="border-border shadow-sm">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl font-heading text-foreground">Connexion</CardTitle>
+            <CardTitle className="text-xl font-heading text-foreground">{t('login.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Nom d&apos;utilisateur</label>
+                <label className="text-sm font-medium text-foreground">{t('login.username')}</label>
                 <Input
                   type="text"
                   placeholder="username"
@@ -205,7 +211,7 @@ export default function Login() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Mot de passe</label>
+                <label className="text-sm font-medium text-foreground">{t('login.password')}</label>
                 <div className="relative">
                   <Input
                     type={showPassword ? "text" : "password"}
@@ -230,7 +236,7 @@ export default function Login() {
                 disabled={isLoading}
                 className="w-full bg-primary hover:bg-primary text-primary-foreground font-medium"
               >
-                {isLoading ? "Connexion en cours..." : "Se connecter"}
+                {isLoading ? t('login.signingIn') : t('login.signIn')}
               </Button>
             </form>
 

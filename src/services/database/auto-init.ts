@@ -78,6 +78,7 @@ const SQL_STATEMENTS = [
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now()
   )`,
+  `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS name_ar varchar(255)`,
   `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS description text`,
   `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS archived_at timestamp`,
   `ALTER TABLE evaluation_criteria ADD COLUMN IF NOT EXISTS weight numeric(5,2) DEFAULT 1`,
