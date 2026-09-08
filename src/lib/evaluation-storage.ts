@@ -15,7 +15,7 @@ import {
 } from '@/lib/evaluation-audit';
 import { collectBranchScopeIds, type BranchRecord } from '@/lib/branch-tree';
 import { collectDepartmentScopeIds, type DepartmentRecord } from '@/lib/department-tree';
-import { collectDescendantRoleIds, collectImmediateSubordinateRoleIdsByLevel, type RoleRecord } from '@/lib/role-tree';
+import { collectDescendantRoleIds, type RoleRecord } from '@/lib/role-tree';
 import { getSessionUser, isSiteDeveloper, type SessionUser } from '@/lib/session-user';
 import type {
   EmployeeForEvaluation,
@@ -346,9 +346,11 @@ export async function countEvaluatorPendingWork(
   } else if (!session?.role_id || roles.length === 0) {
     return 0;
   } else {
-    const subordinateRoleIds = new Set(
-      collectImmediateSubordinateRoleIdsByLevel(session.role_id, roles)
-    );
+    // Même périmètre que fetchEmployeesForEvaluation (filterEmployeesInEvaluatorScope) :
+    // tous les rôles descendants, pas seulement le niveau juste en dessous. Sinon le badge
+    // sous-compte les évaluations soumises par des employés situés 2+ niveaux plus bas alors
+    // que ces évaluations restent visibles et actionnables sur la page Évaluation elle-même.
+    const subordinateRoleIds = new Set(collectDescendantRoleIds(session.role_id, roles));
     const allowedBranchIds =
       session.branch_id && branches.length > 0
         ? collectBranchScopeIds(session.branch_id, branches)

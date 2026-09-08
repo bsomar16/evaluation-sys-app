@@ -63,6 +63,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       language: 'Langue',
       notifications: 'Notifications',
       noNotifications: 'Aucune notification',
+      notifPendingEvaluations: '{count} évaluation(s) en attente de votre part',
+      notifPendingTraining: '{count} demande(s) de formation en attente',
       user: 'Utilisateur',
     },
     login: {
@@ -466,6 +468,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       language: 'اللغة',
       notifications: 'الإشعارات',
       noNotifications: 'لا توجد إشعارات',
+      notifPendingEvaluations: '{count} تقييم بانتظار إجرائك',
+      notifPendingTraining: '{count} طلب تكوين بانتظار المراجعة',
       user: 'مستخدم',
     },
     login: {

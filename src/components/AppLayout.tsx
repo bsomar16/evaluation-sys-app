@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import {
   LayoutDashboard, ClipboardCheck, Users, GraduationCap, FileText, Shield,
   ChevronLeft, ChevronRight, Settings, LogOut, Menu, X, Building2, Briefcase,
-  Moon, Sun, Palette, Monitor, Bell, Trash2, Lock
+  Moon, Sun, Palette, Monitor, Bell, Lock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { applyPaletteToDOM, getSelectedPaletteKey, saveSelectedPaletteKey, type PaletteKey } from '@/lib/palette-utils';
@@ -55,7 +55,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation } = useRolePermissions();
+  const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation, canReviewTraining } = useRolePermissions();
   const { t } = useI18n();
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
@@ -69,11 +69,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [navItems, setNavItems] = useState<AppNavItem[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, message: 'Nouvelle évaluation en attente', time: 'Il y a 2h' },
-    { id: 2, message: 'Formation assignée avec succès', time: 'Il y a 5h' },
-    { id: 3, message: 'Rapport complété', time: 'Hier' },
-  ]);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
     const saved = localStorage.getItem('appearanceMode');
     return (saved as AppearanceMode) || 'standard';
@@ -93,6 +88,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { period: activePeriod, isOpen: evaluationPeriodOpen } = useCurrentOpenPeriod();
   const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
+
+  // Notifications dérivées des compteurs réels (évite l'ancienne liste figée qui affichait
+  // toujours les 3 mêmes messages fictifs à tout le monde, indépendamment de la réalité).
+  const notifications = useMemo(() => {
+    const items: { id: string; message: string; target: string }[] = [];
+    if (pendingEvaluationsCount > 0) {
+      items.push({
+        id: 'evaluations',
+        message: t('header.notifPendingEvaluations', { count: pendingEvaluationsCount }),
+        target: EVALUATION_PATH,
+      });
+    }
+    if (pendingTrainingCount > 0) {
+      items.push({
+        id: 'training',
+        message: t('header.notifPendingTraining', { count: pendingTrainingCount }),
+        target: TRAINING_PATH,
+      });
+    }
+    return items;
+  }, [pendingEvaluationsCount, pendingTrainingCount, t]);
 
   useEffect(() => {
     const rebuildNav = async (session: SessionUser) => {
@@ -318,29 +334,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    let count = 0;
+    // Même périmètre que la page Formation elle-même (Training.tsx) : 'all' pour ceux qui
+    // peuvent valider les demandes, 'mine' (leurs propres demandes) sinon. Avant ce correctif,
+    // le badge comptait TOUJOURS les demandes en attente de toute l'entreprise, même pour un
+    // simple employé qui ne voit que ses propres demandes sur la page — le nombre affiché ne
+    // correspondait jamais à ce qu'il découvrait en cliquant dessus.
+    const canValidate = isDeveloper || canReviewTraining();
 
     try {
-      const { count: dbCount, error } = await supabase
-        .from('training_requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending');
-
-      if (!error) count = dbCount ?? 0;
+      const rows = await fetchTrainingRequests({ scope: canValidate ? 'all' : 'mine' });
+      setPendingTrainingCount(rows.filter((r) => r.status === 'pending').length);
     } catch {
-      /* fallback ci-dessous */
+      setPendingTrainingCount(0);
     }
-
-    try {
-      const rows = await fetchTrainingRequests({ scope: 'all' });
-      const localPending = rows.filter((r) => r.status === 'pending').length;
-      count = Math.max(count, localPending);
-    } catch {
-      /* garder count BDD si dispo */
-    }
-
-    setPendingTrainingCount(count);
-  }, [isDeveloper, canReadTraining, canWriteTraining]);
+  }, [isDeveloper, canReadTraining, canWriteTraining, canReviewTraining]);
 
   useEffect(() => {
     void loadPendingTrainingCount();
@@ -608,21 +615,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {notifications.length > 0 ? (
                   <div className="p-2 space-y-2">
                     {notifications.map((notif) => (
-                      <div 
+                      <button
                         key={notif.id}
-                        className="p-3 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors flex items-start justify-between group"
+                        type="button"
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          handleNavClick(notif.target);
+                        }}
+                        className="w-full text-left p-3 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors block"
                       >
-                        <div className="flex-1">
-                          <p className="text-sm text-foreground">{notif.message}</p>
-                          <p className="text-xs text-muted-foreground mt-1">{notif.time}</p>
-                        </div>
-                        <button
-                          onClick={() => setNotifications(notifications.filter(n => n.id !== notif.id))}
-                          className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                        <p className="text-sm text-foreground">{notif.message}</p>
+                      </button>
                     ))}
                   </div>
                 ) : (

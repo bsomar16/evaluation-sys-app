@@ -1097,11 +1097,11 @@ export default function Evaluation() {
                         const last = scoresByEmployee[emp.id];
                         const status = statusByEmployee[emp.id];
                         const statusDotClass =
-                          status === 'approved'
+                          status === 'approved' || (status as string) === 'completed'
                             ? 'bg-emerald-500'
                             : status === 'rejected'
                               ? 'bg-red-500'
-                              : status === 'pending' || status === 'submitted'
+                              : status === 'submitted'
                                 ? 'bg-orange-400'
                                 : 'bg-muted-foreground/30';
                         return (
