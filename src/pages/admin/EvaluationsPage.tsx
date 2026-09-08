@@ -35,6 +35,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { useI18n } from '@/lib/i18n';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
@@ -86,6 +87,7 @@ function statusBadgeVariant(status: EvaluationStatus): 'default' | 'secondary' |
 export function EvaluationsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { t } = useI18n();
   const { canRead, canWrite, canDelete } = useRolePermissions();
 
   const [rows, setRows] = useState<EvaluationRecord[]>([]);
@@ -181,7 +183,7 @@ export function EvaluationsPage() {
         () => updateEvaluationStatus(id, status),
         'Mise à jour du statut...'
       );
-      toast({ title: 'Succès', description: `Statut : ${EVALUATION_STATUS_LABELS[status]}` });
+      toast({ title: t('common.success'), description: t('evalMgmt.statusToast', { label: t(`evalStatus.${status}`) }) });
       load();
       setViewTarget(null);
     } catch (error: unknown) {
@@ -213,10 +215,10 @@ export function EvaluationsPage() {
     setIsPeriodOpen(nextValue);
     setIsScheduleEnabled(false);
     toast({
-      title: nextValue ? 'Période ouverte' : 'Période fermée',
+      title: nextValue ? t('evalMgmt.periodOpen') : t('evalMgmt.periodClosed'),
       description: nextValue
-        ? 'Les managers peuvent soumettre des évaluations.'
-        : "Les soumissions d'évaluations sont temporairement bloquées.",
+        ? t('evalMgmt.periodOpenedToast')
+        : t('evalMgmt.periodClosedToast'),
     });
   };
 
@@ -232,14 +234,14 @@ export function EvaluationsPage() {
     <div className="space-y-6">
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">Gestion des évaluations</h1>
+          <h1 className="text-3xl font-bold">{t('nav.evaluations_management')}</h1>
           <Badge variant={isPeriodOpen ? 'default' : 'destructive'}>
-            {isPeriodOpen ? 'Période ouverte' : 'Période fermée'}
+            {isPeriodOpen ? t('evalMgmt.periodOpen') : t('evalMgmt.periodClosed')}
           </Badge>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-muted-foreground text-sm">
-            Historique, validation et suivi des évaluations enregistrées.
+            {t('evalMgmt.subtitle')}
           </p>
           <div className="ml-auto flex flex-wrap justify-end gap-2">
             {canWrite('evaluations_management') && (
@@ -247,7 +249,7 @@ export function EvaluationsPage() {
                 variant={isPeriodOpen ? 'destructive' : 'default'}
                 onClick={handlePeriodToggle}
               >
-                {isPeriodOpen ? "Fermer l'évaluation" : "Ouvrir l'évaluation"}
+                {isPeriodOpen ? t('evalMgmt.closeEval') : t('evalMgmt.openEval')}
               </Button>
             )}
             {canWrite('evaluations_management') && (
@@ -260,7 +262,7 @@ export function EvaluationsPage() {
                 }
                 onClick={handleOpenScheduledPeriods}
               >
-                {isScheduleEnabled ? 'Période programmée' : 'Programmer la période'}
+                {isScheduleEnabled ? t('evalMgmt.scheduledPeriod') : t('evalMgmt.schedulePeriod')}
               </Button>
             )}
           </div>
@@ -269,14 +271,14 @@ export function EvaluationsPage() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Liste des évaluations</CardTitle>
+          <CardTitle className="text-lg">{t('evalMgmt.listTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Chercher employé, période, e-mail..."
+                placeholder={t('evalMgmt.searchPlaceholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
@@ -290,7 +292,7 @@ export function EvaluationsPage() {
                 disabled={rows.length === 0}
               >
                 <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Période" />
+                  <SelectValue placeholder={t('evalMgmt.colPeriod')} />
                 </SelectTrigger>
                 <SelectContent>
                   {periods.map((p) => (
@@ -304,13 +306,13 @@ export function EvaluationsPage() {
             {/* Status filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="Statut" />
+                <SelectValue placeholder={t('evaluation.status')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL_STATUS}>Tous les statuts</SelectItem>
+                <SelectItem value={ALL_STATUS}>{t('evaluation.allStatuses')}</SelectItem>
                 {(Object.keys(EVALUATION_STATUS_LABELS) as EvaluationStatus[]).filter(s => s !== 'pending').map((s) => (
                   <SelectItem key={s} value={s}>
-                    {EVALUATION_STATUS_LABELS[s]}
+                    {t(`evalStatus.${s}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -318,21 +320,21 @@ export function EvaluationsPage() {
           </div>
 
           {loading ? (
-            <p>Chargement...</p>
+            <p>{t('common.loading')}</p>
           ) : filtered.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">Aucune évaluation</p>
+            <p className="text-center text-muted-foreground py-8">{t('evalMgmt.noEvaluation')}</p>
           ) : (
             <>
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-3 px-4">Employé</th>
-                    <th className="text-left py-3 px-4">Période</th>
-                    <th className="text-left py-3 px-4">Score</th>
-                    <th className="text-left py-3 px-4">Statut</th>
-                    <th className="text-left py-3 px-4">Date</th>
-                    <th className="text-right py-3 px-4">Actions</th>
+                    <th className="text-left py-3 px-4">{t('evalMgmt.colEmployee')}</th>
+                    <th className="text-left py-3 px-4">{t('evalMgmt.colPeriod')}</th>
+                    <th className="text-left py-3 px-4">{t('evalMgmt.colScore')}</th>
+                    <th className="text-left py-3 px-4">{t('common.status')}</th>
+                    <th className="text-left py-3 px-4">{t('common.date')}</th>
+                    <th className="text-right py-3 px-4">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -345,7 +347,7 @@ export function EvaluationsPage() {
                       </td>
                       <td className="py-3 px-4">
                         <Badge variant={statusBadgeVariant(e.status)}>
-                          {EVALUATION_STATUS_LABELS[e.status]}
+                          {t(`evalStatus.${e.status}`)}
                         </Badge>
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">
