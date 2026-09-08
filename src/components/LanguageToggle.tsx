@@ -1,11 +1,10 @@
-import { Languages } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
 
 /**
- * Bascule de langue FR / AR.
- * variant "compact" : bouton icône (header).
- * variant "segmented" : deux boutons FR | ع (page de connexion).
+ * Bascule de langue FR / AR sous forme de petit segmenté « FR | ع ».
+ * La langue active est surlignée. Fonctionne en LTR comme en RTL.
+ * variant "compact" : taille header. variant "segmented" : taille page de connexion.
  */
 export function LanguageToggle({
   variant = 'compact',
@@ -14,49 +13,50 @@ export function LanguageToggle({
   variant?: 'compact' | 'segmented';
   className?: string;
 }) {
-  const { lang, setLang, toggleLang, t } = useI18n();
-
-  if (variant === 'segmented') {
-    return (
-      <div className={cn('inline-flex rounded-lg border border-border overflow-hidden', className)}>
-        <button
-          type="button"
-          onClick={() => setLang('fr')}
-          className={cn(
-            'px-3 py-1.5 text-sm font-medium transition-colors',
-            lang === 'fr' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'
-          )}
-        >
-          FR
-        </button>
-        <button
-          type="button"
-          onClick={() => setLang('ar')}
-          className={cn(
-            'px-3 py-1.5 text-sm font-medium transition-colors',
-            lang === 'ar' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground hover:bg-muted'
-          )}
-        >
-          ع
-        </button>
-      </div>
-    );
-  }
+  const { lang, setLang, t } = useI18n();
+  const compact = variant === 'compact';
+  const btn = compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm';
 
   return (
-    <button
-      type="button"
-      onClick={toggleLang}
-      title={t('header.language')}
+    <div
+      dir="ltr"
+      role="group"
       aria-label={t('header.language')}
+      title={t('header.language')}
       className={cn(
-        'relative w-7 h-7 rounded-full bg-muted hover:bg-accent/20 flex items-center justify-center text-foreground transition-colors cursor-pointer gap-1',
+        'inline-flex shrink-0 items-stretch rounded-full border border-border bg-muted overflow-hidden',
         className
       )}
     >
-      <Languages size={15} />
-      <span className="text-[10px] font-semibold uppercase">{lang}</span>
-    </button>
+      <button
+        type="button"
+        onClick={() => setLang('fr')}
+        aria-pressed={lang === 'fr'}
+        className={cn(
+          'font-semibold leading-none transition-colors',
+          btn,
+          lang === 'fr'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:bg-accent/20'
+        )}
+      >
+        FR
+      </button>
+      <button
+        type="button"
+        onClick={() => setLang('ar')}
+        aria-pressed={lang === 'ar'}
+        className={cn(
+          'font-semibold leading-none transition-colors',
+          btn,
+          lang === 'ar'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:bg-accent/20'
+        )}
+      >
+        ع
+      </button>
+    </div>
   );
 }
 
