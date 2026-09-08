@@ -49,7 +49,7 @@ import {
   findEvaluationForOpenPeriod,
   upsertEvaluation,
 } from '@/lib/evaluation-storage';
-import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
+import { type EvaluationStatus } from '@/lib/evaluation-types';
 import {
   describeEvaluationPeriodCode,
   dateToPeriodCode,
@@ -89,7 +89,7 @@ export default function Evaluation() {
   const location = useLocation();
   const { toast } = useToast();
   const { isDeveloper, canRead, canWrite, canDelete, canSubmitEvaluation, canReviewEvaluation, canViewEvaluationValues } = useRolePermissions();
-  const { lang } = useI18n();
+  const { lang, t } = useI18n();
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canSubmitEvaluations = canSubmitEvaluation();
@@ -136,8 +136,8 @@ export default function Evaluation() {
   };
 
   const statusFilterOptions: Array<{ value: string; label: string; colorClass: string }> = [
-    { value: 'soumis', label: 'Soumis', colorClass: 'bg-amber-400' },
-    { value: 'complet', label: 'Complet', colorClass: 'bg-emerald-500' },
+    { value: 'soumis', label: t('dashboard.submitted'), colorClass: 'bg-amber-400' },
+    { value: 'complet', label: t('dashboard.complete'), colorClass: 'bg-emerald-500' },
   ];
 
   const selectedStatusOption = statusFilterOptions.find((option) => option.value === statusFilter);
@@ -258,7 +258,7 @@ export default function Evaluation() {
       groups.set(key, list);
     }
     const toLabel = (key: string) => {
-      if (key === 'none') return groupBy === 'branch' ? 'Sans filiale' : 'Sans service';
+      if (key === 'none') return groupBy === 'branch' ? t('evaluation.noBranchGroup') : t('evaluation.noDepartmentGroup');
       if (groupBy === 'branch') return groups.get(key)?.[0]?.branch_name ?? '—';
       return departmentName(key) ?? '—';
     };
@@ -282,7 +282,7 @@ export default function Evaluation() {
       groups.set(key, list);
     }
     const toLabel = (key: string) => {
-      if (key === 'none') return groupBy === 'branch' ? 'Sans filiale' : 'Sans service';
+      if (key === 'none') return groupBy === 'branch' ? t('evaluation.noBranchGroup') : t('evaluation.noDepartmentGroup');
       if (groupBy === 'branch') return groups.get(key)?.[0]?.branch_name ?? '—';
       return departmentName(key) ?? '—';
     };
@@ -377,7 +377,7 @@ export default function Evaluation() {
     try {
       const evaluations = await runWithLoadingOverlay(
         () => fetchEvaluations(),
-        'Préparation de l’export...'
+        t('common.loading')
       );
 
       const evaluationsByEmployeeId: Record<string, EvaluationRecord | null> = {};
@@ -412,24 +412,24 @@ export default function Evaluation() {
       });
 
       toast({
-        title: 'Export terminé',
-        description: `Export Excel généré pour ${selectedEmployees.length} employé(s).`,
+        title: t('evaluation.exportDone'),
+        description: t('evaluation.exportGeneratedDesc', { count: selectedEmployees.length }),
       });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Export impossible';
-      toast({ variant: 'destructive', title: 'Erreur', description: message });
+      const message = error instanceof Error ? error.message : t('evaluation.exportImpossible');
+      toast({ variant: 'destructive', title: t('common.error'), description: message });
     }
   };
 
   const handleBulkDelete = async () => {
     if (!canBulkDeleteEvaluations || selectedEmployees.length === 0) {
-      toast({ variant: 'destructive', title: 'Accès refusé', description: 'Permission suppression requise.' });
+      toast({ variant: 'destructive', title: t('common.accessDenied'), description: t('common.accessDenied') });
       return;
     }
 
     const periodName = (openPeriodName || period).trim();
     if (!periodName) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Aucune période sélectionnée.' });
+      toast({ variant: 'destructive', title: t('common.error'), description: t('evaluation.noPeriodSelected') });
       return;
     }
 
@@ -445,8 +445,8 @@ export default function Evaluation() {
       if (targets.length === 0) {
         toast({
           variant: 'destructive',
-          title: 'Aucune évaluation',
-          description: 'Aucune évaluation à supprimer pour la sélection et la période courante.',
+          title: t('evalStatus.none'),
+          description: t('evaluation.noEvalToDelete'),
         });
         setBulkDeleteOpen(false);
         return;
@@ -456,18 +456,18 @@ export default function Evaluation() {
         for (const evaluation of targets) {
           await deleteEvaluation(evaluation.id);
         }
-      }, 'Suppression des évaluations...');
+      }, t('common.loading'));
 
       setSelectedEmployeeIds(new Set());
       setBulkDeleteOpen(false);
       void refreshEvaluationPageEvaluations(periodName);
       toast({
-        title: 'Succès',
-        description: `${targets.length} évaluation(s) supprimée(s).`,
+        title: t('common.success'),
+        description: t('evaluation.bulkDeletedDesc', { count: targets.length }),
       });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Suppression impossible';
-      toast({ variant: 'destructive', title: 'Erreur', description: message });
+      const message = error instanceof Error ? error.message : t('common.error');
+      toast({ variant: 'destructive', title: t('common.error'), description: message });
     }
   };
 
@@ -597,7 +597,7 @@ export default function Evaluation() {
       } catch (error: unknown) {
         if (!cancelled && generation === loadGenerationRef.current) {
           const message = error instanceof Error ? error.message : 'Chargement impossible';
-          toast({ variant: 'destructive', title: 'Erreur', description: message });
+          toast({ variant: 'destructive', title: t('common.error'), description: message });
         }
       } finally {
         finishInitialLoad();
@@ -615,16 +615,16 @@ export default function Evaluation() {
     if (!isPeriodOpen) {
       toast({
         variant: 'destructive',
-        title: 'Période fermée',
-        description: "La période d'évaluation est fermée. Contactez l'administration.",
+        title: t('evaluation.periodClosedTitle'),
+        description: t('evaluation.periodClosed'),
       });
       return;
     }
     if (!openPeriodName) {
       toast({
         variant: 'destructive',
-        title: 'Période indisponible',
-        description: 'Aucune période ouverte n’est configurée.',
+        title: t('evaluation.periodUnavailable'),
+        description: t('evaluation.noOpenPeriod'),
       });
       return;
     }
@@ -675,59 +675,58 @@ export default function Evaluation() {
   const persistEvaluation = async (status: EvaluationStatus, requireCriteria: boolean) => {
     if (!selectedEmployee) return;
     if (status === 'submitted' && !canSubmitEvaluations) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Accès Soumission requis' });
+      toast({ variant: 'destructive', title: t('common.error'), description: t('evaluation.submitAccessRequired') });
       return;
     }
     if ((status === 'approved' || status === 'rejected') && !canReviewEvaluations) {
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description: 'Accès Refus & Acceptation requis',
+        title: t('common.error'),
+        description: t('evaluation.reviewAccessRequired'),
       });
       return;
     }
     if (!isPeriodOpen) {
       toast({
         variant: 'destructive',
-        title: 'Période fermée',
-        description: "Impossible d'enregistrer tant que la période est fermée.",
+        title: t('evaluation.periodClosedTitle'),
+        description: t('evaluation.periodClosed'),
       });
       return;
     }
     if (!period.trim()) {
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Indiquez la période' });
+      toast({ variant: 'destructive', title: t('common.error'), description: t('evaluation.indicatePeriod') });
       return;
     }
     if (status === 'submitted' && currentStatus === 'submitted') {
       toast({
         variant: 'destructive',
-        title: 'Déjà soumise',
-        description: 'Cette évaluation a déjà été soumise.',
+        title: t('evaluation.alreadySubmittedTitle'),
+        description: t('evaluation.alreadySubmitted'),
       });
       return;
     }
     if ((status === 'approved' || status === 'rejected') && currentStatus !== 'submitted') {
       toast({
         variant: 'destructive',
-        title: 'Soumission requise',
-        description: 'Soumettez l’évaluation avant d’accepter ou de refuser.',
+        title: t('evaluation.submitRequiredTitle'),
+        description: t('evaluation.submitRequired'),
       });
       return;
     }
     if (status === 'rejected' && !notes.trim()) {
       toast({
         variant: 'destructive',
-        title: 'Commentaire requis',
-        description: 'Indiquez le motif du refus.',
+        title: t('evaluation.commentRequiredTitle'),
+        description: t('evaluation.commentRequired'),
       });
       return;
     }
     if (requireCriteria && applicableCriteria.length === 0) {
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description:
-          'Aucun critère ne correspond à cet employé (rôle, filiale, service).'
+        title: t('common.error'),
+        description: t('evaluation.noCriteria')
       });
       return;
     }
@@ -735,7 +734,7 @@ export default function Evaluation() {
     if (requireCriteria) {
       const missing = applicableCriteria.filter((c) => formValues[c.id] === undefined);
       if (missing.length > 0) {
-        toast({ variant: 'destructive', title: 'Erreur', description: 'Complétez tous les critères' });
+        toast({ variant: 'destructive', title: t('common.error'), description: t('evaluation.completeAll') });
         return;
       }
     }
@@ -781,23 +780,23 @@ export default function Evaluation() {
         });
         setActivityLog(saved.activity_log ?? nextLog);
         setCurrentEvaluationId(saved.id);
-      }, status === 'rejected' ? 'Enregistrement du refus...' : 'Enregistrement de l’évaluation...');
+      }, t('common.loading'));
 
       if (status === 'submitted') {
         setCurrentStatus('submitted');
         setStatusByEmployee((prev) => ({ ...prev, [selectedEmployee.id]: 'submitted' }));
         void refreshEvaluationPageEvaluations(period);
         toast({
-          title: 'Succès',
-          description: 'Évaluation soumise. Vous pouvez maintenant l’accepter ou la refuser.',
+          title: t('common.success'),
+          description: t('evaluation.submittedSuccess'),
         });
         return;
       }
 
       toast({
-        title: 'Succès',
+        title: t('common.success'),
         description:
-          status === 'approved' ? 'Évaluation acceptée' : 'Évaluation refusée',
+          status === 'approved' ? t('evaluation.accepted') : t('evaluation.rejected'),
       });
       if (status === 'approved') {
         setScoresByEmployee((prev) => ({ ...prev, [selectedEmployee.id]: totalPercentage }));
@@ -818,7 +817,7 @@ export default function Evaluation() {
               (error as { code?: string }).code ??
               'Enregistrement impossible')
             : 'Enregistrement impossible';
-      toast({ variant: 'destructive', title: 'Erreur', description: message });
+      toast({ variant: 'destructive', title: t('common.error'), description: message });
     } finally {
       setSubmitting(false);
     }
@@ -846,14 +845,14 @@ export default function Evaluation() {
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Évaluation</h1>
+            <h1 className="text-3xl font-bold">{t('evaluation.title')}</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Sélectionnez un employé pour démarrer une évaluation
+              {t('evaluation.selectEmployee')}
             </p>
           </div>
           {showEvaluationManageButton(isDeveloper, canReadEvaluationsManagement) && (
             <Button variant="outline" asChild className="gap-2">
-              <Link to="/admin/evaluations">Gestion des évaluations</Link>
+              <Link to="/admin/evaluations">{t('evaluation.manage')}</Link>
             </Button>
           )}
         </div>
@@ -862,7 +861,7 @@ export default function Evaluation() {
           <CardContent className="p-0 space-y-3">
             <div className="grid gap-4 p-4">
               <div className="space-y-1">
-                <Label>Période</Label>
+                <Label>{t('evaluation.period')}</Label>
                 {availablePeriods.length > 0 ? (
                   <Select value={period} onValueChange={handlePeriodChange}>
                     <SelectTrigger className="w-full">
@@ -873,7 +872,7 @@ export default function Evaluation() {
                             aria-hidden
                           />
                         )}
-                        {period || 'Sélectionner une période'}
+                        {period || t('evaluation.selectPeriod')}
                       </span>
                     </SelectTrigger>
                     <SelectContent>
@@ -900,13 +899,13 @@ export default function Evaluation() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-1">
-                  <Label>Filiale</Label>
+                  <Label>{t('evaluation.branch')}</Label>
                   <Select value={branchFilter} onValueChange={setBranchFilter}>
                     <SelectTrigger className="min-w-[160px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={FILTER_ALL}>Toutes les filiales</SelectItem>
+                      <SelectItem value={FILTER_ALL}>{t('evaluation.allBranches')}</SelectItem>
                       {branchFilterOptions.map((b) => (
                         <SelectItem key={b.id} value={b.id}>
                           {b.name}
@@ -916,13 +915,13 @@ export default function Evaluation() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Service</Label>
+                  <Label>{t('evaluation.department')}</Label>
                   <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                     <SelectTrigger className="min-w-[160px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={FILTER_ALL}>Tous les services</SelectItem>
+                      <SelectItem value={FILTER_ALL}>{t('evaluation.allDepartments')}</SelectItem>
                       {departmentFilterOptions.map((d) => (
                         <SelectItem key={d.id} value={d.id}>
                           {d.name}
@@ -932,13 +931,13 @@ export default function Evaluation() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Statut</Label>
+                  <Label>{t('evaluation.status')}</Label>
                   <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as EvaluationStatus | 'all')}>
                     <SelectTrigger className="min-w-[160px]">
-                      <SelectValue placeholder="Tous les statuts" />
+                      <SelectValue placeholder={t('evaluation.allStatuses')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tous les statuts</SelectItem>
+                      <SelectItem value="all">{t('evaluation.allStatuses')}</SelectItem>
                       {statusFilterOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           <div className="flex items-center gap-2">
@@ -951,7 +950,7 @@ export default function Evaluation() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <Label>Groupement</Label>
+                  <Label>{t('evaluation.grouping')}</Label>
                   <Select
                     value={groupBy}
                     onValueChange={(v) => setGroupBy(v as 'none' | 'branch' | 'department')}
@@ -960,9 +959,9 @@ export default function Evaluation() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Aucun</SelectItem>
-                      <SelectItem value="branch">Par filiale</SelectItem>
-                      <SelectItem value="department">Par service</SelectItem>
+                      <SelectItem value="none">{t('evaluation.groupNone')}</SelectItem>
+                      <SelectItem value="branch">{t('evaluation.groupBranch')}</SelectItem>
+                      <SelectItem value="department">{t('evaluation.groupDepartment')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -977,9 +976,9 @@ export default function Evaluation() {
             {selectedCount > 0 && (
               <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2">
                 <span className="text-sm text-muted-foreground">
-                  {selectedCount} ligne{selectedCount > 1 ? 's' : ''} sélectionnée{selectedCount > 1 ? 's' : ''}
+                  {selectedCount} {t('evaluation.rowsSelected')}
                   {allFilteredSelected && filteredEmployeeIds.length > 0
-                    ? ` sur ${filteredEmployeeIds.length}`
+                    ? ` ${t('evaluation.of')} ${filteredEmployeeIds.length}`
                     : ''}
                 </span>
                 {tableHasMoreRowsThanPage && !allFilteredSelected && (
@@ -989,7 +988,7 @@ export default function Evaluation() {
                     className="h-auto px-0 text-sm"
                     onClick={() => toggleSelectAllFiltered(true)}
                   >
-                    Sélectionner les {filteredEmployeeIds.length} lignes du tableau
+                    {t('evaluation.selectAllRows', { count: filteredEmployeeIds.length })}
                   </Button>
                 )}
                 {canBulkDeleteEvaluations && (
@@ -1000,7 +999,7 @@ export default function Evaluation() {
                     onClick={() => setBulkDeleteOpen(true)}
                   >
                     <Trash2 className="h-4 w-4" />
-                    Supprimer
+                    {t('common.delete')}
                   </Button>
                 )}
                 <Button
@@ -1010,14 +1009,14 @@ export default function Evaluation() {
                   onClick={() => setExportDialogOpen(true)}
                 >
                   <Download className="h-4 w-4" />
-                  Exporter
+                  {t('evaluation.export')}
                 </Button>
               </div>
             )}
             {tableHasMoreRowsThanPage && !allFilteredSelected && allCurrentPageSelected && (
               <div className="mb-3 flex flex-wrap items-center gap-1 rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-sm">
                 <span>
-                  Les {currentPageEmployeeIds.length} lignes de cette page sont sélectionnées.
+                  {t('evaluation.pageRowsSelected', { count: currentPageEmployeeIds.length })}
                 </span>
                 <Button
                   variant="link"
@@ -1039,11 +1038,11 @@ export default function Evaluation() {
                       aria-label="Sélectionner toutes les lignes de la page"
                     />
                   </TableHead>
-                  <TableHead>Employé</TableHead>
-                  <TableHead>Poste</TableHead>
-                  <TableHead>Filiale</TableHead>
-                  <TableHead className="text-right">Dernier score</TableHead>
-                  <TableHead className="text-center">Statut</TableHead>
+                  <TableHead>{t('evaluation.colEmployee')}</TableHead>
+                  <TableHead>{t('evaluation.colPoste')}</TableHead>
+                  <TableHead>{t('evaluation.colBranch')}</TableHead>
+                  <TableHead className="text-right">{t('evaluation.colLastScore')}</TableHead>
+                  <TableHead className="text-center">{t('evaluation.colStatus')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -1051,19 +1050,19 @@ export default function Evaluation() {
                 {filteredEmployees.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={EVALUATION_TABLE_COLUMN_COUNT} className="text-center text-muted-foreground py-8">
-                      Aucun employé pour ce filtre
+                      {t('evaluation.noEmployeeFilter')}
                     </TableCell>
                   </TableRow>
                 ) : paginatedGroupedEmployees.length === 0 && groupedEmployees.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={EVALUATION_TABLE_COLUMN_COUNT} className="text-center text-muted-foreground py-8">
-                      Aucun employé pour ce filtre
+                      {t('evaluation.noEmployeeFilter')}
                     </TableCell>
                   </TableRow>
                 ) : paginatedGroupedEmployees.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={EVALUATION_TABLE_COLUMN_COUNT} className="text-center text-muted-foreground py-8">
-                      Aucun employé pour cette page
+                      {t('evaluation.noEmployeePage')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1128,7 +1127,7 @@ export default function Evaluation() {
                             <TableCell className="text-center">
                               <span
                                 className={`inline-block h-2.5 w-2.5 rounded-full ${statusDotClass}`}
-                                title={status ? EVALUATION_STATUS_LABELS[status] : 'Aucun statut'}
+                                title={status ? t(`evalStatus.${status}`) : t('evalStatus.none')}
                               />
                             </TableCell>
                             <TableCell>
@@ -1170,19 +1169,18 @@ export default function Evaluation() {
         <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogTitle>
-              Supprimer {selectedCount} évaluation{selectedCount > 1 ? 's' : ''} ?
+              {t('evaluation.bulkDeleteTitle', { count: selectedCount })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Les évaluations de la période « {openPeriodName || period || '—'} » pour les employés
-              sélectionnés seront supprimées définitivement.
+              {t('evaluation.bulkDeleteDesc', { period: openPeriodName || period || '—' })}
             </AlertDialogDescription>
             <div className="flex gap-2 justify-end">
-              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => void handleBulkDelete()}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Supprimer
+                {t('common.delete')}
               </AlertDialogAction>
             </div>
           </AlertDialogContent>
@@ -1191,8 +1189,7 @@ export default function Evaluation() {
         {!isPeriodOpen && (
           <Card className="border-destructive/40 bg-destructive/5">
             <CardContent className="py-4 text-sm text-destructive">
-              La période d&apos;évaluation est fermée. Les soumissions sont désactivées jusqu&apos;à
-              réouverture par un administrateur.
+              {t('evaluation.periodClosed')}
             </CardContent>
           </Card>
         )}
@@ -1203,36 +1200,36 @@ export default function Evaluation() {
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
       <Button variant="ghost" size="sm" className="-ml-2 w-fit" onClick={closeEvaluationForm}>
-        ← Retour
+        ← {t('evaluation.back')}
       </Button>
 
       <div className="space-y-3 border-b pb-4">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-bold tracking-tight">
-            Évaluer : {selectedEmployee.name}
+            {t('evaluation.evaluate', { name: selectedEmployee.name })}
           </h1>
           {currentStatus && (
             <Badge variant={isSubmitted ? 'secondary' : isFinalized ? 'default' : 'outline'}>
-              {EVALUATION_STATUS_LABELS[currentStatus]}
+              {t(`evalStatus.${currentStatus}`)}
             </Badge>
           )}
         </div>
         <dl className="grid gap-1.5 text-sm sm:grid-cols-2">
           {selectedEmployee.position && (
             <div>
-              <dt className="text-muted-foreground">Poste</dt>
+              <dt className="text-muted-foreground">{t('evaluation.poste')}</dt>
               <dd className="font-medium">{selectedEmployee.position}</dd>
             </div>
           )}
           {selectedEmployee.branch_name && (
             <div>
-              <dt className="text-muted-foreground">Filiale</dt>
+              <dt className="text-muted-foreground">{t('evaluation.branch')}</dt>
               <dd className="font-medium">{selectedEmployee.branch_name}</dd>
             </div>
           )}
           {departmentName(selectedEmployee.department_id) && (
             <div>
-              <dt className="text-muted-foreground">Service</dt>
+              <dt className="text-muted-foreground">{t('evaluation.service')}</dt>
               <dd className="font-medium">
                 {departmentName(selectedEmployee.department_id)}
               </dd>
@@ -1240,19 +1237,18 @@ export default function Evaluation() {
           )}
           {roleName(selectedEmployee.role_id) && (
             <div>
-              <dt className="text-muted-foreground">Rôle</dt>
+              <dt className="text-muted-foreground">{t('evaluation.role')}</dt>
               <dd className="font-medium">{roleName(selectedEmployee.role_id)}</dd>
             </div>
           )}
         </dl>
         <p className="text-xs text-muted-foreground">
-          Les critères affichés correspondent au rôle, à la filiale et au service de
-          l&apos;employé.
+          {t('evaluation.criteriaMatchNote')}
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="evaluation-period">Période d&apos;évaluation (campagne)</Label>
+        <Label htmlFor="evaluation-period">{t('evaluation.periodCampaign')}</Label>
         <Input
           id="evaluation-period"
           readOnly
@@ -1272,7 +1268,7 @@ export default function Evaluation() {
                   <span className="font-medium">2026-T2</span> = 2e trimestre 2026.
                 </>
               )}
-              {' '}Période ouverte actuelle (non modifiable).
+              {' '}{t('evaluation.currentOpenPeriod')}
             </>
           )}
         </p>
@@ -1281,7 +1277,7 @@ export default function Evaluation() {
       {isSubmitted && (
         <Card className="border-secondary/50 bg-secondary/10">
           <CardContent className="py-3 text-sm">
-            Évaluation soumise — modifiez le commentaire si besoin, puis acceptez ou refusez.
+            {t('evaluation.submittedInfo')}
           </CardContent>
         </Card>
       )}
@@ -1289,7 +1285,7 @@ export default function Evaluation() {
       {isFinalized && (
         <Card className="border-muted">
           <CardContent className="py-3 text-sm text-muted-foreground">
-            Cette évaluation est finalisée ({EVALUATION_STATUS_LABELS[currentStatus!]}).
+            {t('evaluation.finalizedInfo', { status: t(`evalStatus.${currentStatus}`) })}
           </CardContent>
         </Card>
       )}
@@ -1297,7 +1293,7 @@ export default function Evaluation() {
       {applicableCriteria.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            Aucun critère d&apos;évaluation ne correspond à cet employé (rôle, filiale, service).
+            {t('evaluation.noCriteria')}
           </CardContent>
         </Card>
       ) : (
@@ -1352,14 +1348,14 @@ export default function Evaluation() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Commentaire de l&apos;évaluateur</CardTitle>
+          <CardTitle className="text-sm">{t('evaluation.evaluatorComment')}</CardTitle>
         </CardHeader>
         <CardContent>
           <Textarea
             placeholder={
               isSubmitted
-                ? 'Commentaire pour acceptation ou motif de refus…'
-                : 'Observations, recommandations, axes de développement...'
+                ? t('evaluation.commentPlaceholderReview')
+                : t('evaluation.commentPlaceholderDraft')
             }
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -1393,7 +1389,7 @@ export default function Evaluation() {
                   ) : (
                     <Send className="h-4 w-4" />
                   )}
-                  Soumettre
+                  {t('evaluation.submit')}
                 </Button>
               )}
               {isSubmitted && canReviewEvaluations && (
@@ -1408,7 +1404,7 @@ export default function Evaluation() {
                     ) : (
                       <CheckCircle className="h-4 w-4" />
                     )}
-                    Accepter
+                    {t('evaluation.accept')}
                   </Button>
                   <Button
                     variant="destructive"
@@ -1421,7 +1417,7 @@ export default function Evaluation() {
                     ) : (
                       <XCircle className="h-4 w-4" />
                     )}
-                    Refuser
+                    {t('evaluation.reject')}
                   </Button>
                 </>
               )}
