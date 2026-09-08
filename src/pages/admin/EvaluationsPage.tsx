@@ -393,20 +393,20 @@ export function EvaluationsPage() {
       <Dialog open={!!viewTarget} onOpenChange={() => setViewTarget(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Détail — {viewTarget?.employee_name}</DialogTitle>
+            <DialogTitle>{t('evalMgmt.detailTitle', { name: viewTarget?.employee_name ?? '' })}</DialogTitle>
           </DialogHeader>
           {viewTarget && (
             <div className="space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-2">
-                <span className="text-muted-foreground">Période</span>
+                <span className="text-muted-foreground">{t('evalMgmt.colPeriod')}</span>
                 <span>{viewTarget.period}</span>
-                <span className="text-muted-foreground">Score total</span>
+                <span className="text-muted-foreground">{t('evalMgmt.totalScore')}</span>
                 <span className="font-semibold">
                   {viewTarget.score != null ? formatEvaluationScore(viewTarget.score) : '—'}
                 </span>
-                <span className="text-muted-foreground">Statut</span>
+                <span className="text-muted-foreground">{t('common.status')}</span>
                 <Badge variant={statusBadgeVariant(viewTarget.status)}>
-                  {EVALUATION_STATUS_LABELS[viewTarget.status]}
+                  {t(`evalStatus.${viewTarget.status}`)}
                 </Badge>
               </div>
               {viewTarget.feedback && (
@@ -419,7 +419,7 @@ export function EvaluationsPage() {
                 <div>
                   <p className="font-medium mb-2 flex items-center gap-2">
                     <ClipboardList className="h-4 w-4" />
-                    Critères
+                    {t('evalMgmt.criteria')}
                   </p>
                   <ul className="space-y-2">
                     {viewTarget.responses.map((r) => (
@@ -442,7 +442,7 @@ export function EvaluationsPage() {
                     onClick={() => handleStatus(viewTarget.id, 'approved')}
                   >
                     <CheckCircle className="h-4 w-4" />
-                    Approuver
+                    {t('evalMgmt.approve')}
                   </Button>
                   <Button
                     variant="destructive"
@@ -450,7 +450,7 @@ export function EvaluationsPage() {
                     onClick={() => handleStatus(viewTarget.id, 'rejected')}
                   >
                     <XCircle className="h-4 w-4" />
-                    Rejeter
+                    {t('evalMgmt.reject')}
                   </Button>
                 </div>
               )}
@@ -462,12 +462,12 @@ export function EvaluationsPage() {
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogTitle>
-            Supprimer l&apos;évaluation de {deleteTarget?.employee_name} ?
+            {t('evalMgmt.deleteTitle', { name: deleteTarget?.employee_name ?? '' })}
           </AlertDialogTitle>
           <div className="flex gap-2 justify-end">
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              Supprimer
+              {t('common.delete')}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>
