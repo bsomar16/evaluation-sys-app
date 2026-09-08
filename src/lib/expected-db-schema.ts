@@ -158,6 +158,15 @@ export const EXPECTED_DB_SCHEMA: ExpectedDbSchema = {
     { name: 'created_at', type: 'timestamp', default: 'now()', nullable: true },
     { name: 'updated_at', type: 'timestamp', default: 'now()', nullable: true },
   ],
+  rejection_reasons: [
+    { name: 'id', type: 'uuid', default: 'gen_random_uuid()', nullable: false },
+    { name: 'label_fr', type: 'varchar(255)', nullable: false },
+    { name: 'label_ar', type: 'varchar(255)', nullable: true },
+    { name: 'is_active', type: 'boolean', default: 'true', nullable: true },
+    { name: 'sort_order', type: 'integer', default: '0', nullable: true },
+    { name: 'created_at', type: 'timestamp', default: 'now()', nullable: true },
+    { name: 'updated_at', type: 'timestamp', default: 'now()', nullable: true },
+  ],
 };
 
 /** Ordre de création (dépendances FK) */
@@ -173,6 +182,7 @@ export const TABLE_CREATION_ORDER: string[] = [
   'evaluations',
   'training_requests',
   'reports',
+  'rejection_reasons',
 ];
 
 export const EXPECTED_TABLE_NAMES = TABLE_CREATION_ORDER.filter((t) => EXPECTED_DB_SCHEMA[t]);
