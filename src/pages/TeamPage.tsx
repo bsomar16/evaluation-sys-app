@@ -22,6 +22,7 @@ import { collectDepartmentScopeIds, type DepartmentRecord } from '@/lib/departme
 import { roleBadgeClassName, getRoleBadgeStyleFromColor } from '@/lib/role-colors';
 import { splitFullName } from '@/lib/user-name';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { useI18n } from '@/lib/i18n';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import { isUserArchived } from '@/lib/user-archive';
 import { EmployeeUserFormDialog } from '@/components/EmployeeUserFormDialog';
@@ -32,6 +33,7 @@ import { hideLoadingOverlay } from '@/lib/loading-overlay';
 export default function TeamPage() {
   const { roleId } = useParams<{ roleId?: string }>();
   const { toast } = useToast();
+  const { t } = useI18n();
   const { canRead, canWrite, canDelete } = useRolePermissions();
   const session = getSessionUser();
   const [users, setUsers] = useState<any[]>([]);
@@ -105,10 +107,10 @@ export default function TeamPage() {
   const pageTitle = useMemo(() => {
     if (roleId) {
       const role = roles.find((r) => r.id === roleId);
-      return role?.name ?? 'Employés';
+      return role?.name ?? t('team.defaultTitle');
     }
-    return 'Employés';
-  }, [roleId, roles]);
+    return t('team.defaultTitle');
+  }, [roleId, roles, t]);
 
   const teamUsers = useMemo(() => {
     if (allowedRoleIds.length === 0) return [];
@@ -149,7 +151,7 @@ export default function TeamPage() {
     if (!deleteTarget) return;
     try {
       await UsersService.delete(deleteTarget.id);
-      toast({ title: 'Succès', description: 'Employé supprimé' });
+      toast({ title: t('common.success'), description: t('team.employeeDeleted') });
       loadData();
       setDeleteTarget(null);
     } catch (error: unknown) {
@@ -162,7 +164,7 @@ export default function TeamPage() {
     if (!archiveTarget) return;
     try {
       await archiveUser(archiveTarget.id);
-      toast({ title: 'Succès', description: 'Employé archivé' });
+      toast({ title: t('common.success'), description: t('team.employeeArchived') });
       loadData();
       setArchiveTarget(null);
     } catch (error: unknown) {
@@ -186,7 +188,7 @@ export default function TeamPage() {
             disabled={allowedRoleIds.length === 0}
           >
             <Plus className="h-4 w-4" />
-            Nouvel employé
+            {t('team.newEmployee')}
           </Button>
         )}
       </div>
@@ -196,7 +198,7 @@ export default function TeamPage() {
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Chercher par nom ou username..."
+              placeholder={t('team.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10"
@@ -204,26 +206,26 @@ export default function TeamPage() {
           </div>
 
           {loading ? (
-            <p>Chargement...</p>
+            <p>{t('common.loading')}</p>
           ) : allowedRoleIds.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">
-              Aucun rôle fils configuré pour votre profil.
+              {t('team.noChildRole')}
             </p>
           ) : filteredUsers.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">Aucun employé</p>
+            <p className="text-center text-muted-foreground py-8">{t('team.noEmployee')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-3 px-4">Code</th>
-                    <th className="text-left py-3 px-4">Nom</th>
-                    <th className="text-left py-3 px-4">Prénom</th>
-                    <th className="text-left py-3 px-4">Username</th>
-                    <th className="text-left py-3 px-4">Filiale</th>
-                    <th className="text-left py-3 px-4">Rôle</th>
-                    <th className="text-left py-3 px-4">Statut</th>
-                    {canManageEmployees && <th className="text-right py-3 px-4">Actions</th>}
+                    <th className="text-left py-3 px-4">{t('team.colCode')}</th>
+                    <th className="text-left py-3 px-4">{t('team.colLastName')}</th>
+                    <th className="text-left py-3 px-4">{t('team.colFirstName')}</th>
+                    <th className="text-left py-3 px-4">{t('team.colUsername')}</th>
+                    <th className="text-left py-3 px-4">{t('team.colBranch')}</th>
+                    <th className="text-left py-3 px-4">{t('team.colRole')}</th>
+                    <th className="text-left py-3 px-4">{t('common.status')}</th>
+                    {canManageEmployees && <th className="text-right py-3 px-4">{t('common.actions')}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -245,7 +247,7 @@ export default function TeamPage() {
                         </td>
                         <td className="py-3 px-4">
                           <Badge variant={user.is_active !== false ? 'default' : 'secondary'}>
-                            {user.is_active !== false ? 'Actif' : 'Inactif'}
+                            {user.is_active !== false ? t('common.active') : t('common.inactive')}
                           </Badge>
                         </td>
                         {canManageEmployees && (
@@ -254,7 +256,7 @@ export default function TeamPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => setEditUser(user)}
-                              title="Modifier"
+                              title={t('common.edit')}
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
@@ -263,7 +265,7 @@ export default function TeamPage() {
                               size="sm"
                               className="text-amber-700"
                               onClick={() => setArchiveTarget(user)}
-                              title="Archiver"
+                              title={t('common.archive')}
                             >
                               <Archive className="h-4 w-4" />
                             </Button>
@@ -273,7 +275,7 @@ export default function TeamPage() {
                                 size="sm"
                                 className="text-destructive"
                                 onClick={() => setDeleteTarget(user)}
-                                title="Supprimer"
+                                title={t('common.delete')}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -316,14 +318,14 @@ export default function TeamPage() {
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
-          <AlertDialogTitle>Supprimer l'employé</AlertDialogTitle>
+          <AlertDialogTitle>{t('team.deleteTitle')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Êtes-vous sûr de vouloir supprimer définitivement {deleteTarget?.name} ? Cette action est irréversible.
+            {t('team.deleteConfirm', { name: deleteTarget?.name ?? '' })}
           </AlertDialogDescription>
           <div className="flex justify-end gap-3">
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Supprimer
+              {t('common.delete')}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>
@@ -331,14 +333,14 @@ export default function TeamPage() {
 
       <AlertDialog open={!!archiveTarget} onOpenChange={(open) => !open && setArchiveTarget(null)}>
         <AlertDialogContent>
-          <AlertDialogTitle>Archiver l'employé</AlertDialogTitle>
+          <AlertDialogTitle>{t('team.archiveTitle')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Êtes-vous sûr de vouloir archiver {archiveTarget?.name} ? L'employé sera masqué de la liste active.
+            {t('team.archiveConfirm', { name: archiveTarget?.name ?? '' })}
           </AlertDialogDescription>
           <div className="flex justify-end gap-3">
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={handleArchiveUser} className="bg-amber-600 text-white hover:bg-amber-700">
-              Archiver
+              {t('common.archive')}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>
