@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, Download, FileText, Building2, Users, Crown } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 const reports = [
   { id: 1, title: 'January Team Performance', type: 'team', uploadedBy: 'Dr. Khalid', date: '2026-01-28', branch: 'Headquarters' },
@@ -20,22 +21,23 @@ const typeConfig = {
 };
 
 export default function Reports() {
+  const { t } = useI18n();
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-heading text-foreground">Reports</h1>
-          <p className="text-muted-foreground text-sm mt-1">Upload and view role-based performance reports</p>
+          <h1 className="text-2xl font-bold font-heading text-foreground">{t('reports.title')}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t('reports.subtitle')}</p>
         </div>
-        <Button className="gap-2"><Upload size={16} /> Upload Report</Button>
+        <Button className="gap-2"><Upload size={16} /> {t('reports.upload')}</Button>
       </div>
 
       <Tabs defaultValue="all">
         <TabsList>
-          <TabsTrigger value="all">All Reports</TabsTrigger>
-          <TabsTrigger value="team">Team</TabsTrigger>
-          <TabsTrigger value="company">Company</TabsTrigger>
-          <TabsTrigger value="branch">Branch</TabsTrigger>
+          <TabsTrigger value="all">{t('reports.all')}</TabsTrigger>
+          <TabsTrigger value="team">{t('reports.team')}</TabsTrigger>
+          <TabsTrigger value="company">{t('reports.company')}</TabsTrigger>
+          <TabsTrigger value="branch">{t('reports.branch')}</TabsTrigger>
         </TabsList>
 
         {['all', 'team', 'company', 'branch'].map((tab) => (
@@ -63,7 +65,7 @@ export default function Reports() {
                           </div>
                         </div>
                         <Button variant="outline" size="sm" className="w-full mt-4 gap-2">
-                          <Download size={14} /> Download
+                          <Download size={14} /> {t('reports.download')}
                         </Button>
                       </CardContent>
                     </Card>

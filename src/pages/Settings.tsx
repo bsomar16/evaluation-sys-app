@@ -12,6 +12,7 @@ import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
 import { SITE_DEVELOPER } from '@/types/roles';
 import { roleBadgeClassName, getRoleBadgeStyleFromColor } from '@/lib/role-colors';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
+import { useI18n } from '@/lib/i18n';
 
 interface UserProfile {
   name: string;
@@ -21,6 +22,7 @@ interface UserProfile {
 
 export default function Settings() {
   const { toast } = useToast();
+  const { t } = useI18n();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [passwordData, setPasswordData] = useState({
@@ -115,7 +117,7 @@ export default function Settings() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Chargement...</div>;
+    return <div className="flex items-center justify-center h-screen">{t('common.loading')}</div>;
   }
 
   const getInitials = (name: string) => {
@@ -145,14 +147,14 @@ export default function Settings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Paramètres</h1>
-        <p className="text-muted-foreground">Gérez votre profil et vos préférences</p>
+        <h1 className="text-3xl font-bold">{t('settings.title')}</h1>
+        <p className="text-muted-foreground">{t('settings.subtitle')}</p>
       </div>
 
       {/* Profil Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Informations de Profil</CardTitle>
+          <CardTitle>{t('settings.profileInfo')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center gap-4">
@@ -171,15 +173,15 @@ export default function Settings() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Nom</label>
+              <label className="text-sm font-medium">{t('settings.name')}</label>
               <Input value={user?.name || ''} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">{t('settings.email')}</label>
               <Input value={user?.email || ''} disabled className="bg-muted" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Rôle</label>
+              <label className="text-sm font-medium">{t('settings.role')}</label>
               {isDeveloper ? (
                 <div className="flex h-10 items-center">
                   <span
@@ -195,7 +197,7 @@ export default function Settings() {
             </div>
             {isDeveloper ? (
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium">Type de compte</label>
+                <label className="text-sm font-medium">{t('settings.accountType')}</label>
                 <Input value={SITE_DEVELOPER.controlPanelLabel} disabled className="bg-muted" />
               </div>
             ) : null}
@@ -206,15 +208,15 @@ export default function Settings() {
       {/* Change Password Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Sécurité</CardTitle>
+          <CardTitle>{t('settings.security')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Mot de passe actuel</label>
+            <label className="text-sm font-medium">{t('settings.currentPassword')}</label>
             <div className="relative">
               <Input
                 type={showPasswords.current ? 'text' : 'password'}
-                placeholder="Entrez votre mot de passe actuel"
+                placeholder={t('settings.currentPasswordPlaceholder')}
                 value={passwordData.currentPassword}
                 onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
               />
@@ -228,11 +230,11 @@ export default function Settings() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Nouveau mot de passe</label>
+            <label className="text-sm font-medium">{t('settings.newPassword')}</label>
             <div className="relative">
               <Input
                 type={showPasswords.new ? 'text' : 'password'}
-                placeholder="Entrez votre nouveau mot de passe"
+                placeholder={t('settings.newPasswordPlaceholder')}
                 value={passwordData.newPassword}
                 onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
               />
@@ -246,7 +248,7 @@ export default function Settings() {
             {passwordData.newPassword && (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <span>Force du mot de passe</span>
+                  <span>{t('settings.passwordStrength')}</span>
                   <span className={`font-semibold ${newPasswordFeedback.valid ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {newPasswordFeedback.strength.replace('-', ' ')}
                   </span>
@@ -264,18 +266,18 @@ export default function Settings() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-emerald-700">Mot de passe solide.</p>
+                  <p className="text-xs text-emerald-700">{t('settings.passwordSolid')}</p>
                 )}
               </div>
             )}
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Confirmer le mot de passe</label>
+            <label className="text-sm font-medium">{t('settings.confirmPassword')}</label>
             <div className="relative">
               <Input
                 type={showPasswords.confirm ? 'text' : 'password'}
-                placeholder="Confirmez votre nouveau mot de passe"
+                placeholder={t('settings.confirmPasswordPlaceholder')}
                 value={passwordData.confirmPassword}
                 onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
               />
@@ -289,7 +291,7 @@ export default function Settings() {
           </div>
 
           <Button onClick={handleChangePassword} disabled={updating} className="w-full">
-            {updating ? 'Changement en cours...' : 'Changer le mot de passe'}
+            {updating ? t('settings.changingPassword') : t('settings.changePassword')}
           </Button>
         </CardContent>
       </Card>
