@@ -75,6 +75,13 @@ import {
 
 const EVALUATION_TABLE_COLUMN_COUNT = 7;
 
+const REJECT_REASON_PRESET_KEYS = [
+  'insufficientScore',
+  'missingData',
+  'inputError',
+  'criteriaNotMet',
+] as const;
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
   return Promise.race([
     promise,
@@ -122,6 +129,7 @@ export default function Evaluation() {
   const [groupBy, setGroupBy] = useState<'none' | 'branch' | 'department'>('none');
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(() => new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [availablePeriods, setAvailablePeriods] = useState<EvaluationPeriodOption[]>([]);
   const [frequencyOrderedPeriods, setFrequencyOrderedPeriods] = useState<{ start_date: string }[]>([]);
@@ -672,11 +680,11 @@ export default function Evaluation() {
     setActivityLog([]);
   };
 
-  const persistEvaluation = async (status: EvaluationStatus, requireCriteria: boolean) => {
-    if (!selectedEmployee) return;
+  const persistEvaluation = async (status: EvaluationStatus, requireCriteria: boolean): Promise<boolean> => {
+    if (!selectedEmployee) return false;
     if (status === 'submitted' && !canSubmitEvaluations) {
       toast({ variant: 'destructive', title: t('common.error'), description: t('evaluation.submitAccessRequired') });
-      return;
+      return false;
     }
     if ((status === 'approved' || status === 'rejected') && !canReviewEvaluations) {
       toast({
@@ -684,7 +692,7 @@ export default function Evaluation() {
         title: t('common.error'),
         description: t('evaluation.reviewAccessRequired'),
       });
-      return;
+      return false;
     }
     if (!isPeriodOpen) {
       toast({
@@ -692,11 +700,11 @@ export default function Evaluation() {
         title: t('evaluation.periodClosedTitle'),
         description: t('evaluation.periodClosed'),
       });
-      return;
+      return false;
     }
     if (!period.trim()) {
       toast({ variant: 'destructive', title: t('common.error'), description: t('evaluation.indicatePeriod') });
-      return;
+      return false;
     }
     if (status === 'submitted' && currentStatus === 'submitted') {
       toast({
@@ -704,7 +712,7 @@ export default function Evaluation() {
         title: t('evaluation.alreadySubmittedTitle'),
         description: t('evaluation.alreadySubmitted'),
       });
-      return;
+      return false;
     }
     if ((status === 'approved' || status === 'rejected') && currentStatus !== 'submitted') {
       toast({
@@ -712,7 +720,7 @@ export default function Evaluation() {
         title: t('evaluation.submitRequiredTitle'),
         description: t('evaluation.submitRequired'),
       });
-      return;
+      return false;
     }
     if (status === 'rejected' && !notes.trim()) {
       toast({
@@ -720,7 +728,7 @@ export default function Evaluation() {
         title: t('evaluation.commentRequiredTitle'),
         description: t('evaluation.commentRequired'),
       });
-      return;
+      return false;
     }
     if (requireCriteria && applicableCriteria.length === 0) {
       toast({
@@ -728,14 +736,14 @@ export default function Evaluation() {
         title: t('common.error'),
         description: t('evaluation.noCriteria')
       });
-      return;
+      return false;
     }
 
     if (requireCriteria) {
       const missing = applicableCriteria.filter((c) => formValues[c.id] === undefined);
       if (missing.length > 0) {
         toast({ variant: 'destructive', title: t('common.error'), description: t('evaluation.completeAll') });
-        return;
+        return false;
       }
     }
 
@@ -790,7 +798,7 @@ export default function Evaluation() {
           title: t('common.success'),
           description: t('evaluation.submittedSuccess'),
         });
-        return;
+        return true;
       }
 
       toast({
@@ -806,6 +814,7 @@ export default function Evaluation() {
       }
       void refreshEvaluationPageEvaluations(period);
       closeEvaluationForm();
+      return true;
     } catch (error: unknown) {
       const message =
         error instanceof Error
@@ -818,6 +827,7 @@ export default function Evaluation() {
               'Enregistrement impossible')
             : 'Enregistrement impossible';
       toast({ variant: 'destructive', title: t('common.error'), description: message });
+      return false;
     } finally {
       setSubmitting(false);
     }
@@ -1409,7 +1419,7 @@ export default function Evaluation() {
                   <Button
                     variant="destructive"
                     className="gap-2"
-                    onClick={() => persistEvaluation('rejected', false)}
+                    onClick={() => setRejectDialogOpen(true)}
                     disabled={submitting}
                   >
                     {submitting ? (
@@ -1425,6 +1435,63 @@ export default function Evaluation() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogTitle>{t('evaluation.rejectDialogTitle')}</AlertDialogTitle>
+          <AlertDialogDescription>{t('evaluation.rejectDialogDesc')}</AlertDialogDescription>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                {t('evaluation.rejectQuickReasons')}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {REJECT_REASON_PRESET_KEYS.map((key) => {
+                  const reasonLabel = t(
+                    `evaluation.reason${key.charAt(0).toUpperCase()}${key.slice(1)}`
+                  );
+                  return (
+                    <Button
+                      key={key}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-auto py-1 px-2 text-xs"
+                      onClick={() => setNotes(reasonLabel)}
+                    >
+                      {reasonLabel}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+            <Textarea
+              autoFocus
+              placeholder={t('evaluation.commentPlaceholderReview')}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                const success = await persistEvaluation('rejected', false);
+                if (success) setRejectDialogOpen(false);
+              }}
+              disabled={submitting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                t('evaluation.confirmReject')
+              )}
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <EvaluationAuditTrail entries={activityLog} />
     </div>
