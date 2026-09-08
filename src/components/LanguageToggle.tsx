@@ -13,50 +13,23 @@ export function LanguageToggle({
   variant?: 'compact' | 'segmented';
   className?: string;
 }) {
-  const { lang, setLang, t } = useI18n();
+  const { lang, toggleLang, t } = useI18n();
   const compact = variant === 'compact';
-  const btn = compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm';
 
   return (
-    <div
-      dir="ltr"
-      role="group"
-      aria-label={t('header.language')}
+    <button
+      type="button"
+      onClick={toggleLang}
       title={t('header.language')}
+      aria-label={t('header.language')}
       className={cn(
-        'inline-flex shrink-0 items-stretch rounded-full border border-border bg-muted overflow-hidden',
+        'inline-flex shrink-0 items-center justify-center rounded-full border border-border bg-muted font-semibold leading-none text-foreground transition-colors hover:bg-accent/20',
+        compact ? 'h-7 min-w-9 px-2 text-xs' : 'h-9 min-w-12 px-3 text-sm',
         className
       )}
     >
-      <button
-        type="button"
-        onClick={() => setLang('fr')}
-        aria-pressed={lang === 'fr'}
-        className={cn(
-          'font-semibold leading-none transition-colors',
-          btn,
-          lang === 'fr'
-            ? 'bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:bg-accent/20'
-        )}
-      >
-        FR
-      </button>
-      <button
-        type="button"
-        onClick={() => setLang('ar')}
-        aria-pressed={lang === 'ar'}
-        className={cn(
-          'font-semibold leading-none transition-colors',
-          btn,
-          lang === 'ar'
-            ? 'bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:bg-accent/20'
-        )}
-      >
-        ع
-      </button>
-    </div>
+      {lang === 'ar' ? 'AR' : 'FR'}
+    </button>
   );
 }
 
