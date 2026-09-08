@@ -56,6 +56,7 @@ import {
 } from '@/lib/training-types';
 import type { TrainingRequestDetails } from '@/lib/training-types';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
+import { useI18n } from '@/lib/i18n';
 
 type TrainingFormState = TrainingRequestDetails & { intitule: string };
 
@@ -71,24 +72,6 @@ const emptyForm: TrainingFormState = {
   langue: '',
   formateur: '',
   beneficiary_name: '',
-};
-
-const SOURCE_BESOIN_LABELS: Record<string, string> = {
-  evaluation: 'Évaluation',
-  promotion: 'Promotion',
-  besoin_technique: 'Besoin technique',
-};
-
-const TYPE_COMPETENCE_LABELS: Record<string, string> = {
-  technique: 'Technique',
-  comportementale: 'Comportementale',
-  manageriale: 'Manageriale',
-};
-
-const LANGUE_LABELS: Record<string, string> = {
-  ar: 'Arabe',
-  fr: 'Français',
-  en: 'Anglais',
 };
 
 const PERIODE_LABELS: Record<string, string> = {
@@ -125,6 +108,7 @@ function DetailField({ label, value }: { label: string; value?: string | null })
 
 export default function Training() {
   const { toast } = useToast();
+  const { t } = useI18n();
   const {
     isDeveloper,
     canRead,
@@ -164,13 +148,13 @@ export default function Training() {
       console.error(e);
       toast({
         variant: 'destructive',
-        title: 'Erreur',
-        description: 'Impossible de charger la liste des employés.',
+        title: t('common.error'),
+        description: t('training.errorLoadEmployees'),
       });
     } finally {
       setEmployeesLoading(false);
     }
-  }, [toast]);
+  }, [toast, t]);
 
   const handleDialogOpenChange = (open: boolean) => {
     setDialogOpen(open);
@@ -197,12 +181,12 @@ export default function Training() {
     } catch (e) {
       console.error(e);
       setRequests([]);
-      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les demandes.' });
+      toast({ variant: 'destructive', title: t('common.error'), description: t('training.errorLoadRequests') });
     } finally {
       setLoading(false);
       hideLoadingOverlay();
     }
-  }, [canValidate, isDeveloper, toast]);
+  }, [canValidate, isDeveloper, toast, t]);
 
   useEffect(() => {
     load();
@@ -212,13 +196,13 @@ export default function Training() {
     if (!selectedEmployee) {
       toast({
         variant: 'destructive',
-        title: 'Employé requis',
-        description: 'Sélectionnez d’abord un employé.',
+        title: t('training.employeeRequiredTitle'),
+        description: t('training.employeeRequiredDesc'),
       });
       return;
     }
     if (!form.intitule?.trim()) {
-      toast({ variant: 'destructive', title: 'Champ requis', description: "L'intitulé est obligatoire." });
+      toast({ variant: 'destructive', title: t('training.fieldRequiredTitle'), description: t('training.titleRequiredDesc') });
       return;
     }
     setSaving(true);
@@ -237,13 +221,13 @@ export default function Training() {
           name: selectedEmployee.name,
         },
       });
-      toast({ title: 'Demande enregistrée', description: 'En attente de validation.' });
+      toast({ title: t('training.requestSaved'), description: t('training.requestSavedDesc') });
       notifyTrainingRequestsChanged();
       handleDialogOpenChange(false);
       await load();
     } catch (e) {
       console.error(e);
-      toast({ variant: 'destructive', title: 'Erreur', description: "Échec de l'enregistrement." });
+      toast({ variant: 'destructive', title: t('common.error'), description: t('training.saveFailed') });
     } finally {
       setSaving(false);
     }
@@ -255,11 +239,11 @@ export default function Training() {
     try {
       await updateTrainingStatus(selectedRequest.id, status);
       toast({
-        title: status === 'approved' ? 'Demande acceptée' : 'Demande refusée',
+        title: status === 'approved' ? t('training.requestAccepted') : t('training.requestRejected'),
         description:
           status === 'approved'
-            ? 'Disponible pour la planification.'
-            : 'Le demandeur sera notifié.',
+            ? t('training.requestAcceptedDesc')
+            : t('training.requestRejectedDesc'),
       });
       notifyTrainingRequestsChanged();
       await load();
@@ -278,14 +262,14 @@ export default function Training() {
   const pageHeader = (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div>
-        <h1 className="text-3xl font-bold">Formation</h1>
+        <h1 className="text-3xl font-bold">{t('nav.training')}</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Demandes de formation et suivi des statuts
+          {t('training.subtitle')}
         </p>
       </div>
       {showTrainingPlanningButton(isDeveloper, canReadTrainingManagement) && (
         <Button variant="outline" asChild className="gap-2 shrink-0">
-          <Link to="/admin/training-planning">Planification des formations</Link>
+          <Link to="/admin/training-planning">{t('nav.training_management')}</Link>
         </Button>
       )}
     </div>
@@ -304,22 +288,22 @@ export default function Training() {
           className="-ml-2 w-fit"
           onClick={() => setSelectedRequestId(null)}
         >
-          ← Retour à la liste
+          ← {t('training.backToList')}
         </Button>
 
         <div className="space-y-3 border-b pb-4">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-2xl font-bold tracking-tight">
-              Demande : {selectedRequest.course_name}
+              {t('training.requestTitle', { name: selectedRequest.course_name })}
             </h2>
             <Badge variant={isPending ? 'secondary' : 'outline'}>
               {TRAINING_STATUS_LABELS[selectedRequest.status]}
             </Badge>
           </div>
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            <DetailField label="Employé" value={selectedRequest.employee_name} />
+            <DetailField label={t('training.fEmployee')} value={selectedRequest.employee_name} />
             <DetailField
-              label="Date de demande"
+              label={t('training.fRequestDate')}
               value={
                 selectedRequest.created_at
                   ? new Date(selectedRequest.created_at).toLocaleDateString('fr-FR')
@@ -332,7 +316,7 @@ export default function Training() {
         {isPending && canValidate && (
           <Card className="border-orange-300/60 bg-orange-50 dark:bg-orange-950/30">
             <CardContent className="py-3 text-sm">
-              Demande en attente — consultez les informations ci-dessous puis acceptez ou refusez.
+              {t('training.pendingInfo')}
             </CardContent>
           </Card>
         )}
@@ -340,7 +324,7 @@ export default function Training() {
         {selectedRequest.status === 'approved' && (
           <Card className="border-emerald-300/50 bg-emerald-50/50 dark:bg-emerald-950/20">
             <CardContent className="py-3 text-sm">
-              Demande acceptée — disponible pour la planification des formations.
+              {t('training.approvedInfo')}
             </CardContent>
           </Card>
         )}
@@ -348,41 +332,41 @@ export default function Training() {
         {selectedRequest.status === 'rejected' && (
           <Card className="border-destructive/40 bg-destructive/5">
             <CardContent className="py-3 text-sm text-muted-foreground">
-              Cette demande a été refusée.
+              {t('training.rejectedInfo')}
             </CardContent>
           </Card>
         )}
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Détail de la demande</CardTitle>
+            <CardTitle className="text-base">{t('training.detailTitle')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
-              <DetailField label="Problématique à résoudre" value={d.problematique ?? selectedRequest.reason} />
+              <DetailField label={t('training.fProblem')} value={d.problematique ?? selectedRequest.reason} />
               <DetailField
-                label="Source du besoin"
-                value={SOURCE_BESOIN_LABELS[d.source_besoin ?? ''] ?? d.source_besoin}
+                label={t('training.fSource')}
+                value={d.source_besoin ? t(`training.source_${d.source_besoin}`) : d.source_besoin}
               />
-              <DetailField label="Objectif attendu" value={d.objectif} />
+              <DetailField label={t('training.fObjective')} value={d.objectif} />
               <DetailField
-                label="Domaine"
+                label={t('training.fDomain')}
                 value={TRAINING_DOMAIN_LABELS[d.domaine ?? ''] ?? d.domaine}
               />
-              <DetailField label="Intitulé de la formation" value={selectedRequest.course_name} />
+              <DetailField label={t('training.fTitle')} value={selectedRequest.course_name} />
               <DetailField
-                label="Type de compétence"
-                value={TYPE_COMPETENCE_LABELS[d.type_competence ?? ''] ?? d.type_competence}
+                label={t('training.fSkillType')}
+                value={d.type_competence ? t(`training.skill_${d.type_competence}`) : d.type_competence}
               />
               <div>
-                <dt className="text-muted-foreground text-sm">Priorité</dt>
+                <dt className="text-muted-foreground text-sm">{t('training.fPriority')}</dt>
                 <dd className="mt-1">
                   <TrainingPriorityBadge priorite={d.priorite} />
                 </dd>
               </div>
-              <DetailField label="Période proposée" value={PERIODE_LABELS[d.periode ?? ''] ?? d.periode} />
-              <DetailField label="Langue" value={LANGUE_LABELS[d.langue ?? ''] ?? d.langue} />
-              <DetailField label="Formateur proposé" value={d.formateur} />
+              <DetailField label={t('training.fPeriod')} value={PERIODE_LABELS[d.periode ?? ''] ?? d.periode} />
+              <DetailField label={t('training.fLanguage')} value={d.langue ? t(`training.lang_${d.langue}`) : d.langue} />
+              <DetailField label={t('training.fTrainer')} value={d.formateur} />
             </dl>
           </CardContent>
         </Card>
@@ -400,7 +384,7 @@ export default function Training() {
                 ) : (
                   <CheckCircle className="h-4 w-4" />
                 )}
-                Accepter
+                {t('training.accept')}
               </Button>
               <Button
                 variant="destructive"
@@ -413,7 +397,7 @@ export default function Training() {
                 ) : (
                   <XCircle className="h-4 w-4" />
                 )}
-                Refuser
+                {t('training.reject')}
               </Button>
             </CardContent>
           </Card>
@@ -428,22 +412,22 @@ export default function Training() {
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base">Liste des demandes</CardTitle>
+          <CardTitle className="text-base">{t('training.listTitle')}</CardTitle>
           {canCreate && (
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
               <DialogTrigger asChild>
                 <Button className="gap-2" size="sm">
                   <Plus className="h-4 w-4" />
-                  Nouvelle demande
+                  {t('training.newRequest')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Demande de formation</DialogTitle>
+                  <DialogTitle>{t('training.dialogTitle')}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Employé *</Label>
+                    <Label>{t('training.employeeRequired')}</Label>
                     <Select
                       value={selectedEmployeeId || undefined}
                       onValueChange={setSelectedEmployeeId}
@@ -453,15 +437,15 @@ export default function Training() {
                         <SelectValue
                           placeholder={
                             employeesLoading
-                              ? 'Chargement…'
-                              : 'Sélectionner un employé en premier'
+                              ? t('training.loadingPlaceholder')
+                              : t('training.selectEmployeeFirst')
                           }
                         />
                       </SelectTrigger>
                       <SelectContent>
                         {employees.length === 0 && !employeesLoading ? (
                           <SelectItem value="__empty" disabled>
-                            Aucun employé disponible
+                            {t('training.noEmployeeAvailable')}
                           </SelectItem>
                         ) : (
                           employees.map((emp) => (
@@ -475,7 +459,7 @@ export default function Training() {
                     </Select>
                     {!formUnlocked && (
                       <p className="text-xs text-muted-foreground">
-                        Choisissez l’employé concerné avant de remplir le reste du formulaire.
+                        {t('training.chooseEmployeeFirst')}
                       </p>
                     )}
                   </div>
@@ -488,7 +472,7 @@ export default function Training() {
                     }
                   >
                   <div className="space-y-2">
-                    <Label>Problématique à résoudre</Label>
+                    <Label>{t('training.fProblem')}</Label>
                     <Textarea
                       rows={2}
                       value={form.problematique}
@@ -497,23 +481,23 @@ export default function Training() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Source du besoin</Label>
+                      <Label>{t('training.fSource')}</Label>
                       <Select
                         value={form.source_besoin}
                         onValueChange={(v) => setForm((p) => ({ ...p, source_besoin: v }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Sélectionner" />
+                          <SelectValue placeholder={t('training.select')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="evaluation">Évaluation</SelectItem>
-                          <SelectItem value="promotion">Promotion</SelectItem>
-                          <SelectItem value="besoin_technique">Besoin technique</SelectItem>
+                          <SelectItem value="evaluation">{t('training.source_evaluation')}</SelectItem>
+                          <SelectItem value="promotion">{t('training.source_promotion')}</SelectItem>
+                          <SelectItem value="besoin_technique">{t('training.source_besoin_technique')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Objectif attendu</Label>
+                      <Label>{t('training.fObjective')}</Label>
                       <Input
                         value={form.objectif}
                         onChange={(e) => setForm((p) => ({ ...p, objectif: e.target.value }))}
@@ -522,13 +506,13 @@ export default function Training() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Domaine</Label>
+                      <Label>{t('training.fDomain')}</Label>
                       <Select
                         value={form.domaine}
                         onValueChange={(v) => setForm((p) => ({ ...p, domaine: v }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Domaine" />
+                          <SelectValue placeholder={t('training.fDomain')} />
                         </SelectTrigger>
                         <SelectContent>
                           {Object.entries(TRAINING_DOMAIN_LABELS).map(([k, label]) => (
@@ -540,7 +524,7 @@ export default function Training() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Intitulé de la formation *</Label>
+                      <Label>{t('training.fTitleRequired')}</Label>
                       <Input
                         value={form.intitule}
                         onChange={(e) => setForm((p) => ({ ...p, intitule: e.target.value }))}
@@ -549,29 +533,29 @@ export default function Training() {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="space-y-2">
-                      <Label>Type de compétence</Label>
+                      <Label>{t('training.fSkillType')}</Label>
                       <Select
                         value={form.type_competence}
                         onValueChange={(v) => setForm((p) => ({ ...p, type_competence: v }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Type" />
+                          <SelectValue placeholder={t('training.typePlaceholder')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="technique">Technique</SelectItem>
-                          <SelectItem value="comportementale">Comportementale</SelectItem>
-                          <SelectItem value="manageriale">Manageriale</SelectItem>
+                          <SelectItem value="technique">{t('training.skill_technique')}</SelectItem>
+                          <SelectItem value="comportementale">{t('training.skill_comportementale')}</SelectItem>
+                          <SelectItem value="manageriale">{t('training.skill_manageriale')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Priorité</Label>
+                      <Label>{t('training.fPriority')}</Label>
                       <Select
                         value={form.priorite}
                         onValueChange={(v) => setForm((p) => ({ ...p, priorite: v }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Priorité" />
+                          <SelectValue placeholder={t('training.fPriority')} />
                         </SelectTrigger>
                         <SelectContent>
                           {Object.entries(TRAINING_PRIORITY_LABELS).map(([k, label]) => (
@@ -583,13 +567,13 @@ export default function Training() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Période proposée</Label>
+                      <Label>{t('training.fPeriod')}</Label>
                       <Select
                         value={form.periode}
                         onValueChange={(v) => setForm((p) => ({ ...p, periode: v }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Trimestre" />
+                          <SelectValue placeholder={t('training.quarterPlaceholder')} />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="t1">T1</SelectItem>
@@ -600,24 +584,24 @@ export default function Training() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Langue</Label>
+                      <Label>{t('training.fLanguage')}</Label>
                       <Select
                         value={form.langue}
                         onValueChange={(v) => setForm((p) => ({ ...p, langue: v }))}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Langue" />
+                          <SelectValue placeholder={t('training.fLanguage')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="ar">Arabe</SelectItem>
-                          <SelectItem value="fr">Français</SelectItem>
-                          <SelectItem value="en">Anglais</SelectItem>
+                          <SelectItem value="ar">{t('training.lang_ar')}</SelectItem>
+                          <SelectItem value="fr">{t('training.lang_fr')}</SelectItem>
+                          <SelectItem value="en">{t('training.lang_en')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Formateur proposé</Label>
+                    <Label>{t('training.fTrainer')}</Label>
                     <Input
                       value={form.formateur}
                       onChange={(e) => setForm((p) => ({ ...p, formateur: e.target.value }))}
@@ -625,10 +609,10 @@ export default function Training() {
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => handleDialogOpenChange(false)}>
-                      Annuler
+                      {t('common.cancel')}
                     </Button>
                     <Button onClick={handleCreate} disabled={saving || !formUnlocked}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enregistrer'}
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.save')}
                     </Button>
                   </div>
                   </div>
@@ -641,20 +625,20 @@ export default function Training() {
           {loading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
               <Loader2 className="h-5 w-5 animate-spin" />
-              Chargement...
+              {t('common.loading')}
             </div>
           ) : requests.length === 0 ? (
-            <p className="text-muted-foreground text-sm p-6">Aucune demande pour le moment.</p>
+            <p className="text-muted-foreground text-sm p-6">{t('training.noRequests')}</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Formation</TableHead>
-                  <TableHead>Domaine</TableHead>
-                  <TableHead>Priorité</TableHead>
-                  <TableHead>Employé</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-center w-16">Statut</TableHead>
+                  <TableHead>{t('training.colTraining')}</TableHead>
+                  <TableHead>{t('training.colDomain')}</TableHead>
+                  <TableHead>{t('training.colPriority')}</TableHead>
+                  <TableHead>{t('training.fEmployee')}</TableHead>
+                  <TableHead>{t('common.date')}</TableHead>
+                  <TableHead className="text-center w-16">{t('common.status')}</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
