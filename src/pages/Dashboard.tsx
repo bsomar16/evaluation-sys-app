@@ -25,6 +25,7 @@ import {
   resolveEvaluationPercentage,
 } from '@/lib/evaluation-storage';
 import type { CalculationRuleRecord, EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
+import { useI18n } from '@/lib/i18n';
 
 interface DashboardStats {
   totalUsers: number;
@@ -66,7 +67,8 @@ interface EmployeePerformance extends AgentWithScore {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  
+  const { t } = useI18n();
+
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     activeUsers: 0,
@@ -486,8 +488,8 @@ export default function Dashboard() {
     const branchName = branches.find((b) => b.id === selectedBranch)?.name;
     const deptName = departments.find((d) => d.id === selectedDepartment)?.name;
     if (deptName && branchName) return `${branchName} • ${deptName}`;
-    if (branchName) return `${branchName} (tous les services)`;
-    return 'Toutes les filiales (tous les services)';
+    if (branchName) return t('dashboard.allDepartments', { branch: branchName });
+    return t('dashboard.allBranches');
   })();
 
   // Statut des évaluations (périmètre filiale + service + période sélectionnés)
@@ -519,11 +521,11 @@ export default function Dashboard() {
     const enAttenteCount = notSubmittedCount + rejectedCount + eligibleWithoutEval;
 
     return [
-      { status: 'en-attente', count: enAttenteCount, color: '#9ca3af', label: 'En attente' },
-      { status: 'soumis', count: submittedCount, color: '#f59e0b', label: 'Soumis' },
-      { status: 'complet', count: completeCount, color: '#10b981', label: 'Complet' },
+      { status: 'en-attente', count: enAttenteCount, color: '#9ca3af', label: t('dashboard.pending') },
+      { status: 'soumis', count: submittedCount, color: '#f59e0b', label: t('dashboard.submitted') },
+      { status: 'complet', count: completeCount, color: '#10b981', label: t('dashboard.complete') },
     ];
-  }, [selectedPeriod, selectedBranch, selectedDepartment, users, allEvaluations, branches]);
+  }, [selectedPeriod, selectedBranch, selectedDepartment, users, allEvaluations, branches, t]);
 
   // Courbe des moyennes d'évaluation par période (périmètre filiale + service)
   const periodEvaluationCurve = useMemo(() => {
@@ -572,16 +574,16 @@ export default function Dashboard() {
 
   // Dynamic stat cards from real data
   const dynamicStatCards = [
-    { label: 'Employés totaux', value: stats.totalUsers.toString(), icon: Users, change: `${stats.activeUsers} actifs` },
-    { label: 'Évaluations', value: stats.totalEvaluations.toString(), icon: TrendingUp, change: `${stats.completedEvaluations} complétées` },
-    { label: 'Formations', value: stats.totalTrainings.toString(), icon: Trophy, change: 'Demandes' },
+    { label: t('dashboard.totalEmployees'), value: stats.totalUsers.toString(), icon: Users, change: t('dashboard.activeCount', { count: stats.activeUsers }) },
+    { label: t('dashboard.evaluations'), value: stats.totalEvaluations.toString(), icon: TrendingUp, change: t('dashboard.completedCount', { count: stats.completedEvaluations }) },
+    { label: t('dashboard.trainings'), value: stats.totalTrainings.toString(), icon: Trophy, change: t('dashboard.requests') },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold font-heading text-foreground">Tableau de bord</h1>
-        <p className="text-muted-foreground text-sm mt-1">Aperçu du système et statistiques</p>
+        <h1 className="text-2xl font-bold font-heading text-foreground">{t('dashboard.title')}</h1>
+        <p className="text-muted-foreground text-sm mt-1">{t('dashboard.subtitle')}</p>
       </div>
 
       {/* Stats */}
@@ -608,7 +610,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         {/* Period Steps - With Arrow Format */}
         <div>
-          <h3 className="text-sm font-semibold text-foreground mb-3">Période d'Évaluation (Mois)</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-3">{t('dashboard.periodStep')}</h3>
           <div className="flex items-center gap-2 flex-wrap">
             {periods.length > 0 ? (
               periods.map((period, idx) => {
@@ -639,7 +641,7 @@ export default function Dashboard() {
                 );
               })
             ) : (
-              <p className="text-muted-foreground text-sm">Aucune période disponible</p>
+              <p className="text-muted-foreground text-sm">{t('dashboard.noPeriod')}</p>
             )}
           </div>
         </div>
@@ -647,9 +649,9 @@ export default function Dashboard() {
         {/* Branch Carousel - Horizontal loop with arrows */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-3">
-            Filiale
+            {t('dashboard.branch')}
             {selectedBranch && (
-              <span className="ml-2 text-xs font-normal text-muted-foreground">(cliquer à nouveau pour tout afficher)</span>
+              <span className="ml-2 text-xs font-normal text-muted-foreground">{t('dashboard.branchHint')}</span>
             )}
           </h3>
           <div className="flex items-center gap-2">
@@ -691,7 +693,7 @@ export default function Dashboard() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-muted-foreground text-sm">Aucune filiale accessible</p>
+                    <p className="text-muted-foreground text-sm">{t('dashboard.noBranch')}</p>
                   )}
                 </div>
               </div>
@@ -711,9 +713,9 @@ export default function Dashboard() {
         {selectedBranch && (
           <div className="pl-4 border-l-2 border-l-primary">
             <h3 className="text-sm font-semibold text-foreground mb-3">
-              Service
+              {t('dashboard.department')}
               {selectedDepartment && (
-                <span className="ml-2 text-xs font-normal text-muted-foreground">(cliquer à nouveau pour tous les services)</span>
+                <span className="ml-2 text-xs font-normal text-muted-foreground">{t('dashboard.departmentHint')}</span>
               )}
             </h3>
             <div className="flex items-center gap-2">
@@ -752,7 +754,7 @@ export default function Dashboard() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-muted-foreground text-sm">Aucun service disponible</p>
+                      <p className="text-muted-foreground text-sm">{t('dashboard.noDepartment')}</p>
                     )}
                   </div>
                 </div>
@@ -774,7 +776,7 @@ export default function Dashboard() {
       {selectedDepartment && departmentManager && (
         <Card className="border-border shadow-sm border-l-4 border-l-primary">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Responsable du Service</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboard.departmentManager')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between gap-4 p-3 rounded bg-muted/30">
@@ -791,7 +793,7 @@ export default function Dashboard() {
                 {departmentManagerScore ? (
                   <p className="font-bold text-lg text-primary">{formatEvaluationScore(departmentManagerScore.avg)}</p>
                 ) : (
-                  <p className="text-xs text-muted-foreground">Aucune évaluation</p>
+                  <p className="text-xs text-muted-foreground">{t('dashboard.noEvaluation')}</p>
                 )}
               </div>
             </div>
@@ -805,7 +807,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading flex items-center gap-2 flex-wrap">
               <Trophy size={18} className="text-amber-600" />
-              Meilleur & moins bon employé
+              {t('dashboard.bestWorst')}
               <span className="text-xs font-normal text-muted-foreground">— {scopeLabel}</span>
             </CardTitle>
           </CardHeader>
@@ -818,7 +820,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Award size={16} className="text-green-600" />
-                  <span className="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300">Meilleur employé</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-green-700 dark:text-green-300">{t('dashboard.bestEmployee')}</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -839,7 +841,7 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <TrendingDown size={16} className="text-red-600" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">Moins bon employé</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">{t('dashboard.worstEmployee')}</span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
@@ -863,7 +865,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading flex items-center gap-2 flex-wrap">
               <Users size={18} />
-              Classement des employés ({scopedEmployees.length})
+              {t('dashboard.ranking', { count: scopedEmployees.length })}
               <span className="text-xs font-normal text-muted-foreground">— {scopeLabel}</span>
             </CardTitle>
           </CardHeader>
@@ -902,7 +904,7 @@ export default function Dashboard() {
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading flex items-center gap-2 flex-wrap">
-              Statut des Évaluations
+              {t('dashboard.evaluationStatus')}
               {selectedPeriod && (
                 <span className="text-xs font-normal text-muted-foreground">— {selectedPeriod} · {scopeLabel}</span>
               )}
@@ -954,7 +956,7 @@ export default function Dashboard() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[280px] flex items-center justify-center text-muted-foreground">Aucune donnée d'évaluation</div>
+              <div className="h-[280px] flex items-center justify-center text-muted-foreground">{t('dashboard.noEvaluationData')}</div>
             )}
           </CardContent>
         </Card>
@@ -963,7 +965,7 @@ export default function Dashboard() {
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading flex items-center gap-2 flex-wrap">
-              Évolution des évaluations
+              {t('dashboard.evolution')}
               <span className="text-xs font-normal text-muted-foreground">— {scopeLabel}</span>
             </CardTitle>
           </CardHeader>
@@ -1013,7 +1015,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
             ) : (
               <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                Aucune évaluation pour ce périmètre
+                {t('dashboard.noScopeEvaluation')}
               </div>
             )}
           </CardContent>
@@ -1024,31 +1026,31 @@ export default function Dashboard() {
       {selectedEmployee && selectedPeriod && (
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Détails Employé - {selectedEmployee.name}</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboard.employeeDetails')} - {selectedEmployee.name}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-muted/50 p-4 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Filiale</p>
+                <p className="text-xs text-muted-foreground mb-1">{t('dashboard.branch')}</p>
                 <p className="font-semibold text-sm">{selectedEmployee.branch_name}</p>
               </div>
               <div className="bg-muted/50 p-4 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Service</p>
+                <p className="text-xs text-muted-foreground mb-1">{t('dashboard.department')}</p>
                 <p className="font-semibold text-sm">{selectedEmployee.department_name}</p>
               </div>
               <div className="bg-muted/50 p-4 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Rôle</p>
+                <p className="text-xs text-muted-foreground mb-1">{t('dashboard.role')}</p>
                 <p className="font-semibold text-sm">{selectedEmployee.role_name}</p>
               </div>
               <div className="bg-muted/50 p-4 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Email</p>
+                <p className="text-xs text-muted-foreground mb-1">{t('dashboard.email')}</p>
                 <p className="font-semibold text-sm text-xs">{selectedEmployee.email}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="border border-border rounded-lg p-4 text-center">
-                <p className="text-xs text-muted-foreground mb-1">Moyenne</p>
+                <p className="text-xs text-muted-foreground mb-1">{t('dashboard.average')}</p>
                 <p className="text-2xl font-bold text-primary">{formatEvaluationScore(selectedEmployee.avg_score)}</p>
               </div>
               {(() => {
@@ -1062,15 +1064,15 @@ export default function Dashboard() {
                 return (
                   <>
                     <div className="border border-border rounded-lg p-4 text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Minimum</p>
+                      <p className="text-xs text-muted-foreground mb-1">{t('dashboard.minimum')}</p>
                       <p className="text-2xl font-bold text-red-600">{formatEvaluationScore(min)}</p>
                     </div>
                     <div className="border border-border rounded-lg p-4 text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Maximum</p>
+                      <p className="text-xs text-muted-foreground mb-1">{t('dashboard.maximum')}</p>
                       <p className="text-2xl font-bold text-green-600">{formatEvaluationScore(max)}</p>
                     </div>
                     <div className="border border-border rounded-lg p-4 text-center">
-                      <p className="text-xs text-muted-foreground mb-1">Évaluations</p>
+                      <p className="text-xs text-muted-foreground mb-1">{t('dashboard.evaluations')}</p>
                       <p className="text-2xl font-bold text-blue-600">{evals.length}</p>
                     </div>
                   </>
@@ -1080,14 +1082,14 @@ export default function Dashboard() {
 
             {/* Evaluations Details */}
             <div>
-              <h3 className="font-semibold text-sm mb-3">Détail des Évaluations Acceptées (Mois: {selectedPeriod})</h3>
+              <h3 className="font-semibold text-sm mb-3">{t('dashboard.acceptedDetail', { period: selectedPeriod })}</h3>
               <div className="max-h-64 overflow-y-auto border border-border rounded-lg">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
-                      <th className="text-left p-2">Date</th>
+                      <th className="text-left p-2">{t('common.date')}</th>
                       <th className="text-center p-2">Score</th>
-                      <th className="text-left p-2">Commentaire</th>
+                      <th className="text-left p-2">{t('dashboard.colComment')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1107,7 +1109,7 @@ export default function Dashboard() {
                       ) : (
                         <tr>
                           <td colSpan={4} className="p-4 text-center text-muted-foreground">
-                            Aucune évaluation pour cette période
+                            {t('dashboard.noPeriodEvaluation')}
                           </td>
                         </tr>
                       );
@@ -1124,7 +1126,7 @@ export default function Dashboard() {
       {selectedEmployee && (
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Courbe d'Évaluation - {selectedEmployee.name}</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboard.evaluationCurve')} - {selectedEmployee.name}</CardTitle>
           </CardHeader>
           <CardContent>
             {(() => {
@@ -1200,7 +1202,7 @@ export default function Dashboard() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-                  Aucune évaluation disponible pour cet employé
+                  {t('dashboard.noEmployeeEvaluation')}
                 </div>
               );
             })()}
@@ -1214,12 +1216,12 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-heading flex items-center gap-2">
               <CheckCircle size={18} className="text-primary" />
-              Évaluations Complétées
+              {t('dashboard.completedEvaluations')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-foreground">{loading ? '-' : stats.completedEvaluations}</p>
-            <p className="text-xs text-muted-foreground mt-1">sur {stats.totalEvaluations} au total</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('dashboard.outOfTotal', { total: stats.totalEvaluations })}</p>
           </CardContent>
         </Card>
 
@@ -1227,12 +1229,12 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-heading flex items-center gap-2">
               <Clock size={18} className="text-chart-2" />
-              Évaluations en Attente
+              {t('dashboard.pendingEvaluations')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-foreground">{loading ? '-' : (stats.totalEvaluations - stats.completedEvaluations)}</p>
-            <p className="text-xs text-muted-foreground mt-1">en attente de réalisation</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('dashboard.pendingHint')}</p>
           </CardContent>
         </Card>
 
@@ -1240,7 +1242,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-heading flex items-center gap-2">
               <TrendingUp size={18} className="text-accent" />
-              Évaluations soumises
+              {t('dashboard.submittedEvaluations')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1250,7 +1252,7 @@ export default function Dashboard() {
                 : (evaluationStatus.find((s) => s.status === 'soumis')?.count ?? 0)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {selectedPeriod ? `${selectedPeriod} · ${scopeLabel}` : 'sélectionnez une période'}
+              {selectedPeriod ? `${selectedPeriod} · ${scopeLabel}` : t('dashboard.selectPeriod')}
             </p>
           </CardContent>
         </Card>
