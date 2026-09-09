@@ -151,7 +151,9 @@ const App = () => {
               path="/reports"
               element={
                 <ProtectedRoute>
-                  <Reports />
+                  <ModuleAccessGuard moduleKey="reports">
+                    <Reports />
+                  </ModuleAccessGuard>
                 </ProtectedRoute>
               }
             />

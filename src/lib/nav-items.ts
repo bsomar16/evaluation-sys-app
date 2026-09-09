@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   GraduationCap,
   Ban,
+  BarChart3,
 } from 'lucide-react';
 import { isSiteDeveloper } from '@/lib/session-user';
 import { collectDescendantRoleIds, type RoleRecord } from '@/lib/role-tree';
@@ -122,6 +123,15 @@ export function buildNavItems(
       labelKey: 'nav.rejection_reasons',
       icon: Ban,
       moduleKey: 'rejection_reasons',
+    });
+  }
+  if (canReadModule('reports', effective)) {
+    items.push({
+      path: '/reports',
+      label: 'Analyse / Rapport',
+      labelKey: 'nav.reports',
+      icon: BarChart3,
+      moduleKey: 'reports',
     });
   }
   if (canReadModule('training', effective)) {

@@ -489,6 +489,38 @@ export function RolesPage() {
                             ) : null;
                           })()}
 
+                          {/* Analyse / Rapport - TOP LEVEL */}
+                          {(() => {
+                            const mod = SIDEBAR_MODULE_DEFS.find(m => m.key === 'reports');
+                            const row = formData.permissions['reports'] ?? { read: false, write: false, delete: false };
+                            return mod ? (
+                              <tr className="border-b">
+                                <td className="py-2 px-1"><span className="inline-block w-4" /></td>
+                                <td className="py-2 px-3"><span>{mod.label}</span></td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'read', v === true)}
+                                  />
+                                </td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.write}
+                                    disabled={!row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'write', v === true)}
+                                  />
+                                </td>
+                                <td className="text-center py-2 px-2">
+                                  <Checkbox
+                                    checked={row.delete}
+                                    disabled={!row.read}
+                                    onCheckedChange={(v) => setModulePerm(mod.key, 'delete', v === true)}
+                                  />
+                                </td>
+                              </tr>
+                            ) : null;
+                          })()}
+
                           {/* EVALUATION GROUP - Expandable parent with children */}
                           <Fragment>
                             <tr className="border-b">

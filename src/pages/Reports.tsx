@@ -1,27 +1,124 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Download, FileText, Building2, Users, Crown } from 'lucide-react';
+import { Search, FileSpreadsheet, FileText, Eye } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/PaginationControls';
+import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
+import { hideLoadingOverlay } from '@/lib/loading-overlay';
+import { formatEvaluationPercentage } from '@/lib/evaluation-calculator';
+import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
+import { fetchEvaluationReportData, type EvaluationReportData, type EvaluationReportRow } from '@/lib/evaluation-report-data';
+import { generateEvaluationReportPdf } from '@/lib/evaluation-report-pdf';
+import { exportEvaluationReportListToExcel, exportEvaluationReportToExcel } from '@/lib/evaluation-report-excel';
+import { EvaluationReportView } from '@/components/evaluation/EvaluationReportView';
 
-const reports = [
-  { id: 1, title: 'January Team Performance', type: 'team', uploadedBy: 'Dr. Khalid', date: '2026-01-28', branch: 'Headquarters' },
-  { id: 2, title: 'Q4 2025 Company Report', type: 'company', uploadedBy: 'CEO Office', date: '2026-01-05', branch: 'All' },
-  { id: 3, title: 'February Branch Report', type: 'branch', uploadedBy: 'Ms. Rania', date: '2026-02-27', branch: 'South Branch' },
-  { id: 4, title: 'March Team Performance', type: 'team', uploadedBy: 'Mr. Ali', date: '2026-03-28', branch: 'North Branch' },
-  { id: 5, title: 'Q1 2026 Master Report', type: 'company', uploadedBy: 'CEO Office', date: '2026-03-30', branch: 'All' },
-];
+const ALL_VALUE = '__all__';
 
-const typeConfig = {
-  team: { label: 'Team', icon: Users, variant: 'secondary' as const },
-  company: { label: 'Company', icon: Crown, variant: 'default' as const },
-  branch: { label: 'Branch', icon: Building2, variant: 'outline' as const },
-};
+function scoreBadgeVariant(percentage: number | null): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (percentage == null) return 'outline';
+  if (percentage >= 70) return 'default';
+  if (percentage >= 40) return 'secondary';
+  return 'destructive';
+}
 
 export default function Reports() {
   const { t } = useI18n();
+  const { canRead } = useRolePermissions();
+  const [data, setData] = useState<EvaluationReportData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [periodFilter, setPeriodFilter] = useState(ALL_VALUE);
+  const [branchFilter, setBranchFilter] = useState(ALL_VALUE);
+  const [statusFilter, setStatusFilter] = useState(ALL_VALUE);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [viewingRow, setViewingRow] = useState<EvaluationReportRow | null>(null);
+
+  useEffect(() => {
+    fetchEvaluationReportData()
+      .then(setData)
+      .catch(() => setData({ rows: [], criteria: [], rules: [], branches: [], departments: [], roles: [] }))
+      .finally(() => {
+        setLoading(false);
+        hideLoadingOverlay();
+      });
+  }, []);
+
+  const periods = useMemo(() => {
+    if (!data) return [];
+    return [...new Set(data.rows.map((r) => r.evaluation.period).filter(Boolean))] as string[];
+  }, [data]);
+
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+    return data.rows.filter((row) => {
+      if (q && !(row.evaluation.employee_name ?? '').toLowerCase().includes(q)) return false;
+      if (periodFilter !== ALL_VALUE && row.evaluation.period !== periodFilter) return false;
+      if (branchFilter !== ALL_VALUE && row.branchId !== branchFilter) return false;
+      if (statusFilter !== ALL_VALUE && row.evaluation.status !== statusFilter) return false;
+      return true;
+    });
+  }, [data, search, periodFilter, branchFilter, statusFilter]);
+
+  const pagination = usePagination(filtered, 10);
+
+  const toggleSelect = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const selectedRows = filtered.filter((row) => selectedIds.has(row.evaluation.id));
+
+  const handleExportSelection = () => {
+    exportEvaluationReportListToExcel(selectedRows.length > 0 ? selectedRows : filtered);
+  };
+
+  const handlePdf = (row: EvaluationReportRow) => {
+    if (!data) return;
+    generateEvaluationReportPdf({
+      evaluation: row.evaluation,
+      employeeName: row.evaluation.employee_name ?? '—',
+      position: row.position,
+      branchName: row.branchName,
+      departmentName: row.departmentName,
+      roleName: row.roleName,
+      percentage: row.percentage,
+      criteria: data.criteria,
+      rules: data.rules,
+    });
+  };
+
+  const handleExcel = (row: EvaluationReportRow) => {
+    if (!data) return;
+    exportEvaluationReportToExcel({
+      evaluation: row.evaluation,
+      employeeName: row.evaluation.employee_name ?? '—',
+      position: row.position,
+      branchName: row.branchName,
+      departmentName: row.departmentName,
+      roleName: row.roleName,
+      percentage: row.percentage,
+      criteria: data.criteria,
+      rules: data.rules,
+    });
+  };
+
+  if (!canRead('reports')) {
+    return <ModuleAccessDenied />;
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -29,52 +126,158 @@ export default function Reports() {
           <h1 className="text-2xl font-bold font-heading text-foreground">{t('reports.title')}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t('reports.subtitle')}</p>
         </div>
-        <Button className="gap-2"><Upload size={16} /> {t('reports.upload')}</Button>
+        <Button variant="outline" className="gap-2" onClick={handleExportSelection} disabled={filtered.length === 0}>
+          <FileSpreadsheet size={16} />
+          {t('reports.exportSelection')}
+        </Button>
       </div>
 
-      <Tabs defaultValue="all">
-        <TabsList>
-          <TabsTrigger value="all">{t('reports.all')}</TabsTrigger>
-          <TabsTrigger value="team">{t('reports.team')}</TabsTrigger>
-          <TabsTrigger value="company">{t('reports.company')}</TabsTrigger>
-          <TabsTrigger value="branch">{t('reports.branch')}</TabsTrigger>
-        </TabsList>
-
-        {['all', 'team', 'company', 'branch'].map((tab) => (
-          <TabsContent key={tab} value={tab}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {reports
-                .filter((r) => tab === 'all' || r.type === tab)
-                .map((report) => {
-                  const config = typeConfig[report.type as keyof typeof typeConfig];
-                  const Icon = config.icon;
-                  return (
-                    <Card key={report.id} className="border-border shadow-sm hover:shadow-md transition-shadow">
-                      <CardContent className="p-5">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center shrink-0">
-                            <FileText size={20} className="text-accent-foreground" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-semibold text-foreground truncate">{report.title}</h3>
-                            <p className="text-xs text-muted-foreground mt-1">{report.uploadedBy} · {report.date}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant={config.variant} className="text-xs">{config.label}</Badge>
-                              <span className="text-xs text-muted-foreground">{report.branch}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Button variant="outline" size="sm" className="w-full mt-4 gap-2">
-                          <Download size={14} /> {t('reports.download')}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">{t('reports.listTitle')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={t('reports.searchPlaceholder')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
             </div>
-          </TabsContent>
-        ))}
-      </Tabs>
+            <Select value={periodFilter} onValueChange={setPeriodFilter}>
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder={t('reports.colPeriod')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>{t('common.all')}</SelectItem>
+                {periods.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder={t('reports.colBranch')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>{t('common.all')}</SelectItem>
+                {(data?.branches ?? []).map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder={t('reports.colStatus')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>{t('common.all')}</SelectItem>
+                {(Object.keys(EVALUATION_STATUS_LABELS) as EvaluationStatus[]).map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {t(`evalStatus.${s}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {loading ? (
+            <p>{t('common.loading')}</p>
+          ) : filtered.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">{t('reports.noResults')}</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="w-10 py-3 px-4">
+                        <Checkbox
+                          checked={pagination.paginatedItems.length > 0 && pagination.paginatedItems.every((r) => selectedIds.has(r.evaluation.id))}
+                          onCheckedChange={(checked) => {
+                            pagination.paginatedItems.forEach((r) => toggleSelect(r.evaluation.id, checked === true));
+                          }}
+                        />
+                      </th>
+                      <th className="text-left py-3 px-4">{t('reports.colEmployee')}</th>
+                      <th className="text-left py-3 px-4">{t('reports.colPeriod')}</th>
+                      <th className="text-left py-3 px-4">{t('reports.colBranch')}</th>
+                      <th className="text-right py-3 px-4">{t('reports.colScore')}</th>
+                      <th className="text-center py-3 px-4">{t('reports.colStatus')}</th>
+                      <th className="text-right py-3 px-4">{t('common.actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagination.paginatedItems.map((row) => (
+                      <tr key={row.evaluation.id} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-4">
+                          <Checkbox
+                            checked={selectedIds.has(row.evaluation.id)}
+                            onCheckedChange={(checked) => toggleSelect(row.evaluation.id, checked === true)}
+                          />
+                        </td>
+                        <td className="py-3 px-4 font-medium">{row.evaluation.employee_name ?? '—'}</td>
+                        <td className="py-3 px-4">{row.evaluation.period || '—'}</td>
+                        <td className="py-3 px-4 text-muted-foreground">{row.branchName || '—'}</td>
+                        <td className="py-3 px-4 text-right">
+                          {row.percentage != null ? (
+                            <Badge variant={scoreBadgeVariant(row.percentage)}>{formatEvaluationPercentage(row.percentage)}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <Badge variant="outline">{t(`evalStatus.${row.evaluation.status}`)}</Badge>
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <Button variant="ghost" size="sm" title={t('reports.viewReport')} onClick={() => setViewingRow(row)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" title="Excel" onClick={() => handleExcel(row)}>
+                            <FileSpreadsheet className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" title="PDF" onClick={() => handlePdf(row)}>
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <PaginationControls
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                itemsPerPage={pagination.itemsPerPage}
+                totalItems={pagination.totalItems}
+                onPageChange={pagination.setCurrentPage}
+                onItemsPerPageChange={pagination.setItemsPerPage}
+                canGoPrev={pagination.canGoPrev}
+                canGoNext={pagination.canGoNext}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!viewingRow} onOpenChange={(open) => !open && setViewingRow(null)}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('reports.detailTitle')}</DialogTitle>
+            <DialogDescription>{t('reports.pdfNote')}</DialogDescription>
+          </DialogHeader>
+          {viewingRow && data && (
+            <EvaluationReportView row={viewingRow} criteria={data.criteria} rules={data.rules} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
