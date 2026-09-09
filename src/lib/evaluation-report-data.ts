@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { fetchEvaluations, resolveEvaluationPercentage } from '@/lib/evaluation-storage';
 import { fetchEvaluationCriteria, fetchCalculationRules } from '@/lib/evaluation-config-storage';
+import { getAllEvaluationPeriods } from '@/lib/evaluation-period-db';
 import {
   getCriterionDisplayName,
   type CalculationRuleRecord,
@@ -27,6 +28,8 @@ export interface EvaluationReportData {
   branches: { id: string; name: string }[];
   departments: { id: string; name: string }[];
   roles: { id: string; name: string }[];
+  /** Date de début de campagne par nom de période — pour ordonner les évaluations dans le temps. */
+  periodStartByName: Record<string, string>;
 }
 
 /**
@@ -37,7 +40,7 @@ export interface EvaluationReportData {
  * "reports", comme la page Gestion des évaluations.
  */
 export async function fetchEvaluationReportData(): Promise<EvaluationReportData> {
-  const [evaluations, criteria, rules, usersRes, branchesRes, departmentsRes, rolesRes] = await Promise.all([
+  const [evaluations, criteria, rules, usersRes, branchesRes, departmentsRes, rolesRes, periods] = await Promise.all([
     fetchEvaluations(),
     fetchEvaluationCriteria(),
     fetchCalculationRules(),
@@ -45,7 +48,13 @@ export async function fetchEvaluationReportData(): Promise<EvaluationReportData>
     supabase.from('branches').select('id, name'),
     supabase.from('departments').select('id, name'),
     supabase.from('roles').select('id, name'),
+    getAllEvaluationPeriods(),
   ]);
+
+  const periodStartByName: Record<string, string> = {};
+  for (const p of periods) {
+    if (p.name && !periodStartByName[p.name]) periodStartByName[p.name] = p.start_date;
+  }
 
   type UserLite = { id: string; position: string | null; branch_id: string | null; department_id: string | null; role_id: string | null };
   const usersById = new Map<string, UserLite>(((usersRes.data ?? []) as UserLite[]).map((u) => [u.id, u]));
@@ -88,7 +97,42 @@ export async function fetchEvaluationReportData(): Promise<EvaluationReportData>
       return dateB - dateA;
     });
 
-  return { rows, criteria, rules, branches, departments, roles };
+  return { rows, criteria, rules, branches, departments, roles, periodStartByName };
+}
+
+/**
+ * Évaluation la plus récente précédant chronologiquement celle-ci pour le même
+ * employé (comparaison "période sur période"), ou `null` si c'est la première
+ * évaluation connue de cet employé. Se base sur la date de début de campagne
+ * (période), pas sur la date d'enregistrement en base.
+ */
+export function findPreviousEvaluationRow(
+  row: EvaluationReportRow,
+  allRows: EvaluationReportRow[],
+  periodStartByName: Record<string, string>
+): EvaluationReportRow | null {
+  const employeeId = row.evaluation.employee_id;
+  const currentStart = row.evaluation.period ? periodStartByName[row.evaluation.period] : undefined;
+  if (!employeeId || !currentStart) return null;
+  const currentTime = new Date(currentStart).getTime();
+
+  let best: EvaluationReportRow | null = null;
+  let bestTime = -Infinity;
+  for (const candidate of allRows) {
+    if (candidate.evaluation.id === row.evaluation.id) continue;
+    if (candidate.evaluation.employee_id !== employeeId) continue;
+    if (candidate.percentage == null) continue;
+    const candidateStart = candidate.evaluation.period
+      ? periodStartByName[candidate.evaluation.period]
+      : undefined;
+    if (!candidateStart) continue;
+    const candidateTime = new Date(candidateStart).getTime();
+    if (candidateTime < currentTime && candidateTime > bestTime) {
+      best = candidate;
+      bestTime = candidateTime;
+    }
+  }
+  return best;
 }
 
 /** Nom (FR ou AR) d'un critère à partir de son id, avec repli sur le nom figé dans la réponse

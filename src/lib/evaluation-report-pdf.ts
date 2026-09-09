@@ -67,6 +67,9 @@ export interface EvaluationReportPdfInput {
   percentage: number | null;
   criteria: EvaluationCriterionRecord[];
   rules: CalculationRuleRecord[];
+  /** Période précédente (chronologique) de cet employé, pour la comparaison d'évolution. */
+  previousPeriodLabel?: string | null;
+  previousPercentage?: number | null;
 }
 
 function formatCoefficient(weight: number): string {
@@ -77,7 +80,19 @@ function formatCoefficient(weight: number): string {
 
 /** Dessine un rapport d'évaluation sur la page courante du document (déjà positionnée). */
 function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput): void {
-  const { evaluation, employeeName, position, branchName, departmentName, roleName, percentage, criteria, rules } = input;
+  const {
+    evaluation,
+    employeeName,
+    position,
+    branchName,
+    departmentName,
+    roleName,
+    percentage,
+    criteria,
+    rules,
+    previousPeriodLabel,
+    previousPercentage,
+  } = input;
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 14;
   let cursorY = 0;
@@ -143,7 +158,29 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput): vo
     doc.setFillColor(...barColor);
     doc.roundedRect(barX, barY, Math.max(barWidth * ratio, 4), 6, 2, 2, 'F');
   }
-  cursorY += 18;
+  cursorY += 14;
+
+  // ── Comparaison avec la période précédente ──────────────────────────
+  if (previousPeriodLabel && previousPercentage != null) {
+    const delta = percentage != null ? percentage - previousPercentage : null;
+    const deltaColor = delta == null ? COLOR_MUTED : delta > 0.05 ? COLOR_GREEN : delta < -0.05 ? COLOR_RED : COLOR_MUTED;
+    const arrow = delta == null ? '' : delta > 0.05 ? '▲' : delta < -0.05 ? '▼' : '＝';
+    const deltaText = delta == null ? '' : `${arrow} ${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts`;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...COLOR_MUTED);
+    doc.text(
+      `Vs période précédente (${previousPeriodLabel}) : ${formatEvaluationPercentage(previousPercentage)}`,
+      marginX,
+      cursorY
+    );
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...deltaColor);
+    doc.text(deltaText, marginX + 95, cursorY);
+    cursorY += 8;
+  }
+  cursorY += 4;
 
   // ── Diagramme par critère ────────────────────────────────────────────
   const responses = evaluation.responses ?? [];

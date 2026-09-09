@@ -203,6 +203,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       popupBlockedTitle: 'Pop-up bloquée',
       popupBlockedDesc: 'Le navigateur a bloqué l\'ouverture du PDF dans un nouvel onglet — le fichier a été téléchargé à la place.',
       pdfApprovedOnly: 'Le rapport PDF est disponible uniquement pour les évaluations approuvées.',
+      vsPrevious: 'Vs {period}',
+      firstEvaluation: 'Première évaluation de cet employé',
       noApprovedInSelection: 'Aucune évaluation approuvée dans la sélection.',
     },
     team: {
@@ -621,6 +623,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       popupBlockedTitle: 'تم حظر النافذة المنبثقة',
       popupBlockedDesc: 'منع المتصفح فتح PDF في تبويب جديد — تم تنزيل الملف بدلاً من ذلك.',
       pdfApprovedOnly: 'تقرير PDF متاح فقط للتقييمات المعتمدة.',
+      vsPrevious: 'مقارنة بـ {period}',
+      firstEvaluation: 'أول تقييم لهذا الموظف',
       noApprovedInSelection: 'لا يوجد تقييم معتمد ضمن التحديد.',
     },
     team: {

@@ -13,6 +13,8 @@ export interface EvaluationReportExcelInput {
   percentage: number | null;
   criteria: EvaluationCriterionRecord[];
   rules: CalculationRuleRecord[];
+  previousPeriodLabel?: string | null;
+  previousPercentage?: number | null;
 }
 
 function sanitizeFilenamePart(value: string): string {
@@ -26,7 +28,19 @@ function sanitizeFilenamePart(value: string): string {
 
 /** Export Excel détaillé d'une seule évaluation — nom du critère en français ET en arabe. */
 export function exportEvaluationReportToExcel(input: EvaluationReportExcelInput): void {
-  const { evaluation, employeeName, position, branchName, departmentName, roleName, percentage, criteria, rules } = input;
+  const {
+    evaluation,
+    employeeName,
+    position,
+    branchName,
+    departmentName,
+    roleName,
+    percentage,
+    criteria,
+    rules,
+    previousPeriodLabel,
+    previousPercentage,
+  } = input;
 
   const summaryRows: (string | number)[][] = [
     ['Employé', employeeName],
@@ -37,8 +51,17 @@ export function exportEvaluationReportToExcel(input: EvaluationReportExcelInput)
     ['Période', evaluation.period ?? '—'],
     ['Statut', EVALUATION_STATUS_LABELS[evaluation.status] ?? evaluation.status],
     ['Score global (%)', percentage != null ? Number(percentage.toFixed(1)) : '—'],
-    ["Commentaire de l'évaluateur", evaluation.feedback?.trim() || '—'],
   ];
+
+  if (previousPeriodLabel && previousPercentage != null) {
+    const delta = percentage != null ? percentage - previousPercentage : null;
+    summaryRows.push(
+      [`Score période précédente (${previousPeriodLabel}) (%)`, Number(previousPercentage.toFixed(1))],
+      ['Écart (pts)', delta != null ? Number(delta.toFixed(1)) : '—']
+    );
+  }
+
+  summaryRows.push(["Commentaire de l'évaluateur", evaluation.feedback?.trim() || '—']);
 
   const criteriaHeader = ['Critère (Français)', 'Critère (Arabe)', 'Coefficient', 'Valeur saisie', 'Points obtenus', 'Points max'];
   const responses = evaluation.responses ?? [];

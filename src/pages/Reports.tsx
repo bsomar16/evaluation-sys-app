@@ -16,7 +16,12 @@ import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { formatEvaluationPercentage } from '@/lib/evaluation-calculator';
 import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
-import { fetchEvaluationReportData, type EvaluationReportData, type EvaluationReportRow } from '@/lib/evaluation-report-data';
+import {
+  fetchEvaluationReportData,
+  findPreviousEvaluationRow,
+  type EvaluationReportData,
+  type EvaluationReportRow,
+} from '@/lib/evaluation-report-data';
 import { generateEvaluationReportPdf, generateEvaluationReportsPdf } from '@/lib/evaluation-report-pdf';
 import { exportEvaluationReportListToExcel, exportEvaluationReportToExcel } from '@/lib/evaluation-report-excel';
 import { EvaluationReportView } from '@/components/evaluation/EvaluationReportView';
@@ -93,6 +98,15 @@ export default function Reports() {
     exportEvaluationReportListToExcel(selectedRows.length > 0 ? selectedRows : filtered);
   };
 
+  const getPrevious = (row: EvaluationReportRow) => {
+    if (!data) return { previousPeriodLabel: null, previousPercentage: null };
+    const previous = findPreviousEvaluationRow(row, data.rows, data.periodStartByName);
+    return {
+      previousPeriodLabel: previous?.evaluation.period ?? null,
+      previousPercentage: previous?.percentage ?? null,
+    };
+  };
+
   const handlePrintSelection = () => {
     if (!data || printableRows.length === 0) return;
     const opened = generateEvaluationReportsPdf(
@@ -106,6 +120,7 @@ export default function Reports() {
         percentage: row.percentage,
         criteria: data.criteria,
         rules: data.rules,
+        ...getPrevious(row),
       }))
     );
     if (!opened) {
@@ -125,6 +140,7 @@ export default function Reports() {
       percentage: row.percentage,
       criteria: data.criteria,
       rules: data.rules,
+      ...getPrevious(row),
     });
     if (!opened) {
       toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
@@ -143,6 +159,7 @@ export default function Reports() {
       percentage: row.percentage,
       criteria: data.criteria,
       rules: data.rules,
+      ...getPrevious(row),
     });
   };
 
@@ -315,7 +332,13 @@ export default function Reports() {
             <DialogDescription>{t('reports.pdfNote')}</DialogDescription>
           </DialogHeader>
           {viewingRow && data && (
-            <EvaluationReportView row={viewingRow} criteria={data.criteria} rules={data.rules} />
+            <EvaluationReportView
+              row={viewingRow}
+              criteria={data.criteria}
+              rules={data.rules}
+              allRows={data.rows}
+              periodStartByName={data.periodStartByName}
+            />
           )}
         </DialogContent>
       </Dialog>

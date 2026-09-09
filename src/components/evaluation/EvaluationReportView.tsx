@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -19,7 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { FileSpreadsheet, FileText, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -29,7 +30,11 @@ import {
 } from '@/lib/evaluation-calculator';
 import { EVALUATION_STATUS_LABELS } from '@/lib/evaluation-types';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
-import { resolveCriterionName, type EvaluationReportRow } from '@/lib/evaluation-report-data';
+import {
+  findPreviousEvaluationRow,
+  resolveCriterionName,
+  type EvaluationReportRow,
+} from '@/lib/evaluation-report-data';
 import { generateEvaluationReportPdf } from '@/lib/evaluation-report-pdf';
 import { exportEvaluationReportToExcel } from '@/lib/evaluation-report-excel';
 import type { EvaluationCriterionRecord, CalculationRuleRecord } from '@/lib/evaluation-calculator';
@@ -44,15 +49,29 @@ export function EvaluationReportView({
   row,
   criteria,
   rules,
+  allRows,
+  periodStartByName,
 }: {
   row: EvaluationReportRow;
   criteria: EvaluationCriterionRecord[];
   rules: CalculationRuleRecord[];
+  /** Toutes les évaluations (autres employés/périodes inclus), pour retrouver la période précédente. */
+  allRows: EvaluationReportRow[];
+  periodStartByName: Record<string, string>;
 }) {
   const { t, lang } = useI18n();
   const { toast } = useToast();
   const { evaluation, position, branchName, departmentName, roleName, percentage } = row;
   const responses = evaluation.responses ?? [];
+
+  const previousRow = useMemo(
+    () => findPreviousEvaluationRow(row, allRows, periodStartByName),
+    [row, allRows, periodStartByName]
+  );
+  const previousPeriodLabel = previousRow?.evaluation.period ?? null;
+  const previousPercentage = previousRow?.percentage ?? null;
+  const delta =
+    percentage != null && previousPercentage != null ? percentage - previousPercentage : null;
 
   const chartData = responses.map((response) => {
     const criterion = criteria.find((c) => c.id === response.criterion_id);
@@ -85,6 +104,8 @@ export function EvaluationReportView({
       percentage,
       criteria,
       rules,
+      previousPeriodLabel,
+      previousPercentage,
     });
     if (!opened) {
       toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
@@ -102,6 +123,8 @@ export function EvaluationReportView({
       percentage,
       criteria,
       rules,
+      previousPeriodLabel,
+      previousPercentage,
     });
   };
 
@@ -150,31 +173,68 @@ export function EvaluationReportView({
       </div>
 
       <Card>
-        <CardContent className="p-5 flex items-center gap-6">
-          <div className="relative w-[110px] h-[110px] shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadialBarChart
-                data={gaugeData}
-                innerRadius="72%"
-                outerRadius="100%"
-                startAngle={90}
-                endAngle={-270}
-              >
-                <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                <RadialBar dataKey="value" cornerRadius={8} background={{ fill: 'hsl(var(--muted))' }} />
-              </RadialBarChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xl font-bold" style={{ color: overallColor }}>
+        <CardContent className="p-5 flex flex-wrap items-center justify-between gap-6">
+          <div className="flex items-center gap-6">
+            <div className="relative w-[110px] h-[110px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadialBarChart
+                  data={gaugeData}
+                  innerRadius="72%"
+                  outerRadius="100%"
+                  startAngle={90}
+                  endAngle={-270}
+                >
+                  <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                  <RadialBar dataKey="value" cornerRadius={8} background={{ fill: 'hsl(var(--muted))' }} />
+                </RadialBarChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xl font-bold" style={{ color: overallColor }}>
+                  {formatEvaluationPercentage(percentage)}
+                </span>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">{t('evalMgmt.totalScore')}</p>
+              <p className="text-3xl font-bold" style={{ color: overallColor }}>
                 {formatEvaluationPercentage(percentage)}
-              </span>
+              </p>
             </div>
           </div>
-          <div>
-            <p className="text-sm text-muted-foreground">{t('evalMgmt.totalScore')}</p>
-            <p className="text-3xl font-bold" style={{ color: overallColor }}>
-              {formatEvaluationPercentage(percentage)}
-            </p>
+
+          <div className="text-right">
+            {previousPeriodLabel && previousPercentage != null ? (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  {t('reports.vsPrevious', { period: previousPeriodLabel })}
+                </p>
+                <p className="text-lg font-semibold text-muted-foreground">
+                  {formatEvaluationPercentage(previousPercentage)}
+                </p>
+                <p
+                  className="flex items-center justify-end gap-1 text-sm font-semibold"
+                  style={{
+                    color:
+                      delta != null && delta > 0.05
+                        ? '#10b981'
+                        : delta != null && delta < -0.05
+                          ? '#ef4444'
+                          : 'hsl(var(--muted-foreground))',
+                  }}
+                >
+                  {delta != null && delta > 0.05 ? (
+                    <TrendingUp className="h-4 w-4" />
+                  ) : delta != null && delta < -0.05 ? (
+                    <TrendingDown className="h-4 w-4" />
+                  ) : (
+                    <Minus className="h-4 w-4" />
+                  )}
+                  {delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts` : '—'}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t('reports.firstEvaluation')}</p>
+            )}
           </div>
         </CardContent>
       </Card>
