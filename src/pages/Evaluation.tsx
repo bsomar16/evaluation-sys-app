@@ -381,12 +381,17 @@ export default function Evaluation() {
           ? 'indeterminate'
           : false;
 
-  const handleHeaderCheckboxChange = (checked: boolean) => {
+  const handleHeaderCheckboxChange = () => {
     if (allFilteredSelected) {
       toggleSelectAllFiltered(false);
       return;
     }
-    toggleSelectAllCurrentPage(checked);
+    // Radix renvoie toujours `true` en sortant de l'état "indeterminate" (page
+    // courante entièrement cochée mais d'autres pages restent). On ignore donc
+    // la valeur transmise par Radix et on décide nous-mêmes selon l'état réel
+    // affiché : si la page courante est déjà entièrement sélectionnée, un clic
+    // doit la désélectionner ; sinon il doit la sélectionner entièrement.
+    toggleSelectAllCurrentPage(!allCurrentPageSelected);
   };
 
   const handleBulkExport = async (fields: EvaluationExportFieldKey[]) => {
@@ -1168,7 +1173,7 @@ export default function Evaluation() {
                   <TableHead className="w-10">
                     <Checkbox
                       checked={headerCheckboxChecked}
-                      onCheckedChange={(checked) => handleHeaderCheckboxChange(checked === true)}
+                      onCheckedChange={handleHeaderCheckboxChange}
                       aria-label="Sélectionner toutes les lignes de la page"
                     />
                   </TableHead>
