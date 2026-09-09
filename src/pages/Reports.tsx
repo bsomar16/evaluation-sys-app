@@ -22,9 +22,11 @@ import {
   type EvaluationReportData,
   type EvaluationReportRow,
 } from '@/lib/evaluation-report-data';
-import { generateEvaluationReportPdf, generateEvaluationReportsPdf } from '@/lib/evaluation-report-pdf';
+import { generateEvaluationReportPdf, generateEvaluationReportsPdf, preloadArabicFont } from '@/lib/evaluation-report-pdf';
 import { exportEvaluationReportListToExcel, exportEvaluationReportToExcel } from '@/lib/evaluation-report-excel';
 import { EvaluationReportView } from '@/components/evaluation/EvaluationReportView';
+import { PdfLanguageDialog } from '@/components/evaluation/PdfLanguageDialog';
+import type { Lang } from '@/lib/i18n/translations';
 
 const ALL_VALUE = '__all__';
 
@@ -47,11 +49,15 @@ export default function Reports() {
   const [statusFilter, setStatusFilter] = useState(ALL_VALUE);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [viewingRow, setViewingRow] = useState<EvaluationReportRow | null>(null);
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const [pendingPdfAction, setPendingPdfAction] = useState<((lang: Lang) => void) | null>(null);
 
   useEffect(() => {
     fetchEvaluationReportData()
       .then(setData)
-      .catch(() => setData({ rows: [], criteria: [], rules: [], branches: [], departments: [], roles: [] }))
+      .catch(() =>
+        setData({ rows: [], criteria: [], rules: [], branches: [], departments: [], roles: [], periodStartByName: {} })
+      )
       .finally(() => {
         setLoading(false);
         hideLoadingOverlay();
@@ -107,44 +113,58 @@ export default function Reports() {
     };
   };
 
+  const requestPdf = (action: (lang: Lang) => void) => {
+    preloadArabicFont();
+    setPendingPdfAction(() => action);
+    setPdfDialogOpen(true);
+  };
+
   const handlePrintSelection = () => {
     if (!data || printableRows.length === 0) return;
-    const opened = generateEvaluationReportsPdf(
-      printableRows.map((row) => ({
-        evaluation: row.evaluation,
-        employeeName: row.evaluation.employee_name ?? '—',
-        position: row.position,
-        branchName: row.branchName,
-        departmentName: row.departmentName,
-        roleName: row.roleName,
-        percentage: row.percentage,
-        criteria: data.criteria,
-        rules: data.rules,
-        ...getPrevious(row),
-      }))
-    );
-    if (!opened) {
-      toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
-    }
+    requestPdf(async (lang) => {
+      const opened = await generateEvaluationReportsPdf(
+        printableRows.map((row) => ({
+          evaluation: row.evaluation,
+          employeeName: row.evaluation.employee_name ?? '—',
+          position: row.position,
+          branchName: row.branchName,
+          departmentName: row.departmentName,
+          roleName: row.roleName,
+          percentage: row.percentage,
+          criteria: data.criteria,
+          rules: data.rules,
+          ...getPrevious(row),
+        })),
+        lang
+      );
+      if (!opened) {
+        toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+      }
+    });
   };
 
   const handlePdf = (row: EvaluationReportRow) => {
     if (!data || row.evaluation.status !== 'approved') return;
-    const opened = generateEvaluationReportPdf({
-      evaluation: row.evaluation,
-      employeeName: row.evaluation.employee_name ?? '—',
-      position: row.position,
-      branchName: row.branchName,
-      departmentName: row.departmentName,
-      roleName: row.roleName,
-      percentage: row.percentage,
-      criteria: data.criteria,
-      rules: data.rules,
-      ...getPrevious(row),
+    requestPdf(async (lang) => {
+      const opened = await generateEvaluationReportPdf(
+        {
+          evaluation: row.evaluation,
+          employeeName: row.evaluation.employee_name ?? '—',
+          position: row.position,
+          branchName: row.branchName,
+          departmentName: row.departmentName,
+          roleName: row.roleName,
+          percentage: row.percentage,
+          criteria: data.criteria,
+          rules: data.rules,
+          ...getPrevious(row),
+        },
+        lang
+      );
+      if (!opened) {
+        toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+      }
     });
-    if (!opened) {
-      toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
-    }
   };
 
   const handleExcel = (row: EvaluationReportRow) => {
@@ -329,7 +349,7 @@ export default function Reports() {
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('reports.detailTitle')}</DialogTitle>
-            <DialogDescription>{t('reports.pdfNote')}</DialogDescription>
+            <DialogDescription className="sr-only">{t('reports.detailTitle')}</DialogDescription>
           </DialogHeader>
           {viewingRow && data && (
             <EvaluationReportView
@@ -342,6 +362,15 @@ export default function Reports() {
           )}
         </DialogContent>
       </Dialog>
+
+      <PdfLanguageDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        onSelect={(lang) => {
+          setPdfDialogOpen(false);
+          pendingPdfAction?.(lang);
+        }}
+      />
     </div>
   );
 }

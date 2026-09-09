@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -22,20 +22,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileSpreadsheet, FileText, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import type { Lang } from '@/lib/i18n/translations';
 import { useToast } from '@/hooks/use-toast';
-import {
-  formatEvaluationPercentage,
-  getCriterionDisplayName,
-  getCriterionMaxPoints,
-} from '@/lib/evaluation-calculator';
+import { formatEvaluationPercentage, getCriterionMaxPoints } from '@/lib/evaluation-calculator';
 import { EVALUATION_STATUS_LABELS } from '@/lib/evaluation-types';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
+import { PdfLanguageDialog } from '@/components/evaluation/PdfLanguageDialog';
 import {
   findPreviousEvaluationRow,
   resolveCriterionName,
   type EvaluationReportRow,
 } from '@/lib/evaluation-report-data';
-import { generateEvaluationReportPdf } from '@/lib/evaluation-report-pdf';
+import { generateEvaluationReportPdf, preloadArabicFont } from '@/lib/evaluation-report-pdf';
 import { exportEvaluationReportToExcel } from '@/lib/evaluation-report-excel';
 import type { EvaluationCriterionRecord, CalculationRuleRecord } from '@/lib/evaluation-calculator';
 
@@ -43,6 +41,64 @@ function scoreHexColor(ratio: number): string {
   if (ratio >= 0.7) return '#10b981';
   if (ratio >= 0.4) return '#f59e0b';
   return '#ef4444';
+}
+
+function formatCoefficient(weight: number): string {
+  const n = Number(weight);
+  if (!Number.isFinite(n)) return '1';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
+}
+
+/** Libellé d'axe multi-lignes, sans troncature "…" — remplace le tick par défaut de recharts. */
+function wrapLabel(text: string, maxCharsPerLine: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > maxCharsPerLine && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  });
+  if (current) lines.push(current);
+  return lines;
+}
+
+function CriterionAxisTick({
+  x,
+  y,
+  payload,
+  textAnchor,
+}: {
+  x: number;
+  y: number;
+  payload: { value: string };
+  textAnchor: 'start' | 'end';
+}) {
+  const lines = wrapLabel(payload.value, 26);
+  const lineHeight = 12;
+  const totalHeight = (lines.length - 1) * lineHeight;
+  const startY = y - totalHeight / 2;
+  return (
+    <g>
+      {lines.map((line, i) => (
+        <text
+          key={i}
+          x={x}
+          y={startY + i * lineHeight}
+          textAnchor={textAnchor}
+          fontSize={11}
+          fill="hsl(var(--foreground))"
+          dominantBaseline="central"
+        >
+          {line}
+        </text>
+      ))}
+    </g>
+  );
 }
 
 export function EvaluationReportView({
@@ -61,6 +117,7 @@ export function EvaluationReportView({
 }) {
   const { t, lang } = useI18n();
   const { toast } = useToast();
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   const { evaluation, position, branchName, departmentName, roleName, percentage } = row;
   const responses = evaluation.responses ?? [];
 
@@ -70,6 +127,7 @@ export function EvaluationReportView({
   );
   const previousPeriodLabel = previousRow?.evaluation.period ?? null;
   const previousPercentage = previousRow?.percentage ?? null;
+  const hasComparison = previousPeriodLabel != null && previousPercentage != null;
   const delta =
     percentage != null && previousPercentage != null ? percentage - previousPercentage : null;
 
@@ -79,8 +137,11 @@ export function EvaluationReportView({
     const ratio = maxPoints > 0 ? Math.max(0, Math.min(1, response.points / maxPoints)) : 0;
     const points = Number(response.points.toFixed(1));
     const max = Number(maxPoints.toFixed(1));
+    const name = resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang);
+    const coefficient = formatCoefficient(criterion?.weight ?? 1);
     return {
-      name: resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang),
+      name,
+      axisLabel: `${name} (×${coefficient})`,
       points,
       maxPoints: max,
       label: `${points} / ${max}`,
@@ -93,20 +154,23 @@ export function EvaluationReportView({
   const overallColor = scoreHexColor(overallRatio);
   const gaugeData = [{ value: Math.round(overallRatio * 100), fill: overallColor }];
 
-  const handleDownloadPdf = () => {
-    const opened = generateEvaluationReportPdf({
-      evaluation,
-      employeeName: evaluation.employee_name ?? '—',
-      position,
-      branchName,
-      departmentName,
-      roleName,
-      percentage,
-      criteria,
-      rules,
-      previousPeriodLabel,
-      previousPercentage,
-    });
+  const handleDownloadPdf = async (pdfLang: Lang) => {
+    const opened = await generateEvaluationReportPdf(
+      {
+        evaluation,
+        employeeName: evaluation.employee_name ?? '—',
+        position,
+        branchName,
+        departmentName,
+        roleName,
+        percentage,
+        criteria,
+        rules,
+        previousPeriodLabel,
+        previousPercentage,
+      },
+      pdfLang
+    );
     if (!opened) {
       toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
     }
@@ -142,7 +206,14 @@ export function EvaluationReportView({
             Excel
           </Button>
           {evaluation.status === 'approved' && (
-            <Button size="sm" className="gap-1.5" onClick={handleDownloadPdf}>
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={() => {
+                preloadArabicFont();
+                setPdfDialogOpen(true);
+              }}
+            >
               <FileText className="h-4 w-4" />
               PDF
             </Button>
@@ -202,40 +273,36 @@ export function EvaluationReportView({
             </div>
           </div>
 
-          <div className="text-right">
-            {previousPeriodLabel && previousPercentage != null ? (
-              <>
-                <p className="text-xs text-muted-foreground">
-                  {t('reports.vsPrevious', { period: previousPeriodLabel })}
-                </p>
-                <p className="text-lg font-semibold text-muted-foreground">
-                  {formatEvaluationPercentage(previousPercentage)}
-                </p>
-                <p
-                  className="flex items-center justify-end gap-1 text-sm font-semibold"
-                  style={{
-                    color:
-                      delta != null && delta > 0.05
-                        ? '#10b981'
-                        : delta != null && delta < -0.05
-                          ? '#ef4444'
-                          : 'hsl(var(--muted-foreground))',
-                  }}
-                >
-                  {delta != null && delta > 0.05 ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : delta != null && delta < -0.05 ? (
-                    <TrendingDown className="h-4 w-4" />
-                  ) : (
-                    <Minus className="h-4 w-4" />
-                  )}
-                  {delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts` : '—'}
-                </p>
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground">{t('reports.firstEvaluation')}</p>
-            )}
-          </div>
+          {hasComparison && (
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">
+                {t('reports.vsPrevious', { period: previousPeriodLabel })}
+              </p>
+              <p className="text-lg font-semibold text-muted-foreground">
+                {formatEvaluationPercentage(previousPercentage)}
+              </p>
+              <p
+                className="flex items-center justify-end gap-1 text-sm font-semibold"
+                style={{
+                  color:
+                    delta != null && delta > 0.05
+                      ? '#10b981'
+                      : delta != null && delta < -0.05
+                        ? '#ef4444'
+                        : 'hsl(var(--muted-foreground))',
+                }}
+              >
+                {delta != null && delta > 0.05 ? (
+                  <TrendingUp className="h-4 w-4" />
+                ) : delta != null && delta < -0.05 ? (
+                  <TrendingDown className="h-4 w-4" />
+                ) : (
+                  <Minus className="h-4 w-4" />
+                )}
+                {delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts` : '—'}
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -246,15 +313,16 @@ export function EvaluationReportView({
               <CardTitle className="text-base">{t('reports.resultsByCriterion')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 42)}>
-                <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 36 }}>
+              <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 52)}>
+                <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 40, top: 4, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis type="number" domain={[0, 'dataMax']} hide />
                   <YAxis
                     type="category"
-                    dataKey="name"
-                    width={160}
-                    tick={{ fontSize: 12 }}
+                    dataKey="axisLabel"
+                    width={190}
+                    interval={0}
+                    tick={<CriterionAxisTick textAnchor={lang === 'ar' ? 'start' : 'end'} />}
                     reversed={lang === 'ar'}
                     orientation={lang === 'ar' ? 'right' : 'left'}
                   />
@@ -302,48 +370,6 @@ export function EvaluationReportView({
         </div>
       )}
 
-      {responses.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{t('evalMgmt.criteria')}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 px-4">{t('criteria.colName')}</th>
-                    <th className="text-left py-2 px-4">{t('criteria.coefficient')}</th>
-                    <th className="text-right py-2 px-4">{t('common.value')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {responses.map((response) => {
-                    const criterion = criteria.find((c) => c.id === response.criterion_id);
-                    const name = criterion
-                      ? getCriterionDisplayName(criterion, lang)
-                      : response.criterion_name;
-                    const value =
-                      typeof response.value === 'boolean'
-                        ? response.value
-                          ? t('common.yes')
-                          : t('common.no')
-                        : String(response.value);
-                    return (
-                      <tr key={response.criterion_id} className="border-b last:border-0">
-                        <td className="py-2 px-4">{name}</td>
-                        <td className="py-2 px-4 text-muted-foreground">×{criterion?.weight ?? 1}</td>
-                        <td className="py-2 px-4 text-right text-muted-foreground">{value}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {evaluation.feedback?.trim() && (
         <Card>
           <CardHeader className="pb-2">
@@ -358,6 +384,15 @@ export function EvaluationReportView({
       {evaluation.activity_log && evaluation.activity_log.length > 0 && (
         <EvaluationAuditTrail entries={evaluation.activity_log} />
       )}
+
+      <PdfLanguageDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        onSelect={(pdfLang) => {
+          setPdfDialogOpen(false);
+          void handleDownloadPdf(pdfLang);
+        }}
+      />
     </div>
   );
 }

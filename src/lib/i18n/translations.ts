@@ -205,6 +205,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       pdfApprovedOnly: 'Le rapport PDF est disponible uniquement pour les évaluations approuvées.',
       vsPrevious: 'Vs {period}',
       firstEvaluation: 'Première évaluation de cet employé',
+      choosePdfLanguage: 'Langue du PDF',
+      choosePdfLanguageDesc: 'Dans quelle langue générer ce rapport PDF ?',
       noApprovedInSelection: 'Aucune évaluation approuvée dans la sélection.',
     },
     team: {
@@ -625,6 +627,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       pdfApprovedOnly: 'تقرير PDF متاح فقط للتقييمات المعتمدة.',
       vsPrevious: 'مقارنة بـ {period}',
       firstEvaluation: 'أول تقييم لهذا الموظف',
+      choosePdfLanguage: 'لغة ملف PDF',
+      choosePdfLanguageDesc: 'بأي لغة تريد إنشاء هذا التقرير؟',
       noApprovedInSelection: 'لا يوجد تقييم معتمد ضمن التحديد.',
     },
     team: {

@@ -37,8 +37,11 @@ import {
 import {
   generateEvaluationReportPdf,
   generateEvaluationReportsPdf,
+  preloadArabicFont,
   type EvaluationReportPdfInput,
 } from '@/lib/evaluation-report-pdf';
+import { PdfLanguageDialog } from '@/components/evaluation/PdfLanguageDialog';
+import type { Lang } from '@/lib/i18n/translations';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 import {
   calculateCriterionScore,
@@ -57,9 +60,10 @@ import {
   deleteEvaluation,
   fetchEvaluations,
   findEvaluationForOpenPeriod,
+  resolveEvaluationPercentage,
   upsertEvaluation,
 } from '@/lib/evaluation-storage';
-import { type EvaluationStatus } from '@/lib/evaluation-types';
+import { type EvaluationRecord, type EvaluationStatus } from '@/lib/evaluation-types';
 import {
   describeEvaluationPeriodCode,
   dateToPeriodCode,
@@ -138,6 +142,8 @@ export default function Evaluation() {
   const [rejectionReasons, setRejectionReasons] = useState<RejectionReasonRecord[]>([]);
   const [selectedReasonId, setSelectedReasonId] = useState('');
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const [pendingPdfAction, setPendingPdfAction] = useState<((lang: Lang) => void) | null>(null);
   const [availablePeriods, setAvailablePeriods] = useState<EvaluationPeriodOption[]>([]);
   const [frequencyOrderedPeriods, setFrequencyOrderedPeriods] = useState<{ start_date: string }[]>([]);
   const loadGenerationRef = useRef(0);
@@ -219,6 +225,48 @@ export default function Evaluation() {
   const employeePosteLabel = (emp: EmployeeForEvaluation) => {
     const label = formatRoleServiceLabel(roleName(emp.role_id), departmentName(emp.department_id));
     return label || '—';
+  };
+
+  const periodStartByName = useMemo(() => {
+    const map: Record<string, string> = {};
+    availablePeriods.forEach((p) => {
+      map[p.name] = p.start_date;
+    });
+    return map;
+  }, [availablePeriods]);
+
+  /** Évaluation la plus récente précédant chronologiquement la période donnée, pour cet employé. */
+  const findPreviousForEmployee = (
+    employeeId: string,
+    currentPeriodName: string,
+    allEvaluations: EvaluationRecord[]
+  ): { previousPeriodLabel: string | null; previousPercentage: number | null } => {
+    const currentStart = periodStartByName[currentPeriodName];
+    if (!currentStart) return { previousPeriodLabel: null, previousPercentage: null };
+    const currentTime = new Date(currentStart).getTime();
+    const employee = employees.find((e) => e.id === employeeId);
+
+    let best: EvaluationRecord | null = null;
+    let bestTime = -Infinity;
+    for (const candidate of allEvaluations) {
+      if (candidate.employee_id !== employeeId) continue;
+      const candidateStart = candidate.period ? periodStartByName[candidate.period] : undefined;
+      if (!candidateStart) continue;
+      const candidateTime = new Date(candidateStart).getTime();
+      if (candidateTime < currentTime && candidateTime > bestTime) {
+        best = candidate;
+        bestTime = candidateTime;
+      }
+    }
+    if (!best) return { previousPeriodLabel: null, previousPercentage: null };
+    const percentage = resolveEvaluationPercentage(best, criteria, rules, employee);
+    return { previousPeriodLabel: best.period ?? null, previousPercentage: percentage };
+  };
+
+  const requestPdf = (action: (lang: Lang) => void) => {
+    preloadArabicFont();
+    setPendingPdfAction(() => action);
+    setPdfDialogOpen(true);
   };
 
   const branchFilterOptions = useMemo(() => {
@@ -478,6 +526,7 @@ export default function Evaluation() {
           percentage: scoresByEmployee[employee.id] ?? null,
           criteria,
           rules,
+          ...findPreviousForEmployee(employee.id, periodName, evaluations),
         });
       }
 
@@ -490,10 +539,12 @@ export default function Evaluation() {
         return;
       }
 
-      const opened = generateEvaluationReportsPdf(reportInputs);
-      if (!opened) {
-        toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
-      }
+      requestPdf(async (lang) => {
+        const opened = await generateEvaluationReportsPdf(reportInputs, lang);
+        if (!opened) {
+          toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+        }
+      });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : t('common.error');
       toast({ variant: 'destructive', title: t('common.error'), description: message });
@@ -757,7 +808,7 @@ export default function Evaluation() {
     setActivityLog([]);
   };
 
-  const handlePrintCurrent = () => {
+  const handlePrintCurrent = async () => {
     if (!selectedEmployee || !currentStatus) return;
     const responses: EvaluationResponseItem[] = applicableCriteria
       .filter((c) => formValues[c.id] !== undefined)
@@ -770,32 +821,41 @@ export default function Evaluation() {
         points: calculateCriterionScore(c.type, formValues[c.id], rules, c.calculation_rule_id),
       }));
 
-    const opened = generateEvaluationReportPdf({
-      evaluation: {
-        id: currentEvaluationId ?? '',
-        employee_id: selectedEmployee.id,
-        employee_email: selectedEmployee.email,
-        employee_name: selectedEmployee.name,
-        manager_id: null,
-        period: openPeriodName || period,
-        score: totalPercentage,
-        feedback: notes || null,
-        status: currentStatus,
-        responses,
-        activity_log: activityLog,
-      },
-      employeeName: selectedEmployee.name,
-      position: selectedEmployee.position ?? null,
-      branchName: selectedEmployee.branch_name ?? null,
-      departmentName: departmentName(selectedEmployee.department_id),
-      roleName: roleName(selectedEmployee.role_id),
-      percentage: totalPercentage,
-      criteria,
-      rules,
+    const periodName = openPeriodName || period;
+    const allEvaluations = await fetchEvaluations();
+
+    requestPdf(async (lang) => {
+      const opened = await generateEvaluationReportPdf(
+        {
+          evaluation: {
+            id: currentEvaluationId ?? '',
+            employee_id: selectedEmployee.id,
+            employee_email: selectedEmployee.email,
+            employee_name: selectedEmployee.name,
+            manager_id: null,
+            period: periodName,
+            score: totalPercentage,
+            feedback: notes || null,
+            status: currentStatus,
+            responses,
+            activity_log: activityLog,
+          },
+          employeeName: selectedEmployee.name,
+          position: selectedEmployee.position ?? null,
+          branchName: selectedEmployee.branch_name ?? null,
+          departmentName: departmentName(selectedEmployee.department_id),
+          roleName: roleName(selectedEmployee.role_id),
+          percentage: totalPercentage,
+          criteria,
+          rules,
+          ...findPreviousForEmployee(selectedEmployee.id, periodName, allEvaluations),
+        },
+        lang
+      );
+      if (!opened) {
+        toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+      }
     });
-    if (!opened) {
-      toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
-    }
   };
 
   const persistEvaluation = async (status: EvaluationStatus, requireCriteria: boolean): Promise<boolean> => {
@@ -1332,6 +1392,15 @@ export default function Evaluation() {
             </CardContent>
           </Card>
         )}
+
+        <PdfLanguageDialog
+          open={pdfDialogOpen}
+          onOpenChange={setPdfDialogOpen}
+          onSelect={(lang) => {
+            setPdfDialogOpen(false);
+            pendingPdfAction?.(lang);
+          }}
+        />
       </div>
     );
   }
@@ -1425,7 +1494,7 @@ export default function Evaluation() {
         <Card className="border-muted">
           <CardContent className="py-3 text-sm text-muted-foreground flex flex-wrap items-center justify-between gap-2">
             <span>{t('evaluation.finalizedInfo', { status: t(`evalStatus.${currentStatus}`) })}</span>
-            <Button variant="outline" size="sm" className="gap-2" onClick={handlePrintCurrent}>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => void handlePrintCurrent()}>
               <Printer className="h-4 w-4" />
               {t('evaluation.print')}
             </Button>
@@ -1631,6 +1700,15 @@ export default function Evaluation() {
       </AlertDialog>
 
       <EvaluationAuditTrail entries={activityLog} />
+
+      <PdfLanguageDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        onSelect={(lang) => {
+          setPdfDialogOpen(false);
+          pendingPdfAction?.(lang);
+        }}
+      />
     </div>
   );
 }
