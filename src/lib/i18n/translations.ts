@@ -200,6 +200,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       criteriaOverview: "Vue d'ensemble (radar)",
       exportSelection: 'Exporter la sélection (Excel)',
       pdfNote: 'Le PDF est généré en français (limitation des polices intégrées).',
+      popupBlockedTitle: 'Pop-up bloquée',
+      popupBlockedDesc: 'Le navigateur a bloqué l\'ouverture du PDF dans un nouvel onglet — le fichier a été téléchargé à la place.',
     },
     team: {
       defaultTitle: 'Employés',
@@ -254,6 +256,7 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       selectAllRows: 'Sélectionner les {count} lignes du tableau',
       pageRowsSelected: 'Les {count} lignes de cette page sont sélectionnées.',
       export: 'Exporter',
+      print: 'Imprimer',
       colEmployee: 'Employé',
       colPoste: 'Poste',
       colBranch: 'Filiale',
@@ -613,6 +616,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       criteriaOverview: 'نظرة شاملة (رادار)',
       exportSelection: 'تصدير التحديد (Excel)',
       pdfNote: 'يتم إنشاء ملف PDF باللغة الفرنسية (بسبب قيود الخطوط المدمجة).',
+      popupBlockedTitle: 'تم حظر النافذة المنبثقة',
+      popupBlockedDesc: 'منع المتصفح فتح PDF في تبويب جديد — تم تنزيل الملف بدلاً من ذلك.',
     },
     team: {
       defaultTitle: 'الموظفون',
@@ -665,6 +670,7 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       selectAllRows: 'تحديد كل الأسطر ({count}) في الجدول',
       pageRowsSelected: 'تم تحديد الأسطر ({count}) في هذه الصفحة.',
       export: 'تصدير',
+      print: 'طباعة',
       colEmployee: 'الموظف',
       colPoste: 'المنصب',
       colBranch: 'الفرع',

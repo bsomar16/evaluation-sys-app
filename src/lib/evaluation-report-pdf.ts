@@ -10,6 +10,9 @@ import { resolveCriterionName } from '@/lib/evaluation-report-data';
  * (Helvetica) ne couvrent pas les caractères arabes et les afficheraient sous
  * forme de blocs illisibles. La vue à l'écran (EvaluationReportView), elle,
  * reste bilingue FR/AR — seul l'export PDF est figé en français.
+ *
+ * Le PDF s'ouvre dans un nouvel onglet (visionneuse PDF du navigateur) plutôt
+ * que de forcer un téléchargement, pour une consultation rapide.
  */
 
 const COLOR_PRIMARY: [number, number, number] = [30, 58, 95];
@@ -35,6 +38,25 @@ function sanitizeFilenamePart(value: string): string {
     .toLowerCase();
 }
 
+/**
+ * Ouvre le PDF dans un nouvel onglet (visionneuse native du navigateur). Si le
+ * navigateur bloque la pop-up (bloqueur de pop-up), replie automatiquement sur
+ * un téléchargement direct pour que l'utilisateur récupère toujours le fichier.
+ * Retourne `true` si l'onglet a pu s'ouvrir, `false` si on est passé par le repli.
+ */
+function openPdfOrDownload(doc: jsPDF, title: string, filename: string): boolean {
+  doc.setProperties({ title });
+  const blobUrl = String(doc.output('bloburl'));
+  const win = window.open(blobUrl, '_blank');
+  if (win) return true;
+
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  link.click();
+  return false;
+}
+
 export interface EvaluationReportPdfInput {
   evaluation: EvaluationRecord;
   employeeName: string;
@@ -47,9 +69,15 @@ export interface EvaluationReportPdfInput {
   rules: CalculationRuleRecord[];
 }
 
-export function generateEvaluationReportPdf(input: EvaluationReportPdfInput): void {
+function formatCoefficient(weight: number): string {
+  const n = Number(weight);
+  if (!Number.isFinite(n)) return '1';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
+}
+
+/** Dessine un rapport d'évaluation sur la page courante du document (déjà positionnée). */
+function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput): void {
   const { evaluation, employeeName, position, branchName, departmentName, roleName, percentage, criteria, rules } = input;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 14;
   let cursorY = 0;
@@ -195,29 +223,53 @@ export function generateEvaluationReportPdf(input: EvaluationReportPdfInput): vo
     doc.setTextColor(...COLOR_MUTED);
     const lines = doc.splitTextToSize(evaluation.feedback.trim(), pageWidth - marginX * 2);
     doc.text(lines, marginX, cursorY);
-    cursorY += lines.length * 5 + 4;
   }
+}
 
-  // ── Pied de page ───────────────────────────────────────────────────
+function addFooters(doc: jsPDF): void {
+  const marginX = 14;
   const pageCount = doc.getNumberOfPages();
   for (let page = 1; page <= pageCount; page += 1) {
     doc.setPage(page);
+    const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     doc.setFontSize(8);
     doc.setTextColor(...COLOR_MUTED);
-    doc.text(
-      `Généré le ${new Date().toLocaleDateString('fr-FR')} — Page ${page}/${pageCount}`,
-      marginX,
-      pageHeight - 8
-    );
+    doc.text(`Généré le ${new Date().toLocaleDateString('fr-FR')}`, marginX, pageHeight - 8);
+    doc.text(`Page ${page}/${pageCount}`, pageWidth - marginX, pageHeight - 8, { align: 'right' });
   }
-
-  const filename = `evaluation-${sanitizeFilenamePart(employeeName)}-${sanitizeFilenamePart(evaluation.period || 'periode')}.pdf`;
-  doc.save(filename);
 }
 
-function formatCoefficient(weight: number): string {
-  const n = Number(weight);
-  if (!Number.isFinite(n)) return '1';
-  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
+/**
+ * Génère le rapport PDF d'une évaluation et l'ouvre dans un nouvel onglet.
+ * Retourne `true` si l'onglet a pu s'ouvrir, `false` si le navigateur a bloqué
+ * la pop-up et que le fichier a été téléchargé à la place.
+ */
+export function generateEvaluationReportPdf(input: EvaluationReportPdfInput): boolean {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  renderEvaluationReport(doc, input);
+  addFooters(doc);
+  const title = `Evaluation ${input.employeeName} - ${input.evaluation.period ?? ''}`.trim();
+  const filename = `evaluation-${sanitizeFilenamePart(input.employeeName)}-${sanitizeFilenamePart(input.evaluation.period || 'periode')}.pdf`;
+  return openPdfOrDownload(doc, title, filename);
+}
+
+/**
+ * Génère un PDF combinant plusieurs rapports d'évaluation (une section par
+ * employé, chacune sur ses propres pages) et l'ouvre dans un seul nouvel onglet.
+ * Même repli automatique sur téléchargement si la pop-up est bloquée.
+ */
+export function generateEvaluationReportsPdf(inputs: EvaluationReportPdfInput[]): boolean {
+  if (inputs.length === 0) return true;
+  if (inputs.length === 1) {
+    return generateEvaluationReportPdf(inputs[0]);
+  }
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  inputs.forEach((input, index) => {
+    if (index > 0) doc.addPage();
+    renderEvaluationReport(doc, input);
+  });
+  addFooters(doc);
+  return openPdfOrDownload(doc, `Rapports d'évaluation (${inputs.length})`, `rapports-evaluations-${inputs.length}.pdf`);
 }

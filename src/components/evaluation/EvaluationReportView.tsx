@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { useToast } from '@/hooks/use-toast';
 import {
   formatEvaluationPercentage,
   getCriterionDisplayName,
@@ -49,6 +50,7 @@ export function EvaluationReportView({
   rules: CalculationRuleRecord[];
 }) {
   const { t, lang } = useI18n();
+  const { toast } = useToast();
   const { evaluation, position, branchName, departmentName, roleName, percentage } = row;
   const responses = evaluation.responses ?? [];
 
@@ -73,7 +75,7 @@ export function EvaluationReportView({
   const gaugeData = [{ value: Math.round(overallRatio * 100), fill: overallColor }];
 
   const handleDownloadPdf = () => {
-    generateEvaluationReportPdf({
+    const opened = generateEvaluationReportPdf({
       evaluation,
       employeeName: evaluation.employee_name ?? '—',
       position,
@@ -84,6 +86,9 @@ export function EvaluationReportView({
       criteria,
       rules,
     });
+    if (!opened) {
+      toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+    }
   };
 
   const handleExportExcel = () => {

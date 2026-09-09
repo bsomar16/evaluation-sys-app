@@ -17,7 +17,7 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { CheckCircle, ChevronRight, Download, Loader2, Send, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle, ChevronRight, Download, Loader2, Printer, Send, Trash2, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { usePagination } from '@/hooks/usePagination';
@@ -34,6 +34,11 @@ import {
   getRejectionReasonLabel,
   type RejectionReasonRecord,
 } from '@/lib/rejection-reasons';
+import {
+  generateEvaluationReportPdf,
+  generateEvaluationReportsPdf,
+  type EvaluationReportPdfInput,
+} from '@/lib/evaluation-report-pdf';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 import {
   calculateCriterionScore,
@@ -431,6 +436,58 @@ export default function Evaluation() {
     }
   };
 
+  const handlePrintSelection = async () => {
+    if (selectedEmployees.length === 0) return;
+
+    const periodName = (openPeriodName || period).trim();
+    const periodOption = availablePeriods.find((item) => item.name === periodName);
+
+    try {
+      const evaluations = await runWithLoadingOverlay(
+        () => fetchEvaluations(),
+        t('common.loading')
+      );
+
+      const reportInputs: EvaluationReportPdfInput[] = [];
+      for (const employee of selectedEmployees) {
+        const evaluation = periodOption
+          ? findEvaluationForOpenPeriod(employee.id, periodOption, evaluations)
+          : evaluations.find(
+              (row) => row.employee_id === employee.id && (row.period ?? '').trim() === periodName
+            ) ?? null;
+        if (!evaluation) continue;
+        reportInputs.push({
+          evaluation,
+          employeeName: employee.name,
+          position: employee.position ?? null,
+          branchName: employee.branch_name ?? null,
+          departmentName: departmentName(employee.department_id),
+          roleName: roleName(employee.role_id),
+          percentage: scoresByEmployee[employee.id] ?? null,
+          criteria,
+          rules,
+        });
+      }
+
+      if (reportInputs.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: t('evalStatus.none'),
+          description: t('evaluation.noEvalToDelete'),
+        });
+        return;
+      }
+
+      const opened = generateEvaluationReportsPdf(reportInputs);
+      if (!opened) {
+        toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t('common.error');
+      toast({ variant: 'destructive', title: t('common.error'), description: message });
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (!canBulkDeleteEvaluations || selectedEmployees.length === 0) {
       toast({ variant: 'destructive', title: t('common.accessDenied'), description: t('common.accessDenied') });
@@ -686,6 +743,47 @@ export default function Evaluation() {
     setCurrentEvaluationId(null);
     setCurrentStatus(null);
     setActivityLog([]);
+  };
+
+  const handlePrintCurrent = () => {
+    if (!selectedEmployee || !currentStatus) return;
+    const responses: EvaluationResponseItem[] = applicableCriteria
+      .filter((c) => formValues[c.id] !== undefined)
+      .map((c) => ({
+        criterion_id: c.id,
+        criterion_name: c.name,
+        type: c.type,
+        calculation_rule_id: c.calculation_rule_id,
+        value: formValues[c.id],
+        points: calculateCriterionScore(c.type, formValues[c.id], rules, c.calculation_rule_id),
+      }));
+
+    const opened = generateEvaluationReportPdf({
+      evaluation: {
+        id: currentEvaluationId ?? '',
+        employee_id: selectedEmployee.id,
+        employee_email: selectedEmployee.email,
+        employee_name: selectedEmployee.name,
+        manager_id: null,
+        period: openPeriodName || period,
+        score: totalPercentage,
+        feedback: notes || null,
+        status: currentStatus,
+        responses,
+        activity_log: activityLog,
+      },
+      employeeName: selectedEmployee.name,
+      position: selectedEmployee.position ?? null,
+      branchName: selectedEmployee.branch_name ?? null,
+      departmentName: departmentName(selectedEmployee.department_id),
+      roleName: roleName(selectedEmployee.role_id),
+      percentage: totalPercentage,
+      criteria,
+      rules,
+    });
+    if (!opened) {
+      toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+    }
   };
 
   const persistEvaluation = async (status: EvaluationStatus, requireCriteria: boolean): Promise<boolean> => {
@@ -1024,6 +1122,15 @@ export default function Evaluation() {
                   variant="outline"
                   size="sm"
                   className="gap-2"
+                  onClick={() => void handlePrintSelection()}
+                >
+                  <Printer className="h-4 w-4" />
+                  {t('evaluation.print')}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
                   onClick={() => setExportDialogOpen(true)}
                 >
                   <Download className="h-4 w-4" />
@@ -1302,8 +1409,12 @@ export default function Evaluation() {
 
       {isFinalized && (
         <Card className="border-muted">
-          <CardContent className="py-3 text-sm text-muted-foreground">
-            {t('evaluation.finalizedInfo', { status: t(`evalStatus.${currentStatus}`) })}
+          <CardContent className="py-3 text-sm text-muted-foreground flex flex-wrap items-center justify-between gap-2">
+            <span>{t('evaluation.finalizedInfo', { status: t(`evalStatus.${currentStatus}`) })}</span>
+            <Button variant="outline" size="sm" className="gap-2" onClick={handlePrintCurrent}>
+              <Printer className="h-4 w-4" />
+              {t('evaluation.print')}
+            </Button>
           </CardContent>
         </Card>
       )}

@@ -6,8 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, FileSpreadsheet, FileText, Eye } from 'lucide-react';
+import { Search, FileSpreadsheet, FileText, Eye, Printer } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { useToast } from '@/hooks/use-toast';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
@@ -16,7 +17,7 @@ import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { formatEvaluationPercentage } from '@/lib/evaluation-calculator';
 import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
 import { fetchEvaluationReportData, type EvaluationReportData, type EvaluationReportRow } from '@/lib/evaluation-report-data';
-import { generateEvaluationReportPdf } from '@/lib/evaluation-report-pdf';
+import { generateEvaluationReportPdf, generateEvaluationReportsPdf } from '@/lib/evaluation-report-pdf';
 import { exportEvaluationReportListToExcel, exportEvaluationReportToExcel } from '@/lib/evaluation-report-excel';
 import { EvaluationReportView } from '@/components/evaluation/EvaluationReportView';
 
@@ -31,6 +32,7 @@ function scoreBadgeVariant(percentage: number | null): 'default' | 'secondary' |
 
 export default function Reports() {
   const { t } = useI18n();
+  const { toast } = useToast();
   const { canRead } = useRolePermissions();
   const [data, setData] = useState<EvaluationReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,9 +87,30 @@ export default function Reports() {
     exportEvaluationReportListToExcel(selectedRows.length > 0 ? selectedRows : filtered);
   };
 
+  const handlePrintSelection = () => {
+    if (!data) return;
+    const rows = selectedRows.length > 0 ? selectedRows : filtered;
+    const opened = generateEvaluationReportsPdf(
+      rows.map((row) => ({
+        evaluation: row.evaluation,
+        employeeName: row.evaluation.employee_name ?? '—',
+        position: row.position,
+        branchName: row.branchName,
+        departmentName: row.departmentName,
+        roleName: row.roleName,
+        percentage: row.percentage,
+        criteria: data.criteria,
+        rules: data.rules,
+      }))
+    );
+    if (!opened) {
+      toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+    }
+  };
+
   const handlePdf = (row: EvaluationReportRow) => {
     if (!data) return;
-    generateEvaluationReportPdf({
+    const opened = generateEvaluationReportPdf({
       evaluation: row.evaluation,
       employeeName: row.evaluation.employee_name ?? '—',
       position: row.position,
@@ -98,6 +121,9 @@ export default function Reports() {
       criteria: data.criteria,
       rules: data.rules,
     });
+    if (!opened) {
+      toast({ title: t('reports.popupBlockedTitle'), description: t('reports.popupBlockedDesc') });
+    }
   };
 
   const handleExcel = (row: EvaluationReportRow) => {
@@ -126,10 +152,16 @@ export default function Reports() {
           <h1 className="text-2xl font-bold font-heading text-foreground">{t('reports.title')}</h1>
           <p className="text-muted-foreground text-sm mt-1">{t('reports.subtitle')}</p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={handleExportSelection} disabled={filtered.length === 0}>
-          <FileSpreadsheet size={16} />
-          {t('reports.exportSelection')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="gap-2" onClick={handlePrintSelection} disabled={filtered.length === 0}>
+            <Printer size={16} />
+            {t('evaluation.print')}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={handleExportSelection} disabled={filtered.length === 0}>
+            <FileSpreadsheet size={16} />
+            {t('reports.exportSelection')}
+          </Button>
+        </div>
       </div>
 
       <Card>
