@@ -268,7 +268,7 @@ export default function Reports() {
       </Card>
 
       <Dialog open={!!viewingRow} onOpenChange={(open) => !open && setViewingRow(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('reports.detailTitle')}</DialogTitle>
             <DialogDescription>{t('reports.pdfNote')}</DialogDescription>
