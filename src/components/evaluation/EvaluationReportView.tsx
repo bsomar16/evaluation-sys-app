@@ -118,12 +118,17 @@ export function EvaluationReportView({
             <FileSpreadsheet className="h-4 w-4" />
             Excel
           </Button>
-          <Button size="sm" className="gap-1.5" onClick={handleDownloadPdf}>
-            <FileText className="h-4 w-4" />
-            PDF
-          </Button>
+          {evaluation.status === 'approved' && (
+            <Button size="sm" className="gap-1.5" onClick={handleDownloadPdf}>
+              <FileText className="h-4 w-4" />
+              PDF
+            </Button>
+          )}
         </div>
       </div>
+      {evaluation.status !== 'approved' && (
+        <p className="text-xs text-muted-foreground -mt-2">{t('reports.pdfApprovedOnly')}</p>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
         <div className="rounded-md border p-3">

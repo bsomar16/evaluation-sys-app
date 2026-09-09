@@ -202,6 +202,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       pdfNote: 'Le PDF est généré en français (limitation des polices intégrées).',
       popupBlockedTitle: 'Pop-up bloquée',
       popupBlockedDesc: 'Le navigateur a bloqué l\'ouverture du PDF dans un nouvel onglet — le fichier a été téléchargé à la place.',
+      pdfApprovedOnly: 'Le rapport PDF est disponible uniquement pour les évaluations approuvées.',
+      noApprovedInSelection: 'Aucune évaluation approuvée dans la sélection.',
     },
     team: {
       defaultTitle: 'Employés',
@@ -618,6 +620,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       pdfNote: 'يتم إنشاء ملف PDF باللغة الفرنسية (بسبب قيود الخطوط المدمجة).',
       popupBlockedTitle: 'تم حظر النافذة المنبثقة',
       popupBlockedDesc: 'منع المتصفح فتح PDF في تبويب جديد — تم تنزيل الملف بدلاً من ذلك.',
+      pdfApprovedOnly: 'تقرير PDF متاح فقط للتقييمات المعتمدة.',
+      noApprovedInSelection: 'لا يوجد تقييم معتمد ضمن التحديد.',
     },
     team: {
       defaultTitle: 'الموظفون',

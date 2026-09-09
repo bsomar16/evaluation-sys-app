@@ -82,16 +82,21 @@ export default function Reports() {
   };
 
   const selectedRows = filtered.filter((row) => selectedIds.has(row.evaluation.id));
+  // Le rapport PDF n'étant produit que pour les évaluations approuvées, on ne
+  // propose l'impression que pour ce sous-ensemble de la sélection (ou de la
+  // liste filtrée si rien n'est coché).
+  const printableRows = (selectedRows.length > 0 ? selectedRows : filtered).filter(
+    (row) => row.evaluation.status === 'approved'
+  );
 
   const handleExportSelection = () => {
     exportEvaluationReportListToExcel(selectedRows.length > 0 ? selectedRows : filtered);
   };
 
   const handlePrintSelection = () => {
-    if (!data) return;
-    const rows = selectedRows.length > 0 ? selectedRows : filtered;
+    if (!data || printableRows.length === 0) return;
     const opened = generateEvaluationReportsPdf(
-      rows.map((row) => ({
+      printableRows.map((row) => ({
         evaluation: row.evaluation,
         employeeName: row.evaluation.employee_name ?? '—',
         position: row.position,
@@ -109,7 +114,7 @@ export default function Reports() {
   };
 
   const handlePdf = (row: EvaluationReportRow) => {
-    if (!data) return;
+    if (!data || row.evaluation.status !== 'approved') return;
     const opened = generateEvaluationReportPdf({
       evaluation: row.evaluation,
       employeeName: row.evaluation.employee_name ?? '—',
@@ -153,10 +158,12 @@ export default function Reports() {
           <p className="text-muted-foreground text-sm mt-1">{t('reports.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={handlePrintSelection} disabled={filtered.length === 0}>
-            <Printer size={16} />
-            {t('evaluation.print')}
-          </Button>
+          {printableRows.length > 0 && (
+            <Button variant="outline" className="gap-2" onClick={handlePrintSelection}>
+              <Printer size={16} />
+              {t('evaluation.print')}
+            </Button>
+          )}
           <Button variant="outline" className="gap-2" onClick={handleExportSelection} disabled={filtered.length === 0}>
             <FileSpreadsheet size={16} />
             {t('reports.exportSelection')}
@@ -275,9 +282,11 @@ export default function Reports() {
                           <Button variant="ghost" size="sm" title="Excel" onClick={() => handleExcel(row)}>
                             <FileSpreadsheet className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" title="PDF" onClick={() => handlePdf(row)}>
-                            <FileText className="h-4 w-4" />
-                          </Button>
+                          {row.evaluation.status === 'approved' && (
+                            <Button variant="ghost" size="sm" title="PDF" onClick={() => handlePdf(row)}>
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))}

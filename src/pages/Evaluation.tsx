@@ -331,6 +331,12 @@ export default function Evaluation() {
     () => filteredEmployees.filter((employee) => selectedEmployeeIds.has(employee.id)),
     [filteredEmployees, selectedEmployeeIds]
   );
+  // Le PDF n'étant produit que pour les évaluations approuvées, le bouton Imprimer
+  // n'est visible que si la sélection contient au moins une évaluation approuvée.
+  const hasPrintableSelection = useMemo(
+    () => selectedEmployees.some((employee) => statusByEmployee[employee.id] === 'approved'),
+    [selectedEmployees, statusByEmployee]
+  );
 
   const canBulkDeleteEvaluations = canDelete('evaluations') || canDelete('evaluations_management');
 
@@ -455,7 +461,8 @@ export default function Evaluation() {
           : evaluations.find(
               (row) => row.employee_id === employee.id && (row.period ?? '').trim() === periodName
             ) ?? null;
-        if (!evaluation) continue;
+        // Le rapport PDF n'est produit que pour les évaluations approuvées.
+        if (!evaluation || evaluation.status !== 'approved') continue;
         reportInputs.push({
           evaluation,
           employeeName: employee.name,
@@ -472,8 +479,8 @@ export default function Evaluation() {
       if (reportInputs.length === 0) {
         toast({
           variant: 'destructive',
-          title: t('evalStatus.none'),
-          description: t('evaluation.noEvalToDelete'),
+          title: t('common.error'),
+          description: t('reports.noApprovedInSelection'),
         });
         return;
       }
@@ -1118,15 +1125,17 @@ export default function Evaluation() {
                     {t('common.delete')}
                   </Button>
                 )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => void handlePrintSelection()}
-                >
-                  <Printer className="h-4 w-4" />
-                  {t('evaluation.print')}
-                </Button>
+                {hasPrintableSelection && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => void handlePrintSelection()}
+                  >
+                    <Printer className="h-4 w-4" />
+                    {t('evaluation.print')}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
