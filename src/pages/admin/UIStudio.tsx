@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ImageIcon, Palette, RefreshCw } from 'lucide-react';
+import { ImageIcon, LayoutDashboard, Palette, RefreshCw } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -22,6 +22,7 @@ import {
 } from '@/lib/company-branding';
 import { cn } from '@/lib/utils';
 import { colorPalettes, applyPaletteToDOM, type PaletteKey, type ThemeMode } from '@/lib/palette-utils';
+import { loadDashboardTemplate, saveDashboardTemplate, type DashboardTemplate } from '@/lib/dashboard-template';
 type ColorKey = PaletteKey;
 type ThemeMode = 'light' | 'dark';
 type ColorVariable = 'background' | 'sidebar_background' | 'card' | 'accent' | 'muted' | 'foreground' | 'sidebar_foreground' | 'muted_foreground' | 'border' | 'input' | 'ring' | 'selection' | 'selection_foreground' | 'destructive' | 'success' | 'warning' | 'button_primary' | 'button_primary_text' | 'button_secondary' | 'button_secondary_text' | 'button_hover';
@@ -42,6 +43,12 @@ export default function UIStudio() {
     return (localStorage.getItem('appearanceMode') as any) || 'standard';
   });
   const [branding, setBranding] = useState<CompanyBrandingSettings>(() => loadCompanyBranding());
+  const [dashboardTemplate, setDashboardTemplate] = useState<DashboardTemplate>(() => loadDashboardTemplate());
+
+  const chooseDashboardTemplate = (template: DashboardTemplate) => {
+    setDashboardTemplate(template);
+    saveDashboardTemplate(template);
+  };
 
   // Watch for appearance mode changes from AppLayout
   useEffect(() => {
@@ -158,6 +165,46 @@ export default function UIStudio() {
           UI Studio
         </h1>
       </div>
+
+      {/* Modèle de tableau de bord */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5" />
+            Modèle de tableau de bord
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button
+              onClick={() => chooseDashboardTemplate('classic')}
+              className={cn(
+                'p-4 rounded-lg border-2 transition-all text-left hover:shadow-md',
+                dashboardTemplate === 'classic' ? 'border-accent bg-accent/20' : 'border-border hover:border-accent/50'
+              )}
+            >
+              <h3 className="font-semibold mb-1">Classique</h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Filtres période/filiale/service en carrousel, classement des employés, courbe d'évolution.
+              </p>
+              {dashboardTemplate === 'classic' && <Badge className="w-full justify-center">Actuel</Badge>}
+            </button>
+            <button
+              onClick={() => chooseDashboardTemplate('analytics')}
+              className={cn(
+                'p-4 rounded-lg border-2 transition-all text-left hover:shadow-md',
+                dashboardTemplate === 'analytics' ? 'border-accent bg-accent/20' : 'border-border hover:border-accent/50'
+              )}
+            >
+              <h3 className="font-semibold mb-1">Analytique</h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Vue synthétique multi-panneaux : KPI, comparaison filiales/départements, alertes, classements, tendances par critère.
+              </p>
+              {dashboardTemplate === 'analytics' && <Badge className="w-full justify-center">Actuel</Badge>}
+            </button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Palettes Prédéfinies */}
       <Card>
