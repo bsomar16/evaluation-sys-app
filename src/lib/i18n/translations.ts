@@ -208,6 +208,9 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       choosePdfLanguage: 'Langue du PDF',
       choosePdfLanguageDesc: 'Dans quelle langue générer ce rapport PDF ?',
       noApprovedInSelection: 'Aucune évaluation approuvée dans la sélection.',
+      previousPeriodSection: 'Période précédente',
+      colResponse: 'Réponse',
+      approvalComment: "Commentaire de l'approbateur",
     },
     team: {
       defaultTitle: 'Employés',
@@ -630,6 +633,9 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       choosePdfLanguage: 'لغة ملف PDF',
       choosePdfLanguageDesc: 'بأي لغة تريد إنشاء هذا التقرير؟',
       noApprovedInSelection: 'لا يوجد تقييم معتمد ضمن التحديد.',
+      previousPeriodSection: 'الفترة السابقة',
+      colResponse: 'الإجابة',
+      approvalComment: 'تعليق المُوافِق',
     },
     team: {
       defaultTitle: 'الموظفون',

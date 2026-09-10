@@ -46,6 +46,14 @@ export function appendAuditEntry(
   return [...(existing ?? []), entry];
 }
 
+/** Commentaire laissé par la personne qui a approuvé l'évaluation (entrée d'audit la plus récente). */
+export function getApprovalComment(entries: EvaluationAuditEntry[] | undefined): string | null {
+  const approvals = (entries ?? []).filter((e) => e.action === 'evaluation_approved' && e.comment?.trim());
+  if (approvals.length === 0) return null;
+  const latest = approvals.reduce((a, b) => (new Date(b.at).getTime() > new Date(a.at).getTime() ? b : a));
+  return latest.comment ?? null;
+}
+
 export function formatAuditDate(iso: string): string {
   try {
     return new Intl.DateTimeFormat('fr-FR', {

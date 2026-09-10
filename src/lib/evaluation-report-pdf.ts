@@ -9,6 +9,7 @@ import {
 } from '@/lib/evaluation-calculator';
 import { type EvaluationRecord } from '@/lib/evaluation-types';
 import { resolveCriterionName } from '@/lib/evaluation-report-data';
+import { getApprovalComment } from '@/lib/evaluation-audit';
 import { translations, type Lang } from '@/lib/i18n/translations';
 
 /**
@@ -48,11 +49,12 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     resultsByCriterion: 'Résultats par critère',
     colCriterion: 'Critère',
     colCoefficient: 'Coefficient',
-    colValue: 'Valeur saisie',
+    colValue: 'Réponse',
     colPoints: 'Points',
     yes: 'Oui',
     no: 'Non',
-    comment: "Commentaire de l'évaluateur",
+    comment: "Commentaire de l'approbateur",
+    previousPeriodSection: 'Période précédente',
     vsPrevious: 'Vs période précédente',
     generatedOn: 'Généré le',
     page: 'Page',
@@ -68,11 +70,12 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     resultsByCriterion: 'النتائج حسب المعيار',
     colCriterion: 'المعيار',
     colCoefficient: 'المعامل',
-    colValue: 'القيمة المدخلة',
+    colValue: 'الإجابة',
     colPoints: 'النقاط',
     yes: 'نعم',
     no: 'لا',
-    comment: 'تعليق المُقيّم',
+    comment: 'تعليق المُوافِق',
+    previousPeriodSection: 'الفترة السابقة',
     vsPrevious: 'مقارنة بالفترة السابقة',
     generatedOn: 'أُنشئ في',
     page: 'صفحة',
@@ -327,35 +330,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
     const filledX = isRtl ? barX + barWidth - filledWidth : barX;
     doc.roundedRect(filledX, barY, filledWidth, 6, 2, 2, 'F');
   }
-  cursorY += 14;
-
-  // ── Comparaison avec la période précédente ──────────────────────────
-  if (previousPeriodLabel && previousPercentage != null) {
-    const delta = percentage != null ? percentage - previousPercentage : null;
-    const deltaColor = delta == null ? COLOR_MUTED : delta > 0.05 ? COLOR_GREEN : delta < -0.05 ? COLOR_RED : COLOR_MUTED;
-    // Symboles ASCII simples : les caractères géométriques (▲▼＝) ne font pas
-    // partie de l'encodage WinAnsi des polices standard et s'affichaient
-    // corrompus dans le PDF.
-    const arrow = delta == null ? '' : delta > 0.05 ? '^' : delta < -0.05 ? 'v' : '=';
-    const deltaText = delta == null ? '' : `${arrow} ${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts`;
-
-    setFont(doc, lang, 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...COLOR_MUTED);
-    drawText(
-      doc,
-      lang,
-      `${L.vsPrevious} (${previousPeriodLabel}) : ${formatEvaluationPercentage(previousPercentage)}`,
-      startX,
-      cursorY,
-      { align: startAlign }
-    );
-    setFont(doc, lang, 'bold');
-    doc.setTextColor(...deltaColor);
-    drawText(doc, lang, deltaText, endX, cursorY, { align: endAlign });
-    cursorY += 8;
-  }
-  cursorY += 4;
+  cursorY += 18;
 
   // ── Diagramme par critère ────────────────────────────────────────────
   const responses = evaluation.responses ?? [];
@@ -448,8 +423,9 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
     cursorY = (doc as any).lastAutoTable.finalY + 10;
   }
 
-  // ── Commentaire de l'évaluateur ──────────────────────────────────────
-  if (evaluation.feedback?.trim()) {
+  // ── Commentaire de l'approbateur ──────────────────────────────────────
+  const approvalComment = getApprovalComment(evaluation.activity_log);
+  if (approvalComment) {
     if (cursorY > 250) {
       doc.addPage();
       cursorY = 20;
@@ -461,10 +437,46 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
     cursorY += 6;
     doc.setFontSize(9.5);
     doc.setTextColor(...COLOR_MUTED);
-    const feedbackText = evaluation.feedback.trim();
-    doc.setFont(lang === 'ar' && isArabicText(feedbackText) ? FONT_AR : 'helvetica', 'normal');
-    const lines = doc.splitTextToSize(feedbackText, pageWidth - marginX * 2);
+    doc.setFont(lang === 'ar' && isArabicText(approvalComment) ? FONT_AR : 'helvetica', 'normal');
+    const lines = doc.splitTextToSize(approvalComment, pageWidth - marginX * 2);
     drawText(doc, lang, lines, startX, cursorY, { align: startAlign });
+    cursorY += lines.length * 5 + 10;
+  }
+
+  // ── Période précédente (en bas de page) ───────────────────────────────
+  if (previousPeriodLabel && previousPercentage != null) {
+    if (cursorY > 260) {
+      doc.addPage();
+      cursorY = 20;
+    }
+    const delta = percentage != null ? percentage - previousPercentage : null;
+    const deltaColor = delta == null ? COLOR_MUTED : delta > 0.05 ? COLOR_GREEN : delta < -0.05 ? COLOR_RED : COLOR_MUTED;
+    // Symboles ASCII simples : les caractères géométriques (▲▼＝) ne font pas
+    // partie de l'encodage WinAnsi des polices standard et s'affichaient
+    // corrompus dans le PDF.
+    const arrow = delta == null ? '' : delta > 0.05 ? '^' : delta < -0.05 ? 'v' : '=';
+    const deltaText = delta == null ? '' : `${arrow} ${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts`;
+
+    setFont(doc, lang, 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...COLOR_TEXT);
+    drawText(doc, lang, L.previousPeriodSection, startX, cursorY, { align: startAlign });
+    cursorY += 7;
+
+    setFont(doc, lang, 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...COLOR_MUTED);
+    drawText(
+      doc,
+      lang,
+      `${L.vsPrevious} (${previousPeriodLabel}) : ${formatEvaluationPercentage(previousPercentage)}`,
+      startX,
+      cursorY,
+      { align: startAlign }
+    );
+    setFont(doc, lang, 'bold');
+    doc.setTextColor(...deltaColor);
+    drawText(doc, lang, deltaText, endX, cursorY, { align: endAlign });
   }
 }
 
