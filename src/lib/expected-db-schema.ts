@@ -146,6 +146,8 @@ export const EXPECTED_DB_SCHEMA: ExpectedDbSchema = {
     { name: 'course_name', type: 'varchar(255)', nullable: false },
     { name: 'reason', type: 'text', nullable: true },
     { name: 'status', type: 'varchar(50)', default: "'pending'", nullable: true },
+    { name: 'request_details', type: 'jsonb', default: "'{}'::jsonb", nullable: true },
+    { name: 'planning_details', type: 'jsonb', default: "'{}'::jsonb", nullable: true },
     { name: 'created_at', type: 'timestamp', default: 'now()', nullable: true },
     { name: 'updated_at', type: 'timestamp', default: 'now()', nullable: true },
   ],

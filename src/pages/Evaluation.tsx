@@ -81,6 +81,7 @@ import type { EmployeeForEvaluation, EvaluationResponseItem } from '@/lib/evalua
 import { getSessionUser, formatRoleServiceLabel } from '@/lib/session-user';
 import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
 import { hideLoadingOverlay, runWithLoadingOverlay } from '@/lib/loading-overlay';
+import { withRetry } from '@/lib/async-utils';
 import {
   EVALUATION_TABLE_EXPORT_DEFAULT_FIELDS,
   exportEvaluationListToExcel,
@@ -99,6 +100,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: 
     }),
   ]);
 }
+
 
 export default function Evaluation() {
   const FILTER_ALL = '__all__';
@@ -680,12 +682,18 @@ export default function Evaluation() {
     }
 
     setListRefreshing(true);
-    void refreshEvaluationPageEvaluations(nextPeriod)
+    void withRetry(() => refreshEvaluationPageEvaluations(nextPeriod))
       .then((maps) => {
         if (maps) {
           setScoresByEmployee(maps.scoresByEmployee);
           setStatusByEmployee(maps.statusByEmployee);
         }
+      })
+      .catch((error: unknown) => {
+        // Échec silencieux auparavant : les scores restaient bloqués sur l'ancienne
+        // période sans aucun message (ex. limite de requêtes atteinte côté serveur).
+        const message = error instanceof Error ? error.message : t('evaluation.refreshFailed');
+        toast({ variant: 'destructive', title: t('common.error'), description: message });
       })
       .finally(() => setListRefreshing(false));
   };
@@ -713,17 +721,25 @@ export default function Evaluation() {
           if (cached) {
             applyPageData(cached);
             finishInitialLoad();
-            void fetchEvaluationPageData(cached.period).then((fresh) => {
-              if (!cancelled && generation === loadGenerationRef.current) {
-                applyPageData(fresh);
-              }
-            });
+            void withRetry(() => fetchEvaluationPageData(cached.period))
+              .then((fresh) => {
+                if (!cancelled && generation === loadGenerationRef.current) {
+                  applyPageData(fresh);
+                }
+              })
+              .catch((error: unknown) => {
+                // Échec silencieux auparavant : la page restait bloquée sur les données en
+                // cache (potentiellement obsolètes) sans aucun message ni nouvelle tentative.
+                if (cancelled || generation !== loadGenerationRef.current) return;
+                const message = error instanceof Error ? error.message : t('evaluation.refreshFailed');
+                toast({ variant: 'destructive', title: t('evaluation.staleDataTitle'), description: message });
+              });
             return;
           }
         }
 
         const data = await withTimeout(
-          fetchEvaluationPageData(null),
+          withRetry(() => fetchEvaluationPageData(null)),
           20000,
           'Délai dépassé pendant le chargement des données.'
         );

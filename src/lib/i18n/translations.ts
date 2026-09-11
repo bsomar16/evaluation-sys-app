@@ -186,6 +186,7 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
     reports: {
       title: 'Analyse / Rapport',
       subtitle: "Consultez et exportez le rapport détaillé de chaque évaluation (PDF ou Excel).",
+      loadFailed: 'Impossible de charger les évaluations. Réessayez.',
       listTitle: 'Évaluations',
       searchPlaceholder: 'Chercher un employé...',
       colEmployee: 'Employé',
@@ -314,6 +315,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       submitRequired: "Soumettez l'évaluation avant d'accepter ou de refuser.",
       commentRequiredTitle: 'Commentaire requis',
       commentRequired: 'Indiquez le motif du refus.',
+      refreshFailed: "Impossible d'actualiser les données. Réessayez.",
+      staleDataTitle: 'Données possiblement obsolètes',
       completeAll: 'Complétez tous les critères',
       submittedSuccess: "Évaluation soumise. Vous pouvez maintenant l'accepter ou la refuser.",
       accepted: 'Évaluation acceptée',
@@ -611,6 +614,7 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
     reports: {
       title: 'التحليل والتقارير',
       subtitle: 'اطّلع على التقرير المفصّل لكل تقييم وصدّره (PDF أو Excel).',
+      loadFailed: 'تعذّر تحميل التقييمات. حاول مرة أخرى.',
       listTitle: 'التقييمات',
       searchPlaceholder: 'ابحث عن موظف...',
       colEmployee: 'الموظف',
@@ -736,6 +740,8 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       submitRequired: 'قدّم التقييم قبل القبول أو الرفض.',
       commentRequiredTitle: 'التعليق مطلوب',
       commentRequired: 'حدّد سبب الرفض.',
+      refreshFailed: 'تعذّر تحديث البيانات. حاول مرة أخرى.',
+      staleDataTitle: 'قد تكون البيانات المعروضة قديمة',
       completeAll: 'أكمل كل المعايير',
       submittedSuccess: 'تم تقديم التقييم. يمكنك الآن قبوله أو رفضه.',
       accepted: 'تم قبول التقييم',

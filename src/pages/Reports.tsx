@@ -14,6 +14,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/PaginationControls';
 import { ModuleAccessDenied } from '@/components/ModuleAccessDenied';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
+import { withRetry } from '@/lib/async-utils';
 import { formatEvaluationPercentage } from '@/lib/evaluation-calculator';
 import { EVALUATION_STATUS_LABELS, type EvaluationStatus } from '@/lib/evaluation-types';
 import {
@@ -53,11 +54,16 @@ export default function Reports() {
   const [pendingPdfAction, setPendingPdfAction] = useState<((lang: Lang) => void) | null>(null);
 
   useEffect(() => {
-    fetchEvaluationReportData()
+    withRetry(() => fetchEvaluationReportData())
       .then(setData)
-      .catch(() =>
-        setData({ rows: [], criteria: [], rules: [], branches: [], departments: [], roles: [], periodStartByName: {} })
-      )
+      .catch((error: unknown) => {
+        // Échec silencieux auparavant : la page tombait sur un rapport vide sans
+        // aucun message (ex. limite de requêtes momentanée côté serveur), donnant
+        // l'impression que le calcul des scores ne fonctionnait pas.
+        const message = error instanceof Error ? error.message : t('reports.loadFailed');
+        toast({ variant: 'destructive', title: t('common.error'), description: message });
+        setData({ rows: [], criteria: [], rules: [], branches: [], departments: [], roles: [], periodStartByName: {} });
+      })
       .finally(() => {
         setLoading(false);
         hideLoadingOverlay();
