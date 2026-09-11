@@ -502,62 +502,64 @@ export default function DashboardAnalytics() {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold font-heading text-foreground">{t('dashboard.title')}</h1>
-        <p className="text-muted-foreground text-sm mt-1">{t('dashboard.subtitle')}</p>
-      </div>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold font-heading text-foreground">{t('dashboard.title')}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t('dashboard.subtitle')}</p>
+        </div>
 
-      {/* Filtres */}
-      <div className="flex flex-wrap gap-3">
-        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue placeholder="Période" />
-          </SelectTrigger>
-          <SelectContent>
-            {periods.map((p) => (
-              <SelectItem key={p} value={p}>
-                {p}
-                {p === openPeriodName ? ' •' : ''}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Filtres */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Période" />
+            </SelectTrigger>
+            <SelectContent>
+              {periods.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                  {p === openPeriodName ? ' •' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={selectedBranch || 'all'} onValueChange={(v) => { setSelectedBranch(v === 'all' ? '' : v); setSelectedDepartment(''); }}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue placeholder="Filiale" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toutes les filiales</SelectItem>
-            {accessibleBranches.map((b) => (
-              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={selectedBranch || 'all'} onValueChange={(v) => { setSelectedBranch(v === 'all' ? '' : v); setSelectedDepartment(''); }}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Filiale" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les filiales</SelectItem>
+              {accessibleBranches.map((b) => (
+                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={selectedDepartment || 'all'} onValueChange={(v) => setSelectedDepartment(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue placeholder="Département" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les départements</SelectItem>
-            {accessibleDepartments.map((d) => (
-              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={selectedDepartment || 'all'} onValueChange={(v) => setSelectedDepartment(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Département" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les départements</SelectItem>
+              {accessibleDepartments.map((d) => (
+                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={selectedRole || 'all'} onValueChange={(v) => setSelectedRole(v === 'all' ? '' : v)}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue placeholder="Poste" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les postes</SelectItem>
-            {roles.map((r) => (
-              <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={selectedRole || 'all'} onValueChange={(v) => setSelectedRole(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Poste" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les postes</SelectItem>
+              {roles.map((r) => (
+                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* KPI */}
@@ -615,27 +617,27 @@ export default function DashboardAnalytics() {
       </div>
 
       {/* Évolution + Performance filiale + Répartition + Alertes */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        <Card className="border-border shadow-sm xl:col-span-1">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        <Card className="border-border shadow-sm xl:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading">Évolution de la performance globale</CardTitle>
           </CardHeader>
           <CardContent>
             {hasEvolutionData ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={evolutionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={evolutionData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="period" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                  <XAxis dataKey="period" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                  <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                   <Tooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
                     formatter={(v: number) => [`${v.toFixed(1)} %`, 'Moyenne']}
                   />
-                  <Line type="monotone" dataKey="average" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  <Line type="monotone" dataKey="average" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-sm text-muted-foreground">Aucune donnée</div>
+              <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">Aucune donnée</div>
             )}
           </CardContent>
         </Card>
