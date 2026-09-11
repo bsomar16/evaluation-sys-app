@@ -121,28 +121,6 @@ function scoreBand(pct: number) {
   return SCORE_BANDS.find((b) => pct >= b.min) ?? SCORE_BANDS[SCORE_BANDS.length - 1];
 }
 
-function bandBadgeClass(key: string) {
-  switch (key) {
-    case 'excellent':
-    case 'bon':
-      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400';
-    case 'moyen':
-      return 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400';
-    default:
-      return 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400';
-  }
-}
-
-function bandLabelShort(key: string) {
-  const found = SCORE_BANDS.find((b) => b.key === key);
-  if (!found) return key;
-  if (key === 'excellent') return 'Excellent';
-  if (key === 'bon') return 'Bon';
-  if (key === 'moyen') return 'Moyen';
-  if (key === 'ameliorer') return 'À améliorer';
-  return 'Faible';
-}
-
 function fmtPct(value: number | null): string {
   if (value == null || Number.isNaN(value)) return '—';
   return `${value.toFixed(1)} %`;
@@ -764,44 +742,9 @@ export default function DashboardAnalytics() {
         </Card>
       </div>
 
-      {/* Comparaison filiales + Top départements + Top/Flop employés */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        <Card className="border-border shadow-sm xl:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Comparaison des filiales</CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b">
-                  <th className="pb-2 font-medium">Filiale</th>
-                  <th className="pb-2 font-medium">Performance</th>
-                  <th className="pb-2 font-medium">Évolution</th>
-                  <th className="pb-2 font-medium">Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {branchPerformance.map((b) => (
-                  <tr key={b.id} className="border-b last:border-0">
-                    <td className="py-2 font-medium">{b.name}</td>
-                    <td className="py-2">{fmtPct(b.avg)}</td>
-                    <td className="py-2"><DeltaTag delta={b.delta} /></td>
-                    <td className="py-2">
-                      <Badge className={bandBadgeClass(scoreBand(b.avg ?? 0).key)} variant="secondary">
-                        {bandLabelShort(scoreBand(b.avg ?? 0).key)}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-                {branchPerformance.length === 0 && (
-                  <tr><td colSpan={4} className="py-4 text-center text-muted-foreground">Aucune donnée</td></tr>
-                )}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border shadow-sm xl:col-span-1">
+      {/* Top départements + Top/Flop employés */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading">Performance par département (Top 5)</CardTitle>
           </CardHeader>
@@ -821,7 +764,7 @@ export default function DashboardAnalytics() {
           </CardContent>
         </Card>
 
-        <div className="xl:col-span-1 grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card className="border-border shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-heading flex items-center gap-1.5">
