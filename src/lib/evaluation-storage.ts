@@ -296,25 +296,32 @@ export async function getEvaluationStatusForOpenPeriod(
   return findEvaluationForOpenPeriod(employeeId, openPeriod, evaluations)?.status ?? null;
 }
 
-export function isAwaitingEvaluationAction(
-  status: EvaluationStatus | null | undefined,
-  canSubmit: boolean,
-  canReview: boolean
-): boolean {
-  if (status == null || status === 'draft' || status === 'pending' || status === 'rejected') {
-    return canSubmit;
-  }
-  if (status === 'submitted') return canReview;
-  return false;
+/** À quelle action (saisie ou revue) correspond ce statut, indépendamment des permissions. */
+function awaitingActionKind(status: EvaluationStatus | null | undefined): 'submit' | 'review' | null {
+  if (status == null || status === 'draft' || status === 'pending' || status === 'rejected') return 'submit';
+  if (status === 'submitted') return 'review';
+  return null;
 }
 
-/** Nombre d'employés du périmètre nécessitant une action (saisie ou revue) sur la période ouverte. */
+export interface EvaluatorPendingWork {
+  /** Évaluations à saisir/soumettre (brouillon, jamais soumise, ou refusée) — pertinent pour qui a l'accès Soumission. */
+  toSubmit: number;
+  /** Évaluations soumises en attente d'acceptation/refus — pertinent pour qui a l'accès Acceptation/Refus. */
+  toReview: number;
+}
+
+/**
+ * Nombre d'employés du périmètre nécessitant une action (saisie ou revue) sur la période ouverte,
+ * séparé par type d'action : la personne qui saisit et celle qui accepte/refuse n'ont pas le même
+ * travail en attente et ne doivent donc pas recevoir la même notification.
+ */
 export async function countEvaluatorPendingWork(
   canSubmit: boolean,
   canReview: boolean,
   openPeriod: Pick<EvaluationPeriod, 'id' | 'name' | 'start_date'> | null
-): Promise<number> {
-  if (!openPeriod || (!canSubmit && !canReview)) return 0;
+): Promise<EvaluatorPendingWork> {
+  const empty: EvaluatorPendingWork = { toSubmit: 0, toReview: 0 };
+  if (!openPeriod || (!canSubmit && !canReview)) return empty;
 
   const session = getSessionUser();
   const [usersRes, branchesRes, rolesRes, deptsRes, evaluations] = await Promise.all([
@@ -330,7 +337,7 @@ export async function countEvaluatorPendingWork(
   ]);
 
   if (usersRes.error) {
-    if (isMissingTableError(usersRes.error)) return 0;
+    if (isMissingTableError(usersRes.error)) return empty;
     throw usersRes.error;
   }
 
@@ -344,7 +351,7 @@ export async function countEvaluatorPendingWork(
   if (isSiteDeveloper(session)) {
     scopedUserIds = users.filter((u) => u.id !== session?.id).map((u) => u.id);
   } else if (!session?.role_id || roles.length === 0) {
-    return 0;
+    return empty;
   } else {
     // Même périmètre que fetchEmployeesForEvaluation (filterEmployeesInEvaluatorScope) :
     // tous les rôles descendants, pas seulement le niveau juste en dessous. Sinon le badge
@@ -377,14 +384,15 @@ export async function countEvaluatorPendingWork(
       .map((user) => user.id);
   }
 
-  let count = 0;
+  let toSubmit = 0;
+  let toReview = 0;
   for (const userId of scopedUserIds) {
     const evaluation = findEvaluationForOpenPeriod(userId, openPeriod, evaluations);
-    if (isAwaitingEvaluationAction(evaluation?.status ?? null, canSubmit, canReview)) {
-      count += 1;
-    }
+    const kind = awaitingActionKind(evaluation?.status ?? null);
+    if (kind === 'submit' && canSubmit) toSubmit += 1;
+    else if (kind === 'review' && canReview) toReview += 1;
   }
-  return count;
+  return { toSubmit, toReview };
 }
 
 export function filterEmployeesInEvaluatorScope(

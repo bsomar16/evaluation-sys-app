@@ -86,17 +86,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   });
   const connectionBannerTimeoutRef = useRef<number | null>(null);
   const { period: activePeriod, isOpen: evaluationPeriodOpen } = useCurrentOpenPeriod();
-  const [pendingEvaluationsCount, setPendingEvaluationsCount] = useState(0);
+  // Comptés séparément : qui a l'accès Soumission et qui a l'accès Acceptation/Refus n'ont
+  // pas le même travail en attente sur la période ouverte et reçoivent donc des notifications
+  // distinctes plutôt qu'un seul total mélangé.
+  const [pendingSubmissionsCount, setPendingSubmissionsCount] = useState(0);
+  const [pendingReviewsCount, setPendingReviewsCount] = useState(0);
+  const pendingEvaluationsCount = pendingSubmissionsCount + pendingReviewsCount;
   const [pendingTrainingCount, setPendingTrainingCount] = useState(0);
 
   // Notifications dérivées des compteurs réels (évite l'ancienne liste figée qui affichait
   // toujours les 3 mêmes messages fictifs à tout le monde, indépendamment de la réalité).
   const notifications = useMemo(() => {
     const items: { id: string; message: string; target: string }[] = [];
-    if (pendingEvaluationsCount > 0) {
+    if (pendingSubmissionsCount > 0) {
       items.push({
-        id: 'evaluations',
-        message: t('header.notifPendingEvaluations', { count: pendingEvaluationsCount }),
+        id: 'evaluations-submit',
+        message: t('header.notifToSubmit', { count: pendingSubmissionsCount, period: activePeriod?.name ?? '' }),
+        target: EVALUATION_PATH,
+      });
+    }
+    if (pendingReviewsCount > 0) {
+      items.push({
+        id: 'evaluations-review',
+        message: t('header.notifToReview', { count: pendingReviewsCount, period: activePeriod?.name ?? '' }),
         target: EVALUATION_PATH,
       });
     }
@@ -108,7 +120,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       });
     }
     return items;
-  }, [pendingEvaluationsCount, pendingTrainingCount, t]);
+  }, [pendingSubmissionsCount, pendingReviewsCount, pendingTrainingCount, activePeriod?.name, t]);
 
   useEffect(() => {
     const rebuildNav = async (session: SessionUser) => {
@@ -277,20 +289,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       !hasEvaluationModuleAccess(isDeveloper, canReadEvaluations, canWriteEvaluations) ||
       (!canSubmit && !canReview)
     ) {
-      setPendingEvaluationsCount(0);
+      setPendingSubmissionsCount(0);
+      setPendingReviewsCount(0);
       return;
     }
 
     if (!evaluationPeriodOpen || !activePeriod) {
-      setPendingEvaluationsCount(0);
+      setPendingSubmissionsCount(0);
+      setPendingReviewsCount(0);
       return;
     }
 
     try {
-      const count = await countEvaluatorPendingWork(canSubmit, canReview, activePeriod);
-      setPendingEvaluationsCount(count);
+      const { toSubmit, toReview } = await countEvaluatorPendingWork(canSubmit, canReview, activePeriod);
+      setPendingSubmissionsCount(toSubmit);
+      setPendingReviewsCount(toReview);
     } catch {
-      setPendingEvaluationsCount(0);
+      setPendingSubmissionsCount(0);
+      setPendingReviewsCount(0);
     }
   }, [
     isDeveloper,
