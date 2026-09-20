@@ -54,6 +54,14 @@ export function getApprovalComment(entries: EvaluationAuditEntry[] | undefined):
   return latest.comment ?? null;
 }
 
+/** Nom de la personne qui a approuvé l'évaluation (le responsable/évaluateur). */
+export function getApproverName(entries: EvaluationAuditEntry[] | undefined): string | null {
+  const approvals = (entries ?? []).filter((e) => e.action === 'evaluation_approved');
+  if (approvals.length === 0) return null;
+  const latest = approvals.reduce((a, b) => (new Date(b.at).getTime() > new Date(a.at).getTime() ? b : a));
+  return latest.user_name?.trim() || null;
+}
+
 export function formatAuditDate(iso: string): string {
   try {
     return new Intl.DateTimeFormat('fr-FR', {

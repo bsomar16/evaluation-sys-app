@@ -9,7 +9,7 @@ import {
 } from '@/lib/evaluation-calculator';
 import { type EvaluationRecord } from '@/lib/evaluation-types';
 import { resolveCriterionName } from '@/lib/evaluation-report-data';
-import { getApprovalComment } from '@/lib/evaluation-audit';
+import { getApprovalComment, getApproverName } from '@/lib/evaluation-audit';
 import { translations, type Lang } from '@/lib/i18n/translations';
 
 /**
@@ -45,6 +45,7 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     branch: 'Filiale',
     department: 'Service',
     role: 'Rôle',
+    responsable: 'Responsable',
     resultsByCriterion: 'Résultats par critère',
     colCriterion: 'Critère',
     colCoefficient: 'Coefficient',
@@ -73,6 +74,7 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     branch: 'الفرع',
     department: 'المصلحة',
     role: 'الدور',
+    responsable: 'المسؤول',
     resultsByCriterion: 'النتائج حسب المعيار',
     colCriterion: 'المعيار',
     colCoefficient: 'المعامل',
@@ -291,33 +293,43 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
   doc.setFontSize(10);
   drawText(doc, lang, `${L.period} : ${evaluation.period || '—'}`, startX, 22, { align: startAlign });
 
-  cursorY = 36;
+  cursorY = 32;
 
-  // ── Identité employé ───────────────────────────────────────────────
-  doc.setTextColor(...COLOR_TEXT);
-  setFont(doc, lang, 'bold');
-  doc.setFontSize(14);
-  drawText(doc, lang, employeeName || '—', startX, cursorY, { align: startAlign });
-  cursorY += 8;
+  // ── Bandeau d'identité (une seule ligne, style tableau) ────────────
+  const approverName = getApproverName(evaluation.activity_log);
+  const infoBandHeight = 15;
+  doc.setFillColor(...COLOR_PRIMARY);
+  doc.rect(marginX, cursorY, pageWidth - marginX * 2, infoBandHeight, 'F');
 
-  const infoPairs: [string, string][] = [
-    [L.poste, position || '—'],
-    [L.branch, branchName || '—'],
-    [L.department, departmentName || '—'],
-    [L.role, roleName || '—'],
+  type InfoCell = { title: string; sub: string; isName?: boolean };
+  const infoCells: InfoCell[] = [
+    { title: employeeName || '—', sub: roleName || '—', isName: true },
+    { title: L.branch, sub: branchName || '—' },
+    { title: L.department, sub: departmentName || '—' },
+    { title: L.poste, sub: position || '—' },
+    { title: L.responsable, sub: approverName || '—' },
   ];
-  setFont(doc, lang, 'normal');
-  doc.setFontSize(10);
-  const colWidth = (pageWidth - marginX * 2) / 2;
-  infoPairs.forEach(([label, value], index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
-    const x = isRtl ? pageWidth - marginX - col * colWidth : marginX + col * colWidth;
-    const y = cursorY + row * 7;
-    doc.setTextColor(...COLOR_TEXT);
-    drawText(doc, lang, `${label} : ${value}`, x, y, { align: startAlign });
+  const infoCellW = (pageWidth - marginX * 2) / infoCells.length;
+  const orderedInfoCells = isRtl ? [...infoCells].reverse() : infoCells;
+  orderedInfoCells.forEach((cell, i) => {
+    const cellX = marginX + i * infoCellW;
+    if (i > 0) {
+      doc.setDrawColor(255, 255, 255);
+      doc.setLineWidth(0.15);
+      doc.line(cellX, cursorY + 2.5, cellX, cursorY + infoBandHeight - 2.5);
+    }
+    const textX = isRtl ? cellX + infoCellW - 3 : cellX + 3;
+    const align = isRtl ? 'right' : 'left';
+    doc.setTextColor(255, 255, 255);
+    setFont(doc, lang, 'bold');
+    doc.setFontSize(cell.isName ? 9.5 : 7.5);
+    drawText(doc, lang, cell.title, textX, cursorY + 6.5, { align });
+    setFont(doc, lang, 'normal');
+    doc.setFontSize(cell.isName ? 7.5 : 8);
+    drawText(doc, lang, cell.sub, textX, cursorY + 11.5, { align });
   });
-  cursorY += Math.ceil(infoPairs.length / 2) * 7 + 6;
+  cursorY += infoBandHeight + 8;
+  doc.setTextColor(...COLOR_TEXT);
 
   // ── Résumé (Score actuel / Objectif / Écart / Évolution / Statut) ───
   const ratio = percentage != null ? Math.max(0, Math.min(100, percentage)) / 100 : 0;
@@ -434,87 +446,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
 
   cursorY += summaryHeight + 8;
 
-  // ── Synthèse (meilleur critère / critère à améliorer) ─────────────────
   const responses = evaluation.responses ?? [];
-  if (responses.length >= 2) {
-    const scored = responses.map((response) => {
-      const criterion = criteria.find((c) => c.id === response.criterion_id);
-      const maxPoints = criterion ? getCriterionMaxPoints(criterion, rules) * (criterion.weight ?? 1) : response.points;
-      const r = maxPoints > 0 ? response.points / maxPoints : 0;
-      return {
-        name: resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang),
-        points: response.points,
-        maxPoints,
-        ratio: r,
-      };
-    });
-    const sorted = [...scored].sort((a, b) => b.ratio - a.ratio);
-    const best = sorted[0];
-    const worst = sorted[sorted.length - 1];
-
-    setFont(doc, lang, 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...COLOR_TEXT);
-    drawText(doc, lang, L.synthese, startX, cursorY, { align: startAlign });
-    cursorY += 5;
-
-    const gap = 4;
-    const boxWidth = (pageWidth - marginX * 2 - gap) / 2;
-
-    const measureNameLines = (name: string) => {
-      doc.setFont(lang === 'ar' && isArabicText(name) ? FONT_AR : 'helvetica', 'bold');
-      doc.setFontSize(9.5);
-      return (doc.splitTextToSize(name, boxWidth - 8) as string[]).slice(0, 2);
-    };
-    const bestLines = measureNameLines(best.name);
-    const worstLines = measureNameLines(worst.name);
-    const maxLines = Math.max(bestLines.length, worstLines.length);
-    const boxHeight = 12 + maxLines * 4.6;
-
-    const drawSyntheseBox = (
-      boxX: number,
-      bg: [number, number, number],
-      titleColor: [number, number, number],
-      title: string,
-      nameLines: string[],
-      points: number,
-      maxPoints: number
-    ) => {
-      doc.setFillColor(...bg);
-      doc.roundedRect(boxX, cursorY, boxWidth, boxHeight, 2, 2, 'F');
-      const textX = isRtl ? boxX + boxWidth - 4 : boxX + 4;
-      const align = isRtl ? 'right' : 'left';
-
-      setFont(doc, lang, 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(...titleColor);
-      drawText(doc, lang, title, textX, cursorY + 6, { align });
-
-      doc.setTextColor(...COLOR_TEXT);
-      doc.setFontSize(9.5);
-      drawText(doc, lang, nameLines, textX, cursorY + 11, { align, style: 'bold' });
-
-      setFont(doc, lang, 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(...COLOR_MUTED);
-      drawText(
-        doc,
-        lang,
-        `${points.toFixed(1)} / ${maxPoints.toFixed(1)} ${L.ptsUnit}`,
-        textX,
-        cursorY + 11 + maxLines * 4.6,
-        { align }
-      );
-    };
-
-    // En FR : meilleur (vert) à gauche, à améliorer (rouge) à droite ; miroir en AR.
-    const bestBoxX = isRtl ? marginX + boxWidth + gap : marginX;
-    const worstBoxX = isRtl ? marginX : marginX + boxWidth + gap;
-    drawSyntheseBox(bestBoxX, [236, 253, 245], COLOR_GREEN, L.bestCriterion, bestLines, best.points, best.maxPoints);
-    drawSyntheseBox(worstBoxX, [254, 242, 242], COLOR_RED, L.worstCriterion, worstLines, worst.points, worst.maxPoints);
-
-    cursorY += boxHeight + 8;
-  }
 
   // ── Diagramme par critère ────────────────────────────────────────────
   if (responses.length > 0) {
@@ -604,6 +536,93 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cursorY = (doc as any).lastAutoTable.finalY + 10;
+  }
+
+  // ── Synthèse (meilleur critère / critère à améliorer) ─────────────────
+  if (responses.length >= 2) {
+    const scored = responses.map((response) => {
+      const criterion = criteria.find((c) => c.id === response.criterion_id);
+      const maxPoints = criterion ? getCriterionMaxPoints(criterion, rules) * (criterion.weight ?? 1) : response.points;
+      const r = maxPoints > 0 ? response.points / maxPoints : 0;
+      return {
+        name: resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang),
+        points: response.points,
+        maxPoints,
+        ratio: r,
+      };
+    });
+    const sorted = [...scored].sort((a, b) => b.ratio - a.ratio);
+    const best = sorted[0];
+    const worst = sorted[sorted.length - 1];
+
+    const gap = 4;
+    const boxWidth = (pageWidth - marginX * 2 - gap) / 2;
+
+    const measureNameLines = (name: string) => {
+      doc.setFont(lang === 'ar' && isArabicText(name) ? FONT_AR : 'helvetica', 'bold');
+      doc.setFontSize(9.5);
+      return (doc.splitTextToSize(name, boxWidth - 8) as string[]).slice(0, 2);
+    };
+    const bestLines = measureNameLines(best.name);
+    const worstLines = measureNameLines(worst.name);
+    const maxLines = Math.max(bestLines.length, worstLines.length);
+    const boxHeight = 12 + maxLines * 4.6;
+
+    // Saut de page si la synthèse ne tient pas en bas de page (titre + boîtes).
+    if (cursorY + boxHeight + 12 > 285) {
+      doc.addPage();
+      cursorY = 20;
+    }
+
+    setFont(doc, lang, 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...COLOR_TEXT);
+    drawText(doc, lang, L.synthese, startX, cursorY, { align: startAlign });
+    cursorY += 5;
+
+    const drawSyntheseBox = (
+      boxX: number,
+      bg: [number, number, number],
+      titleColor: [number, number, number],
+      title: string,
+      nameLines: string[],
+      points: number,
+      maxPoints: number
+    ) => {
+      doc.setFillColor(...bg);
+      doc.roundedRect(boxX, cursorY, boxWidth, boxHeight, 2, 2, 'F');
+      const textX = isRtl ? boxX + boxWidth - 4 : boxX + 4;
+      const align = isRtl ? 'right' : 'left';
+
+      setFont(doc, lang, 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...titleColor);
+      drawText(doc, lang, title, textX, cursorY + 6, { align });
+
+      doc.setTextColor(...COLOR_TEXT);
+      doc.setFontSize(9.5);
+      drawText(doc, lang, nameLines, textX, cursorY + 11, { align, style: 'bold' });
+
+      setFont(doc, lang, 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...COLOR_MUTED);
+      drawText(
+        doc,
+        lang,
+        `${points.toFixed(1)} / ${maxPoints.toFixed(1)} ${L.ptsUnit}`,
+        textX,
+        cursorY + 11 + maxLines * 4.6,
+        { align }
+      );
+    };
+
+    // En FR : meilleur (vert) à gauche, à améliorer (rouge) à droite ; miroir en AR.
+    const bestBoxX = isRtl ? marginX + boxWidth + gap : marginX;
+    const worstBoxX = isRtl ? marginX : marginX + boxWidth + gap;
+    drawSyntheseBox(bestBoxX, [236, 253, 245], COLOR_GREEN, L.bestCriterion, bestLines, best.points, best.maxPoints);
+    drawSyntheseBox(worstBoxX, [254, 242, 242], COLOR_RED, L.worstCriterion, worstLines, worst.points, worst.maxPoints);
+
+    cursorY += boxHeight + 8;
   }
 
   // ── Commentaire de l'approbateur ──────────────────────────────────────

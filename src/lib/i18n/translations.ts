@@ -222,6 +222,7 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       bestCriterion: 'Meilleur critère',
       worstCriterion: 'Critère à améliorer',
       ptsUnit: 'pts',
+      responsable: 'Responsable',
     },
     team: {
       defaultTitle: 'Employés',
@@ -660,6 +661,7 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       bestCriterion: 'أفضل معيار',
       worstCriterion: 'معيار للتحسين',
       ptsUnit: 'نقطة',
+      responsable: 'المسؤول',
     },
     team: {
       defaultTitle: 'الموظفون',

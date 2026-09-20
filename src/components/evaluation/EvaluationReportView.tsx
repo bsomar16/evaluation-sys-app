@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatEvaluationPercentage, getCriterionMaxPoints } from '@/lib/evaluation-calculator';
 import { EVALUATION_STATUS_LABELS } from '@/lib/evaluation-types';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
-import { getApprovalComment } from '@/lib/evaluation-audit';
+import { getApprovalComment, getApproverName } from '@/lib/evaluation-audit';
 import { PdfLanguageDialog } from '@/components/evaluation/PdfLanguageDialog';
 import {
   findPreviousEvaluationRow,
@@ -130,6 +130,7 @@ export function EvaluationReportView({
   const delta =
     percentage != null && previousPercentage != null ? percentage - previousPercentage : null;
   const approvalComment = getApprovalComment(evaluation.activity_log);
+  const approverName = getApproverName(evaluation.activity_log);
 
   const chartData = responses.map((response) => {
     const criterion = criteria.find((c) => c.id === response.criterion_id);
@@ -198,65 +199,55 @@ export function EvaluationReportView({
 
   return (
     <div className="space-y-5">
-      {/* Première partie — identité de l'employé, séparée visuellement du reste. */}
-      <Card className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold text-white"
-              style={{ backgroundColor: 'hsl(var(--primary))' }}
-            >
-              {(evaluation.employee_name ?? '—').charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-lg font-bold leading-tight truncate">{evaluation.employee_name ?? '—'}</h2>
-              <p className="text-xs text-muted-foreground">
-                {roleName || '—'}{position ? ` · ${position}` : ''}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">{evaluation.period}</Badge>
-            <Badge>{EVALUATION_STATUS_LABELS[evaluation.status] ?? evaluation.status}</Badge>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={handleExportExcel}>
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel
-            </Button>
-            {evaluation.status === 'approved' && (
-              <Button
-                size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  preloadArabicFont();
-                  setPdfDialogOpen(true);
-                }}
-              >
-                <FileText className="h-4 w-4" />
-                PDF
-              </Button>
-            )}
-          </div>
-        </div>
+      {/* Barre d'actions */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Badge variant="secondary">{evaluation.period}</Badge>
+        <Badge>{EVALUATION_STATUS_LABELS[evaluation.status] ?? evaluation.status}</Badge>
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={handleExportExcel}>
+          <FileSpreadsheet className="h-4 w-4" />
+          Excel
+        </Button>
+        {evaluation.status === 'approved' && (
+          <Button
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              preloadArabicFont();
+              setPdfDialogOpen(true);
+            }}
+          >
+            <FileText className="h-4 w-4" />
+            PDF
+          </Button>
+        )}
+      </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-t divide-x divide-border text-sm">
-          <div className="p-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('evaluation.poste')}</p>
-            <p className="font-medium truncate">{position || '—'}</p>
-          </div>
-          <div className="p-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('evaluation.branch')}</p>
-            <p className="font-medium truncate">{branchName || '—'}</p>
-          </div>
-          <div className="p-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('evaluation.service')}</p>
-            <p className="font-medium truncate">{departmentName || '—'}</p>
-          </div>
-          <div className="p-3">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('evaluation.role')}</p>
-            <p className="font-medium truncate">{roleName || '—'}</p>
-          </div>
+      {/* Bandeau d'identité — une seule ligne, style tableau, séparé du reste. */}
+      <div
+        className="grid grid-cols-2 sm:grid-cols-5 rounded-lg overflow-hidden text-white divide-x divide-white/20"
+        style={{ backgroundColor: 'hsl(var(--primary))' }}
+      >
+        <div className="p-3">
+          <p className="text-sm font-bold leading-tight truncate">{evaluation.employee_name ?? '—'}</p>
+          <p className="text-[11px] text-white/70 truncate">{roleName || '—'}</p>
         </div>
-      </Card>
+        <div className="p-3">
+          <p className="text-[10px] uppercase tracking-wide text-white/70">{t('evaluation.branch')}</p>
+          <p className="text-sm font-medium truncate">{branchName || '—'}</p>
+        </div>
+        <div className="p-3">
+          <p className="text-[10px] uppercase tracking-wide text-white/70">{t('evaluation.service')}</p>
+          <p className="text-sm font-medium truncate">{departmentName || '—'}</p>
+        </div>
+        <div className="p-3">
+          <p className="text-[10px] uppercase tracking-wide text-white/70">{t('evaluation.poste')}</p>
+          <p className="text-sm font-medium truncate">{position || '—'}</p>
+        </div>
+        <div className="p-3">
+          <p className="text-[10px] uppercase tracking-wide text-white/70">{t('reports.responsable')}</p>
+          <p className="text-sm font-medium truncate">{approverName || '—'}</p>
+        </div>
+      </div>
 
       {evaluation.status !== 'approved' && (
         <p className="text-xs text-muted-foreground -mt-2">{t('reports.pdfApprovedOnly')}</p>
@@ -326,35 +317,6 @@ export function EvaluationReportView({
         </div>
       </Card>
 
-      {/* Synthèse — meilleur critère et critère à améliorer */}
-      {bestCriterion && worstCriterion && (
-        <div>
-          <h3 className="text-sm font-bold mb-2">{t('reports.synthese')}</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/20 p-4">
-              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                <Star className="h-3.5 w-3.5 fill-current" />
-                {t('reports.bestCriterion')}
-              </p>
-              <p className="font-medium text-sm mt-1">{bestCriterion.name}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {bestCriterion.points} / {bestCriterion.maxPoints} {t('reports.ptsUnit')}
-              </p>
-            </div>
-            <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-4">
-              <p className="text-xs font-semibold text-red-700 dark:text-red-400 flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                {t('reports.worstCriterion')}
-              </p>
-              <p className="font-medium text-sm mt-1">{worstCriterion.name}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {worstCriterion.points} / {worstCriterion.maxPoints} {t('reports.ptsUnit')}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {chartData.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
@@ -419,6 +381,36 @@ export function EvaluationReportView({
         </div>
       )}
 
+      {/* Synthèse — meilleur critère et critère à améliorer (sous les résultats) */}
+      {bestCriterion && worstCriterion && (
+        <div>
+          <h3 className="text-sm font-bold mb-2">{t('reports.synthese')}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/20 p-4">
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                <Star className="h-3.5 w-3.5 fill-current" />
+                {t('reports.bestCriterion')}
+              </p>
+              <p className="font-medium text-sm mt-1">{bestCriterion.name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {bestCriterion.points} / {bestCriterion.maxPoints} {t('reports.ptsUnit')}
+              </p>
+            </div>
+            <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-4">
+              <p className="text-xs font-semibold text-red-700 dark:text-red-400 flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {t('reports.worstCriterion')}
+              </p>
+              <p className="font-medium text-sm mt-1">{worstCriterion.name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {worstCriterion.points} / {worstCriterion.maxPoints} {t('reports.ptsUnit')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Commentaire de l'approbateur (RH), sous la synthèse */}
       {approvalComment && (
         <Card>
           <CardHeader className="pb-2">
