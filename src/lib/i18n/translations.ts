@@ -218,6 +218,10 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       ecart: 'Écart',
       evolution: 'Évolution',
       statut: 'Statut',
+      synthese: 'Synthèse',
+      bestCriterion: 'Meilleur critère',
+      worstCriterion: 'Critère à améliorer',
+      ptsUnit: 'pts',
     },
     team: {
       defaultTitle: 'Employés',
@@ -652,6 +656,10 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       ecart: 'الفارق',
       evolution: 'التطوّر',
       statut: 'الحالة',
+      synthese: 'الخلاصة',
+      bestCriterion: 'أفضل معيار',
+      worstCriterion: 'معيار للتحسين',
+      ptsUnit: 'نقطة',
     },
     team: {
       defaultTitle: 'الموظفون',

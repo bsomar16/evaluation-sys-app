@@ -58,6 +58,10 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     ecart: 'Écart',
     evolution: 'Évolution',
     statut: 'Statut',
+    synthese: 'Synthèse',
+    bestCriterion: 'Meilleur critère',
+    worstCriterion: 'Critère à améliorer',
+    ptsUnit: 'pts',
     generatedOn: 'Généré le',
     page: 'Page',
   },
@@ -82,6 +86,10 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     ecart: 'الفارق',
     evolution: 'التطوّر',
     statut: 'الحالة',
+    synthese: 'الخلاصة',
+    bestCriterion: 'أفضل معيار',
+    worstCriterion: 'معيار للتحسين',
+    ptsUnit: 'نقطة',
     generatedOn: 'أُنشئ في',
     page: 'صفحة',
   },
@@ -426,8 +434,89 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
 
   cursorY += summaryHeight + 8;
 
-  // ── Diagramme par critère ────────────────────────────────────────────
+  // ── Synthèse (meilleur critère / critère à améliorer) ─────────────────
   const responses = evaluation.responses ?? [];
+  if (responses.length >= 2) {
+    const scored = responses.map((response) => {
+      const criterion = criteria.find((c) => c.id === response.criterion_id);
+      const maxPoints = criterion ? getCriterionMaxPoints(criterion, rules) * (criterion.weight ?? 1) : response.points;
+      const r = maxPoints > 0 ? response.points / maxPoints : 0;
+      return {
+        name: resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang),
+        points: response.points,
+        maxPoints,
+        ratio: r,
+      };
+    });
+    const sorted = [...scored].sort((a, b) => b.ratio - a.ratio);
+    const best = sorted[0];
+    const worst = sorted[sorted.length - 1];
+
+    setFont(doc, lang, 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...COLOR_TEXT);
+    drawText(doc, lang, L.synthese, startX, cursorY, { align: startAlign });
+    cursorY += 5;
+
+    const gap = 4;
+    const boxWidth = (pageWidth - marginX * 2 - gap) / 2;
+
+    const measureNameLines = (name: string) => {
+      doc.setFont(lang === 'ar' && isArabicText(name) ? FONT_AR : 'helvetica', 'bold');
+      doc.setFontSize(9.5);
+      return (doc.splitTextToSize(name, boxWidth - 8) as string[]).slice(0, 2);
+    };
+    const bestLines = measureNameLines(best.name);
+    const worstLines = measureNameLines(worst.name);
+    const maxLines = Math.max(bestLines.length, worstLines.length);
+    const boxHeight = 12 + maxLines * 4.6;
+
+    const drawSyntheseBox = (
+      boxX: number,
+      bg: [number, number, number],
+      titleColor: [number, number, number],
+      title: string,
+      nameLines: string[],
+      points: number,
+      maxPoints: number
+    ) => {
+      doc.setFillColor(...bg);
+      doc.roundedRect(boxX, cursorY, boxWidth, boxHeight, 2, 2, 'F');
+      const textX = isRtl ? boxX + boxWidth - 4 : boxX + 4;
+      const align = isRtl ? 'right' : 'left';
+
+      setFont(doc, lang, 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...titleColor);
+      drawText(doc, lang, title, textX, cursorY + 6, { align });
+
+      doc.setTextColor(...COLOR_TEXT);
+      doc.setFontSize(9.5);
+      drawText(doc, lang, nameLines, textX, cursorY + 11, { align, style: 'bold' });
+
+      setFont(doc, lang, 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...COLOR_MUTED);
+      drawText(
+        doc,
+        lang,
+        `${points.toFixed(1)} / ${maxPoints.toFixed(1)} ${L.ptsUnit}`,
+        textX,
+        cursorY + 11 + maxLines * 4.6,
+        { align }
+      );
+    };
+
+    // En FR : meilleur (vert) à gauche, à améliorer (rouge) à droite ; miroir en AR.
+    const bestBoxX = isRtl ? marginX + boxWidth + gap : marginX;
+    const worstBoxX = isRtl ? marginX : marginX + boxWidth + gap;
+    drawSyntheseBox(bestBoxX, [236, 253, 245], COLOR_GREEN, L.bestCriterion, bestLines, best.points, best.maxPoints);
+    drawSyntheseBox(worstBoxX, [254, 242, 242], COLOR_RED, L.worstCriterion, worstLines, worst.points, worst.maxPoints);
+
+    cursorY += boxHeight + 8;
+  }
+
+  // ── Diagramme par critère ────────────────────────────────────────────
   if (responses.length > 0) {
     setFont(doc, lang, 'bold');
     doc.setFontSize(11);

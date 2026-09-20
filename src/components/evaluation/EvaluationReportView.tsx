@@ -18,7 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { FileSpreadsheet, FileText, Star, AlertTriangle } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n/translations';
 import { useToast } from '@/hooks/use-toast';
@@ -153,6 +153,11 @@ export function EvaluationReportView({
   const overallRatio = percentage != null ? Math.max(0, Math.min(100, percentage)) / 100 : 0;
   const overallColor = scoreHexColor(overallRatio);
 
+  // Synthèse : meilleur critère et critère à améliorer (par pourcentage d'atteinte).
+  const sortedByPercent = chartData.length > 0 ? [...chartData].sort((a, b) => b.percent - a.percent) : [];
+  const bestCriterion = sortedByPercent[0] ?? null;
+  const worstCriterion = sortedByPercent.length > 1 ? sortedByPercent[sortedByPercent.length - 1] : null;
+
   const handleDownloadPdf = async (pdfLang: Lang) => {
     const opened = await generateEvaluationReportPdf(
       {
@@ -193,54 +198,69 @@ export function EvaluationReportView({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold">{evaluation.employee_name ?? '—'}</h2>
-          <p className="text-sm text-muted-foreground">{evaluation.period}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge>{EVALUATION_STATUS_LABELS[evaluation.status] ?? evaluation.status}</Badge>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={handleExportExcel}>
-            <FileSpreadsheet className="h-4 w-4" />
-            Excel
-          </Button>
-          {evaluation.status === 'approved' && (
-            <Button
-              size="sm"
-              className="gap-1.5"
-              onClick={() => {
-                preloadArabicFont();
-                setPdfDialogOpen(true);
-              }}
+      {/* Première partie — identité de l'employé, séparée visuellement du reste. */}
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-base font-bold text-white"
+              style={{ backgroundColor: 'hsl(var(--primary))' }}
             >
-              <FileText className="h-4 w-4" />
-              PDF
+              {(evaluation.employee_name ?? '—').charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold leading-tight truncate">{evaluation.employee_name ?? '—'}</h2>
+              <p className="text-xs text-muted-foreground">
+                {roleName || '—'}{position ? ` · ${position}` : ''}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{evaluation.period}</Badge>
+            <Badge>{EVALUATION_STATUS_LABELS[evaluation.status] ?? evaluation.status}</Badge>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={handleExportExcel}>
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel
             </Button>
-          )}
+            {evaluation.status === 'approved' && (
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  preloadArabicFont();
+                  setPdfDialogOpen(true);
+                }}
+              >
+                <FileText className="h-4 w-4" />
+                PDF
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-t divide-x divide-border text-sm">
+          <div className="p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('evaluation.poste')}</p>
+            <p className="font-medium truncate">{position || '—'}</p>
+          </div>
+          <div className="p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('evaluation.branch')}</p>
+            <p className="font-medium truncate">{branchName || '—'}</p>
+          </div>
+          <div className="p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('evaluation.service')}</p>
+            <p className="font-medium truncate">{departmentName || '—'}</p>
+          </div>
+          <div className="p-3">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('evaluation.role')}</p>
+            <p className="font-medium truncate">{roleName || '—'}</p>
+          </div>
+        </div>
+      </Card>
+
       {evaluation.status !== 'approved' && (
         <p className="text-xs text-muted-foreground -mt-2">{t('reports.pdfApprovedOnly')}</p>
       )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        <div className="rounded-md border p-3">
-          <p className="text-xs text-muted-foreground">{t('evaluation.poste')}</p>
-          <p className="font-medium truncate">{position || '—'}</p>
-        </div>
-        <div className="rounded-md border p-3">
-          <p className="text-xs text-muted-foreground">{t('evaluation.branch')}</p>
-          <p className="font-medium truncate">{branchName || '—'}</p>
-        </div>
-        <div className="rounded-md border p-3">
-          <p className="text-xs text-muted-foreground">{t('evaluation.service')}</p>
-          <p className="font-medium truncate">{departmentName || '—'}</p>
-        </div>
-        <div className="rounded-md border p-3">
-          <p className="text-xs text-muted-foreground">{t('evaluation.role')}</p>
-          <p className="font-medium truncate">{roleName || '—'}</p>
-        </div>
-      </div>
 
       <Card className="overflow-hidden">
         <div className="grid grid-cols-2 sm:grid-cols-5 divide-y sm:divide-y-0 divide-x-0 sm:divide-x divide-border">
@@ -305,6 +325,35 @@ export function EvaluationReportView({
           </div>
         </div>
       </Card>
+
+      {/* Synthèse — meilleur critère et critère à améliorer */}
+      {bestCriterion && worstCriterion && (
+        <div>
+          <h3 className="text-sm font-bold mb-2">{t('reports.synthese')}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/20 p-4">
+              <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                <Star className="h-3.5 w-3.5 fill-current" />
+                {t('reports.bestCriterion')}
+              </p>
+              <p className="font-medium text-sm mt-1">{bestCriterion.name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {bestCriterion.points} / {bestCriterion.maxPoints} {t('reports.ptsUnit')}
+              </p>
+            </div>
+            <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-4">
+              <p className="text-xs font-semibold text-red-700 dark:text-red-400 flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {t('reports.worstCriterion')}
+              </p>
+              <p className="font-medium text-sm mt-1">{worstCriterion.name}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {worstCriterion.points} / {worstCriterion.maxPoints} {t('reports.ptsUnit')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {chartData.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-2">
