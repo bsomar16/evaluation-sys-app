@@ -63,15 +63,34 @@ export function exportEvaluationReportToExcel(input: EvaluationReportExcelInput)
 
   summaryRows.push(["Commentaire de l'évaluateur", evaluation.feedback?.trim() || '—']);
 
-  const criteriaHeader = ['Critère (Français)', 'Critère (Arabe)', 'Coefficient', 'Valeur saisie', 'Points obtenus', 'Points max'];
+  const criteriaHeader = [
+    'Critère (Français)',
+    'Critère (Arabe)',
+    'Coefficient',
+    'Valeur saisie',
+    'Points obtenus',
+    'Points max',
+    'Points pondérés',
+    'Points max pondérés',
+  ];
   const responses = evaluation.responses ?? [];
   const criteriaRows = responses.map((response) => {
     const criterion = criteria.find((c) => c.id === response.criterion_id);
     const nameFr = resolveCriterionName(response.criterion_id, response.criterion_name, criteria, 'fr');
     const nameAr = criterion?.name_ar?.trim() || '';
-    const maxPoints = criterion ? getCriterionMaxPoints(criterion, rules) * (criterion.weight ?? 1) : response.points;
+    const weight = criterion?.weight ?? 1;
+    const rawMax = criterion ? getCriterionMaxPoints(criterion, rules) : response.points;
     const value = typeof response.value === 'boolean' ? (response.value ? 'Oui' : 'Non') : String(response.value);
-    return [nameFr, nameAr, criterion?.weight ?? 1, value, Number(response.points.toFixed(1)), Number(maxPoints.toFixed(1))];
+    return [
+      nameFr,
+      nameAr,
+      weight,
+      value,
+      Number(response.points.toFixed(1)),
+      Number(rawMax.toFixed(1)),
+      Number((response.points * weight).toFixed(1)),
+      Number((rawMax * weight).toFixed(1)),
+    ];
   });
 
   const worksheet = XLSX.utils.aoa_to_sheet([
@@ -88,6 +107,8 @@ export function exportEvaluationReportToExcel(input: EvaluationReportExcelInput)
     { wch: 16 },
     { wch: 14 },
     { wch: 12 },
+    { wch: 16 },
+    { wch: 18 },
   ];
 
   const workbook = XLSX.utils.book_new();

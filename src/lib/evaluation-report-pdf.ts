@@ -47,10 +47,14 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     role: 'Rôle',
     responsable: 'Responsable',
     resultsByCriterion: 'Résultats par critère',
-    colCriterion: 'Critère',
-    colCoefficient: 'Coefficient',
+    detailByCriterion: 'Détail des résultats par critère',
+    colNum: 'N°',
+    colCriterion: "Critère d'évaluation",
+    colCoefficient: 'Coeff.',
     colValue: 'Réponse',
+    colObtained: 'Score obtenu',
     colPoints: 'Points',
+    total: 'Total',
     yes: 'Oui',
     no: 'Non',
     comment: "Commentaire de l'approbateur",
@@ -76,10 +80,14 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     role: 'الدور',
     responsable: 'المسؤول',
     resultsByCriterion: 'النتائج حسب المعيار',
-    colCriterion: 'المعيار',
+    detailByCriterion: 'تفصيل النتائج حسب المعيار',
+    colNum: 'رقم',
+    colCriterion: 'معيار التقييم',
     colCoefficient: 'المعامل',
     colValue: 'الإجابة',
+    colObtained: 'النتيجة المحصّلة',
     colPoints: 'النقاط',
+    total: 'المجموع',
     yes: 'نعم',
     no: 'لا',
     comment: 'تعليق المُوافِق',
@@ -471,10 +479,14 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
 
     responses.forEach((response) => {
       const criterion = criteria.find((c) => c.id === response.criterion_id);
-      const maxPoints = criterion ? getCriterionMaxPoints(criterion, rules) * (criterion.weight ?? 1) : response.points;
-      const criterionRatio = maxPoints > 0 ? Math.max(0, Math.min(1, response.points / maxPoints)) : 0;
+      const weight = criterion?.weight ?? 1;
+      const rawMax = criterion ? getCriterionMaxPoints(criterion, rules) : response.points;
+      // Points pondérés = points bruts × coefficient (idem pour le max).
+      const weightedPoints = response.points * weight;
+      const maxPoints = rawMax * weight;
+      const criterionRatio = maxPoints > 0 ? Math.max(0, Math.min(1, weightedPoints / maxPoints)) : 0;
       const baseName = resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang);
-      const coefficient = formatCoefficient(criterion?.weight ?? 1);
+      const coefficient = formatCoefficient(weight);
       const name = `${baseName} (×${coefficient})`;
       const color = scoreColor(criterionRatio);
 
@@ -497,7 +509,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       doc.rect(filledX, barY, filledWidth, 5, 'F');
 
       doc.setTextColor(...COLOR_MUTED);
-      drawText(doc, lang, `${response.points.toFixed(1)}/${maxPoints.toFixed(1)}`, valueX, barY + 4, {
+      drawText(doc, lang, `${weightedPoints.toFixed(1)}/${maxPoints.toFixed(1)}`, valueX, barY + 4, {
         align: endAlign,
       });
 
@@ -508,30 +520,66 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
 
   // ── Tableau détaillé ─────────────────────────────────────────────────
   if (responses.length > 0) {
-    const bodyRows = responses.map((response) => {
+    setFont(doc, lang, 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...COLOR_TEXT);
+    drawText(doc, lang, L.detailByCriterion, startX, cursorY, { align: startAlign });
+    cursorY += 3;
+
+    let totalEarned = 0;
+    let totalMax = 0;
+    const bodyRows = responses.map((response, index) => {
       const criterion = criteria.find((c) => c.id === response.criterion_id);
+      const weight = criterion?.weight ?? 1;
+      const rawMax = criterion ? getCriterionMaxPoints(criterion, rules) : response.points;
+      const weightedPoints = response.points * weight;
+      const weightedMax = rawMax * weight;
+      totalEarned += weightedPoints;
+      totalMax += weightedMax;
       const name = resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang);
       const value =
         typeof response.value === 'boolean' ? (response.value ? L.yes : L.no) : String(response.value);
-      return [name, formatCoefficient(criterion?.weight ?? 1), value, response.points.toFixed(1)];
+      // « Score obtenu » = points bruts / max brut ; « Points » = pondérés (× coefficient).
+      const obtained = `${response.points.toFixed(1)} / ${rawMax.toFixed(1)}`;
+      const weighted = `${weightedPoints.toFixed(1)} / ${weightedMax.toFixed(1)}`;
+      return [String(index + 1), name, formatCoefficient(weight), value, obtained, weighted];
     });
-    const head = [[L.colCriterion, L.colCoefficient, L.colValue, L.colPoints]];
+
+    const totalPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
+    const totalRow = [
+      '',
+      L.total,
+      '—',
+      '—',
+      '—',
+      `${totalEarned.toFixed(1)} / ${totalMax.toFixed(1)} (${totalPct.toFixed(1)} %)`,
+    ];
+
+    const head = [[L.colNum, L.colCriterion, L.colCoefficient, L.colValue, L.colObtained, L.colPoints]];
+    const allRows = [...bodyRows, totalRow];
 
     autoTable(doc, {
       startY: cursorY,
       margin: { left: marginX, right: marginX },
       head: isRtl ? head.map((r) => [...r].reverse()) : head,
-      body: isRtl ? bodyRows.map((r) => [...r].reverse()) : bodyRows,
-      styles: { cellPadding: 2.5, font: isRtl ? FONT_AR : 'helvetica', halign: isRtl ? 'right' : 'left' },
-      headStyles: { fillColor: COLOR_PRIMARY, textColor: 255, fontSize: 9 },
-      bodyStyles: { fontSize: 9, textColor: COLOR_TEXT },
+      body: isRtl ? allRows.map((r) => [...r].reverse()) : allRows,
+      styles: { cellPadding: 2.5, font: isRtl ? FONT_AR : 'helvetica', halign: isRtl ? 'right' : 'left', fontSize: 8.5 },
+      headStyles: { fillColor: COLOR_PRIMARY, textColor: 255, fontSize: 8.5, halign: isRtl ? 'right' : 'left' },
+      bodyStyles: { fontSize: 8.5, textColor: COLOR_TEXT },
       alternateRowStyles: { fillColor: [246, 248, 250] },
-      // La police Amiri n'ayant pas une bonne couverture latine, chaque cellule
-      // choisit sa police selon son propre contenu (nom français vs texte arabe).
+      // Dernière ligne (Total) mise en évidence.
       didParseCell: (data) => {
-        if (!isRtl) return;
-        const raw = Array.isArray(data.cell.raw) ? data.cell.raw.join(' ') : String(data.cell.raw ?? '');
-        data.cell.styles.font = isArabicText(raw) ? FONT_AR : 'helvetica';
+        const isTotalRow = data.section === 'body' && data.row.index === allRows.length - 1;
+        if (isTotalRow) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [232, 240, 246];
+        }
+        // La police Amiri n'ayant pas une bonne couverture latine, chaque cellule
+        // choisit sa police selon son propre contenu (nom français vs texte arabe).
+        if (isRtl) {
+          const raw = Array.isArray(data.cell.raw) ? data.cell.raw.join(' ') : String(data.cell.raw ?? '');
+          data.cell.styles.font = isArabicText(raw) ? FONT_AR : 'helvetica';
+        }
       },
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -542,11 +590,14 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
   if (responses.length >= 2) {
     const scored = responses.map((response) => {
       const criterion = criteria.find((c) => c.id === response.criterion_id);
-      const maxPoints = criterion ? getCriterionMaxPoints(criterion, rules) * (criterion.weight ?? 1) : response.points;
-      const r = maxPoints > 0 ? response.points / maxPoints : 0;
+      const weight = criterion?.weight ?? 1;
+      const rawMax = criterion ? getCriterionMaxPoints(criterion, rules) : response.points;
+      const weightedPoints = response.points * weight;
+      const maxPoints = rawMax * weight;
+      const r = maxPoints > 0 ? weightedPoints / maxPoints : 0;
       return {
         name: resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang),
-        points: response.points,
+        points: weightedPoints,
         maxPoints,
         ratio: r,
       };

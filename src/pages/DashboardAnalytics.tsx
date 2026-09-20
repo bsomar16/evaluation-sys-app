@@ -395,9 +395,10 @@ export default function DashboardAnalytics() {
             if (e.period !== period || !scopedEmails.has(e.employee_email)) return;
             const response = (e.responses ?? []).find((r) => r.criterion_id === criterion.id);
             if (!response) return;
-            const criterionMax = getCriterionMaxPoints(criterion, rules) * (criterion.weight ?? 1);
-            earned += response.points ?? 0;
-            max += criterionMax;
+            const weight = criterion.weight ?? 1;
+            // Points pondérés des deux côtés : le coefficient s'applique aux points obtenus ET au max.
+            earned += (response.points ?? 0) * weight;
+            max += getCriterionMaxPoints(criterion, rules) * weight;
           });
           return max > 0 ? (earned / max) * 100 : null;
         });

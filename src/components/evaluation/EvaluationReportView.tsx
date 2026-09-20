@@ -134,12 +134,17 @@ export function EvaluationReportView({
 
   const chartData = responses.map((response) => {
     const criterion = criteria.find((c) => c.id === response.criterion_id);
-    const maxPoints = criterion ? getCriterionMaxPoints(criterion, rules) * (criterion.weight ?? 1) : response.points || 1;
-    const ratio = maxPoints > 0 ? Math.max(0, Math.min(1, response.points / maxPoints)) : 0;
-    const points = Number(response.points.toFixed(1));
-    const max = Number(maxPoints.toFixed(1));
+    const weight = criterion?.weight ?? 1;
+    const rawMax = criterion ? getCriterionMaxPoints(criterion, rules) : response.points || 1;
+    // Points pondérés = points bruts × coefficient (idem pour le max), afin que
+    // le coefficient soit bien reflété dans l'affichage par critère.
+    const weightedPoints = response.points * weight;
+    const weightedMax = rawMax * weight;
+    const ratio = weightedMax > 0 ? Math.max(0, Math.min(1, weightedPoints / weightedMax)) : 0;
+    const points = Number(weightedPoints.toFixed(1));
+    const max = Number(weightedMax.toFixed(1));
     const name = resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang);
-    const coefficient = formatCoefficient(criterion?.weight ?? 1);
+    const coefficient = formatCoefficient(weight);
     return {
       name,
       axisLabel: `${name} (×${coefficient})`,
