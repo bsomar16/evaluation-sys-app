@@ -1,4 +1,5 @@
 import { getChoiceOptionsFromConfig, type CalculationRuleConfig, type CalculationRuleRecord, type CriterionType } from '@/lib/evaluation-calculator';
+import { formatDecimal } from '@/lib/utils';
 
 export interface CalculationMethodDefinition {
   type: CriterionType;
@@ -52,7 +53,7 @@ export const CALCULATION_METHOD_CATALOG: CalculationMethodDefinition[] = [
       const above = min + 15;
       return [
         { input: `${below} %`, points: '0 pt' },
-        { input: `${above} %`, points: `${(above / div).toFixed(1)} pt` },
+        { input: `${above} %`, points: `${formatDecimal(above / div)} pt` },
       ];
     },
   },
@@ -100,8 +101,8 @@ export const CALCULATION_METHOD_CATALOG: CalculationMethodDefinition[] = [
     examples: (c) => {
       const div = c.divisor ?? 10;
       return [
-        { input: '50 %', points: `${(50 / div).toFixed(1)} pt` },
-        { input: '100 %', points: `${(100 / div).toFixed(1)} pt` },
+        { input: '50 %', points: `${formatDecimal(50 / div)} pt` },
+        { input: '100 %', points: `${formatDecimal(100 / div)} pt` },
       ];
     },
   },

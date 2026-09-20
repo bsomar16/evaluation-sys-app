@@ -23,6 +23,7 @@ import { useI18n } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n/translations';
 import { useToast } from '@/hooks/use-toast';
 import { formatEvaluationPercentage, getCriterionMaxPoints } from '@/lib/evaluation-calculator';
+import { formatDecimal } from '@/lib/utils';
 import { EVALUATION_STATUS_LABELS } from '@/lib/evaluation-types';
 import { EvaluationAuditTrail } from '@/components/evaluation/EvaluationAuditTrail';
 import { getApprovalComment, getApproverName } from '@/lib/evaluation-audit';
@@ -283,7 +284,7 @@ export function EvaluationReportView({
                       : 'hsl(var(--muted-foreground))',
               }}
             >
-              {delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts` : '—'}
+              {delta != null ? `${delta > 0 ? '+' : ''}${formatDecimal(delta)} pts` : '—'}
             </p>
           </div>
           <div className="p-4 text-center">

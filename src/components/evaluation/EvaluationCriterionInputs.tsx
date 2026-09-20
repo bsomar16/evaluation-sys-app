@@ -3,7 +3,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Star, Plus, Minus } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatDecimal } from '@/lib/utils';
 import type { EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
 import {
   calculateCriterionScore,
@@ -148,7 +148,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
         </div>
         {showValues && (
           <Badge variant="outline" className="font-normal">
-            {points.toFixed(1)}
+            {formatDecimal(points)}
           </Badge>
         )}
       </div>
@@ -172,7 +172,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
         />
         {showValues && (
           <Badge variant="outline" className="font-normal">
-            {points.toFixed(1)}
+            {formatDecimal(points)}
           </Badge>
         )}
       </div>
@@ -215,7 +215,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
         </div>
         {showValues && (
           <Badge variant="outline" className="font-normal">
-            {points.toFixed(1)}
+            {formatDecimal(points)}
           </Badge>
         )}
       </div>
@@ -229,7 +229,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
         <StarRating value={num} onChange={onChange} disabled={disabled} />
         {showValues && (
           <Badge variant="outline" className="font-normal">
-            {points.toFixed(1)}
+            {formatDecimal(points)}
           </Badge>
         )}
       </div>

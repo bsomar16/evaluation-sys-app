@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatEvaluationScore } from '@/lib/evaluation-storage';
+import { formatDecimal } from '@/lib/utils';
 import {
   Search,
   Trash2,
@@ -425,7 +426,7 @@ export function EvaluationsPage() {
                     {viewTarget.responses.map((r) => (
                       <li key={r.criterion_id} className="flex justify-between border-b pb-2">
                         <span>{r.criterion_name}</span>
-                        <span className="text-muted-foreground">{r.points.toFixed(1)} pt</span>
+                        <span className="text-muted-foreground">{formatDecimal(r.points)} pt</span>
                       </li>
                     ))}
                   </ul>

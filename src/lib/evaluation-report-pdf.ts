@@ -10,6 +10,7 @@ import {
 import { type EvaluationRecord } from '@/lib/evaluation-types';
 import { resolveCriterionName } from '@/lib/evaluation-report-data';
 import { getApprovalComment, getApproverName } from '@/lib/evaluation-audit';
+import { formatDecimal } from '@/lib/utils';
 import { translations, type Lang } from '@/lib/i18n/translations';
 
 /**
@@ -405,7 +406,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
         doc.setTextColor(...deltaColor);
         setFont(doc, lang, 'bold');
         doc.setFontSize(13);
-        const text = delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts` : '—';
+        const text = delta != null ? `${delta > 0 ? '+' : ''}${formatDecimal(delta)} pts` : '—';
         drawText(doc, lang, text, x, valueY, { align: 'center' });
       },
     },
@@ -521,7 +522,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       doc.rect(filledX, barY, filledWidth, 5, 'F');
 
       doc.setTextColor(...COLOR_MUTED);
-      drawText(doc, lang, `${weightedPoints.toFixed(1)}/${maxPoints.toFixed(1)}`, valueX, barY + 4, {
+      drawText(doc, lang, `${formatDecimal(weightedPoints)}/${formatDecimal(maxPoints)}`, valueX, barY + 4, {
         align: endAlign,
       });
 
@@ -552,8 +553,8 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       const value =
         typeof response.value === 'boolean' ? (response.value ? L.yes : L.no) : String(response.value);
       // « Score obtenu » = points bruts / max brut ; « Points » = pondérés (× coefficient).
-      const obtained = `${response.points.toFixed(1)} / ${rawMax.toFixed(1)}`;
-      const weighted = `${weightedPoints.toFixed(1)} / ${weightedMax.toFixed(1)}`;
+      const obtained = `${formatDecimal(response.points)} / ${formatDecimal(rawMax)}`;
+      const weighted = `${formatDecimal(weightedPoints)} / ${formatDecimal(weightedMax)}`;
       return [String(index + 1), name, formatCoefficient(weight), value, obtained, weighted];
     });
 
@@ -564,7 +565,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       '—',
       '—',
       '—',
-      `${totalEarned.toFixed(1)} / ${totalMax.toFixed(1)} (${totalPct.toFixed(1)} %)`,
+      `${formatDecimal(totalEarned)} / ${formatDecimal(totalMax)} (${formatDecimal(totalPct)} %)`,
     ];
 
     const head = [[L.colNum, L.colCriterion, L.colCoefficient, L.colValue, L.colObtained, L.colPoints]];
@@ -672,7 +673,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       drawText(
         doc,
         lang,
-        `${points.toFixed(1)} / ${maxPoints.toFixed(1)} ${L.ptsUnit}`,
+        `${formatDecimal(points)} / ${formatDecimal(maxPoints)} ${L.ptsUnit}`,
         textX,
         cursorY + 11 + maxLines * 4.6,
         { align }

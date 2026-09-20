@@ -52,6 +52,7 @@ import {
   type EvaluationCriterionRecord,
 } from '@/lib/evaluation-calculator';
 import { useI18n } from '@/lib/i18n';
+import { formatDecimal } from '@/lib/utils';
 import {
   appendAuditEntry, createAuditEntry, type EvaluationAuditEntry } from '@/lib/evaluation-audit';
 import { hasEvaluationModuleAccess, showEvaluationManageButton } from '@/lib/evaluation-access';
@@ -1550,12 +1551,14 @@ export default function Evaluation() {
                 </div>
                 {showEvaluationValues && formValues[criterion.id] !== undefined && (
                   <Badge variant="outline" className="font-normal text-xs shrink-0">
-                    {calculateCriterionScore(
-                      criterion.type,
-                      formValues[criterion.id],
-                      rules,
-                      criterion.calculation_rule_id
-                    ).toFixed(1)}
+                    {formatDecimal(
+                      calculateCriterionScore(
+                        criterion.type,
+                        formValues[criterion.id],
+                        rules,
+                        criterion.calculation_rule_id
+                      )
+                    )}
                   </Badge>
                 )}
               </div>

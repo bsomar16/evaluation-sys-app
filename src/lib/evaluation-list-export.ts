@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { formatEvaluationPercentage, type CalculationRuleRecord, type EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
 import { criterionIsApplicableForEvaluation } from '@/lib/criterion-frequency';
 import { criterionAppliesToEmployee } from '@/lib/evaluation-storage';
+import { formatDecimal } from '@/lib/utils';
 import {
   EVALUATION_STATUS_LABELS,
   type EmployeeForEvaluation,
@@ -202,7 +203,7 @@ function resolveCriterionExportFieldValue(
     case 'criterion.name':
       return criterion.name;
     case 'criterion.note':
-      return response != null ? response.points.toFixed(1) : '—';
+      return response != null ? formatDecimal(response.points) : '—';
     case 'criterion.value':
       return response != null ? formatCriterionResponseValue(response) : '—';
     default:
