@@ -363,6 +363,18 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       x += w;
     }
   }
+
+  // Séparateurs verticaux entre les colonnes du résumé.
+  doc.setDrawColor(199, 231, 224);
+  doc.setLineWidth(0.3);
+  {
+    let bx = marginX;
+    for (let i = 0; i < colWidths.length - 1; i += 1) {
+      bx += colWidths[i];
+      doc.line(bx, summaryY + 3, bx, summaryY + summaryHeight - 3);
+    }
+  }
+
   const labelY = summaryY + 7;
   const valueY = summaryY + 16;
 
