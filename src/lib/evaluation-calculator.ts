@@ -253,7 +253,9 @@ export function calculateCriterionScore(
       return value ? yes : no;
     }
     case 'threshold': {
-      const n = value as number;
+      // Saisie possible au-delà de 100 % (affichage/information uniquement, via
+      // l'extension d'échelle de la barre) — le calcul plafonne toujours à 100 %.
+      const n = Math.min(value as number, 100);
       const min = cfg.threshold_min ?? 70;
       const div = cfg.divisor ?? 10;
       return n < min ? 0 : n / div;

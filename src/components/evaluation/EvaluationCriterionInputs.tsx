@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Star } from 'lucide-react';
+import { Star, Plus, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { EvaluationCriterionRecord } from '@/lib/evaluation-calculator';
 import {
@@ -55,6 +56,17 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
       ? calculateCriterionScore(method, value, rules, ruleId)
       : 0;
 
+  // Échelle de la barre pour le critère "Pourcentage (%)" (threshold) : la saisie peut
+  // dépasser 100 % à titre informatif, mais le calcul (ci-dessus) plafonne toujours à
+  // 100 %. La barre elle-même garde une largeur fixe — seule l'échelle qu'elle
+  // représente change (100 → 200 → 300…), via les boutons +/-.
+  const [scaleMax, setScaleMax] = useState(100);
+  useEffect(() => {
+    if (typeof value === 'number') {
+      setScaleMax((prev) => (value > prev ? Math.ceil(value / 100) * 100 : prev));
+    }
+  }, [value]);
+
   if (method === 'binary') {
     const checked = Boolean(value);
     return (
@@ -66,12 +78,79 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
     );
   }
 
-  if (method === 'threshold' || method === 'direct') {
+  if (method === 'threshold') {
+    const num = typeof value === 'number' ? value : 50;
+    const isExtended = scaleMax > 100;
+    const hundredMarkPercent = (100 / scaleMax) * 100;
+
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Pourcentage atteint</span>
+          <span className="font-bold text-foreground">
+            {num} %
+            {num > 100 && (
+              <span className="ml-1 font-normal text-muted-foreground">(compté pour 100 %)</span>
+            )}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isExtended && (
+            <button
+              type="button"
+              onClick={() => {
+                const next = Math.max(100, scaleMax - 100);
+                setScaleMax(next);
+                if (num > next) onChange(next);
+              }}
+              disabled={disabled}
+              title="Réduire l'échelle de la barre"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <div className="relative flex-1">
+            <Slider
+              value={[num]}
+              onValueChange={([v]) => onChange(v)}
+              max={scaleMax}
+              step={1}
+              disabled={disabled}
+            />
+            {isExtended && (
+              <div
+                className="pointer-events-none absolute top-1/2 h-3 w-0.5 -translate-y-1/2 bg-muted-foreground/50"
+                style={{ left: `${hundredMarkPercent}%` }}
+                title="Limite prise en compte dans le calcul (100 %)"
+              />
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setScaleMax((prev) => prev + 100)}
+            disabled={disabled}
+            title="Étendre l'échelle de la barre au-delà de 100 %"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {showValues && (
+          <Badge variant="outline" className="font-normal">
+            {points.toFixed(1)}
+          </Badge>
+        )}
+      </div>
+    );
+  }
+
+  if (method === 'direct') {
     const num = typeof value === 'number' ? value : 50;
     return (
       <div className="space-y-3">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>{method === 'threshold' ? 'Pourcentage atteint' : 'Score direct (%)'}</span>
+          <span>Score direct (%)</span>
           <span className="font-bold text-foreground">{num} %</span>
         </div>
         <Slider
