@@ -365,5 +365,5 @@ export function computeEvaluationPercentageFromResponses(
 
 export function formatEvaluationPercentage(percentage: number | null | undefined): string {
   if (percentage == null || Number.isNaN(percentage)) return '—';
-  return `${percentage.toFixed(1)} %`;
+  return `${Number(percentage.toFixed(1))} %`;
 }

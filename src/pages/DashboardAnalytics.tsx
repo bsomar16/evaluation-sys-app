@@ -123,7 +123,7 @@ function scoreBand(pct: number) {
 
 function fmtPct(value: number | null): string {
   if (value == null || Number.isNaN(value)) return '—';
-  return `${value.toFixed(1)} %`;
+  return `${Number(value.toFixed(1))} %`;
 }
 
 function DeltaTag({ delta }: { delta: number | null }) {
@@ -136,7 +136,7 @@ function DeltaTag({ delta }: { delta: number | null }) {
     <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${color}`}>
       <Icon size={12} />
       {delta > 0 ? '+' : ''}
-      {delta.toFixed(1)}%
+      {Number(delta.toFixed(1))}%
     </span>
   );
 }
@@ -462,7 +462,7 @@ export default function DashboardAnalytics() {
       list.push({
         icon: TrendingDown, tone: 'amber',
         title: 'Baisse de performance',
-        detail: `${worstDelta.name} (${worstDelta.delta!.toFixed(1)}%)`,
+        detail: `${worstDelta.name} (${Number(worstDelta.delta!.toFixed(1))}%)`,
       });
     }
 
@@ -471,7 +471,7 @@ export default function DashboardAnalytics() {
       list.push({
         icon: ThumbsUp, tone: 'green',
         title: 'Progression notable',
-        detail: `${bestDelta.name} (+${bestDelta.delta!.toFixed(1)}%)`,
+        detail: `${bestDelta.name} (+${Number(bestDelta.delta!.toFixed(1))}%)`,
       });
     }
 
@@ -582,7 +582,7 @@ export default function DashboardAnalytics() {
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Évaluations complétées</p>
               <p className="text-2xl font-bold mt-1">{loading ? '-' : kpi.completed}</p>
-              <p className="text-xs text-emerald-600 mt-1">{kpi.completedRate != null ? `${kpi.completedRate.toFixed(1)}%` : '—'}</p>
+              <p className="text-xs text-emerald-600 mt-1">{kpi.completedRate != null ? `${Number(kpi.completedRate.toFixed(1))}%` : '—'}</p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
               <CheckCircle2 size={20} className="text-emerald-600" />
@@ -595,7 +595,7 @@ export default function DashboardAnalytics() {
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Évaluations en retard</p>
               <p className="text-2xl font-bold mt-1">{loading ? '-' : kpi.late}</p>
-              <p className="text-xs text-red-600 mt-1">{kpi.lateRate != null ? `${kpi.lateRate.toFixed(1)}%` : '—'}</p>
+              <p className="text-xs text-red-600 mt-1">{kpi.lateRate != null ? `${Number(kpi.lateRate.toFixed(1))}%` : '—'}</p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-950/40 flex items-center justify-center">
               <AlertTriangle size={20} className="text-red-600" />
@@ -632,7 +632,7 @@ export default function DashboardAnalytics() {
                   <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                   <Tooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
-                    formatter={(v: number) => [`${v.toFixed(1)} %`, 'Moyenne']}
+                    formatter={(v: number) => [`${Number(v.toFixed(1))} %`, 'Moyenne']}
                   />
                   <Line type="monotone" dataKey="average" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
                 </LineChart>

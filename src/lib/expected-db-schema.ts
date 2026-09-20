@@ -129,7 +129,7 @@ export const EXPECTED_DB_SCHEMA: ExpectedDbSchema = {
     { name: 'manager_id', type: 'uuid', nullable: true },
     { name: 'period', type: 'varchar(100)', nullable: true },
     { name: 'period_id', type: 'uuid', nullable: true },
-    { name: 'score', type: 'numeric(3,1)', nullable: true },
+    { name: 'score', type: 'numeric(5,2)', nullable: true },
     { name: 'feedback', type: 'text', nullable: true },
     { name: 'responses', type: 'jsonb', default: "'[]'::jsonb", nullable: true },
     { name: 'activity_log', type: 'jsonb', default: "'[]'::jsonb", nullable: true },

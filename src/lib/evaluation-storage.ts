@@ -204,7 +204,7 @@ export function resolveEvaluationPercentage(
 
 export function formatEvaluationScore(score: number | null | undefined, _maxScore?: number | null): string {
   if (score == null || Number.isNaN(score)) return '—';
-  return `${score.toFixed(1)} %`;
+  return `${Number(score.toFixed(1))} %`;
 }
 
 export class CriterionInUseError extends Error {
