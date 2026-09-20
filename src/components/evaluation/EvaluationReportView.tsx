@@ -10,8 +10,6 @@ import {
   PolarRadiusAxis,
   Radar,
   RadarChart,
-  RadialBar,
-  RadialBarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -20,7 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileSpreadsheet, FileText, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { FileSpreadsheet, FileText } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import type { Lang } from '@/lib/i18n/translations';
 import { useToast } from '@/hooks/use-toast';
@@ -154,7 +152,6 @@ export function EvaluationReportView({
 
   const overallRatio = percentage != null ? Math.max(0, Math.min(100, percentage)) / 100 : 0;
   const overallColor = scoreHexColor(overallRatio);
-  const gaugeData = [{ value: Math.round(overallRatio * 100), fill: overallColor }];
 
   const handleDownloadPdf = async (pdfLang: Lang) => {
     const opened = await generateEvaluationReportPdf(
@@ -245,34 +242,68 @@ export function EvaluationReportView({
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-5 flex items-center gap-6">
-          <div className="relative w-[110px] h-[110px] shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadialBarChart
-                data={gaugeData}
-                innerRadius="72%"
-                outerRadius="100%"
-                startAngle={90}
-                endAngle={-270}
-              >
-                <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                <RadialBar dataKey="value" cornerRadius={8} background={{ fill: 'hsl(var(--muted))' }} />
-              </RadialBarChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xl font-bold" style={{ color: overallColor }}>
-                {formatEvaluationPercentage(percentage)}
-              </span>
-            </div>
-          </div>
-          <div>
-            <p className="text-sm text-muted-foreground">{t('evalMgmt.totalScore')}</p>
-            <p className="text-3xl font-bold" style={{ color: overallColor }}>
+      <Card className="overflow-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-5 divide-y sm:divide-y-0 divide-x-0 sm:divide-x divide-border">
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">{t('reports.scoreActuel')}</p>
+            <p className="text-lg font-bold" style={{ color: overallColor }}>
               {formatEvaluationPercentage(percentage)}
             </p>
           </div>
-        </CardContent>
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">{t('reports.objectif')}</p>
+            <p className="text-lg font-bold text-muted-foreground">—</p>
+          </div>
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">{t('reports.ecart')}</p>
+            <p
+              className="text-lg font-bold"
+              style={{
+                color:
+                  delta != null && delta > 0.05
+                    ? '#10b981'
+                    : delta != null && delta < -0.05
+                      ? '#ef4444'
+                      : 'hsl(var(--muted-foreground))',
+              }}
+            >
+              {delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts` : '—'}
+            </p>
+          </div>
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">{t('reports.evolution')}</p>
+            {hasComparison ? (
+              <div className="flex items-center justify-center gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground">
+                    {formatEvaluationPercentage(previousPercentage)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">{previousPeriodLabel}</p>
+                </div>
+                <span className="text-muted-foreground">→</span>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: overallColor }}>
+                    {formatEvaluationPercentage(percentage)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">{evaluation.period}</p>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-semibold" style={{ color: overallColor }}>
+                  {formatEvaluationPercentage(percentage)}
+                </p>
+                <p className="text-[10px] text-muted-foreground">{evaluation.period}</p>
+              </div>
+            )}
+          </div>
+          <div className="p-4 text-center">
+            <p className="text-xs text-muted-foreground mb-1">{t('reports.statut')}</p>
+            <p className="text-lg font-bold">
+              {EVALUATION_STATUS_LABELS[evaluation.status] ?? evaluation.status}
+            </p>
+          </div>
+        </div>
       </Card>
 
       {chartData.length > 0 && (
@@ -352,44 +383,6 @@ export function EvaluationReportView({
 
       {evaluation.activity_log && evaluation.activity_log.length > 0 && (
         <EvaluationAuditTrail entries={evaluation.activity_log} />
-      )}
-
-      {hasComparison && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{t('reports.previousPeriodSection')}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {t('reports.vsPrevious', { period: previousPeriodLabel })}
-              </p>
-              <p className="text-lg font-semibold text-muted-foreground">
-                {formatEvaluationPercentage(previousPercentage)}
-              </p>
-            </div>
-            <p
-              className="flex items-center gap-1 text-sm font-semibold"
-              style={{
-                color:
-                  delta != null && delta > 0.05
-                    ? '#10b981'
-                    : delta != null && delta < -0.05
-                      ? '#ef4444'
-                      : 'hsl(var(--muted-foreground))',
-              }}
-            >
-              {delta != null && delta > 0.05 ? (
-                <TrendingUp className="h-4 w-4" />
-              ) : delta != null && delta < -0.05 ? (
-                <TrendingDown className="h-4 w-4" />
-              ) : (
-                <Minus className="h-4 w-4" />
-              )}
-              {delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts` : '—'}
-            </p>
-          </CardContent>
-        </Card>
       )}
 
       <PdfLanguageDialog

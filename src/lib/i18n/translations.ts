@@ -213,6 +213,11 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       previousPeriodSection: 'Période précédente',
       colResponse: 'Réponse',
       approvalComment: "Commentaire de l'approbateur",
+      scoreActuel: 'Score actuel',
+      objectif: 'Objectif',
+      ecart: 'Écart',
+      evolution: 'Évolution',
+      statut: 'Statut',
     },
     team: {
       defaultTitle: 'Employés',
@@ -642,6 +647,11 @@ export const translations: Record<Lang, Record<string, Record<string, string>>> 
       previousPeriodSection: 'الفترة السابقة',
       colResponse: 'الإجابة',
       approvalComment: 'تعليق المُوافِق',
+      scoreActuel: 'النتيجة الحالية',
+      objectif: 'الهدف',
+      ecart: 'الفارق',
+      evolution: 'التطوّر',
+      statut: 'الحالة',
     },
     team: {
       defaultTitle: 'الموظفون',

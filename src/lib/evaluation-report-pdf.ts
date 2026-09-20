@@ -31,7 +31,6 @@ const COLOR_PRIMARY: [number, number, number] = [30, 58, 95];
 const COLOR_GREEN: [number, number, number] = [16, 185, 129];
 const COLOR_ORANGE: [number, number, number] = [245, 158, 11];
 const COLOR_RED: [number, number, number] = [239, 68, 68];
-const COLOR_GREY: [number, number, number] = [148, 163, 184];
 const COLOR_TEXT: [number, number, number] = [30, 41, 59];
 const COLOR_MUTED: [number, number, number] = [100, 116, 139];
 
@@ -54,8 +53,11 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     yes: 'Oui',
     no: 'Non',
     comment: "Commentaire de l'approbateur",
-    previousPeriodSection: 'Période précédente',
-    vsPrevious: 'Vs période précédente',
+    scoreActuel: 'Score actuel',
+    objectif: 'Objectif',
+    ecart: 'Écart',
+    evolution: 'Évolution',
+    statut: 'Statut',
     generatedOn: 'Généré le',
     page: 'Page',
   },
@@ -75,8 +77,11 @@ const PDF_LABELS: Record<Lang, Record<string, string>> = {
     yes: 'نعم',
     no: 'لا',
     comment: 'تعليق المُوافِق',
-    previousPeriodSection: 'الفترة السابقة',
-    vsPrevious: 'مقارنة بالفترة السابقة',
+    scoreActuel: 'النتيجة الحالية',
+    objectif: 'الهدف',
+    ecart: 'الفارق',
+    evolution: 'التطوّر',
+    statut: 'الحالة',
     generatedOn: 'أُنشئ في',
     page: 'صفحة',
   },
@@ -277,7 +282,6 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
   setFont(doc, lang, 'normal');
   doc.setFontSize(10);
   drawText(doc, lang, `${L.period} : ${evaluation.period || '—'}`, startX, 22, { align: startAlign });
-  drawText(doc, lang, `${L.status} : ${statusLabel}`, endX, 22, { align: endAlign });
 
   cursorY = 36;
 
@@ -307,30 +311,120 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
   });
   cursorY += Math.ceil(infoPairs.length / 2) * 7 + 6;
 
-  // ── Score global ───────────────────────────────────────────────────
+  // ── Résumé (Score actuel / Objectif / Écart / Évolution / Statut) ───
   const ratio = percentage != null ? Math.max(0, Math.min(100, percentage)) / 100 : 0;
   const barColor = scoreColor(ratio);
+  const hasComparison = previousPeriodLabel != null && previousPercentage != null;
+  const delta = percentage != null && previousPercentage != null ? percentage - previousPercentage : null;
+  const deltaColor = delta == null ? COLOR_MUTED : delta > 0.05 ? COLOR_GREEN : delta < -0.05 ? COLOR_RED : COLOR_MUTED;
 
-  setFont(doc, lang, 'bold');
-  doc.setFontSize(22);
-  doc.setTextColor(...barColor);
-  drawText(doc, lang, percentage != null ? formatEvaluationPercentage(percentage) : '—', startX, cursorY + 8, {
-    align: startAlign,
+  const summaryY = cursorY;
+  const summaryHeight = 24;
+  doc.setFillColor(240, 253, 250);
+  doc.roundedRect(marginX, summaryY, pageWidth - marginX * 2, summaryHeight, 2, 2, 'F');
+
+  // Poids relatifs des colonnes (Évolution a besoin de plus de place pour les deux
+  // périodes) — somme = 6 unités réparties sur la largeur disponible.
+  const unit = (pageWidth - marginX * 2) / 6;
+  const colWidths = [unit, unit, unit, unit * 2, unit];
+  const colCenters: number[] = [];
+  {
+    let x = marginX;
+    for (const w of colWidths) {
+      colCenters.push(x + w / 2);
+      x += w;
+    }
+  }
+  const labelY = summaryY + 7;
+  const valueY = summaryY + 16;
+
+  type SummaryColumn = { label: string; draw: (centerX: number) => void };
+
+  const columns: SummaryColumn[] = [
+    {
+      label: L.scoreActuel,
+      draw: (x) => {
+        doc.setTextColor(...barColor);
+        setFont(doc, lang, 'bold');
+        doc.setFontSize(13);
+        drawText(doc, lang, percentage != null ? formatEvaluationPercentage(percentage) : '—', x, valueY, { align: 'center' });
+      },
+    },
+    {
+      label: L.objectif,
+      draw: (x) => {
+        doc.setTextColor(...COLOR_MUTED);
+        setFont(doc, lang, 'bold');
+        doc.setFontSize(13);
+        drawText(doc, lang, '—', x, valueY, { align: 'center' });
+      },
+    },
+    {
+      label: L.ecart,
+      draw: (x) => {
+        doc.setTextColor(...deltaColor);
+        setFont(doc, lang, 'bold');
+        doc.setFontSize(13);
+        const text = delta != null ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts` : '—';
+        drawText(doc, lang, text, x, valueY, { align: 'center' });
+      },
+    },
+    {
+      label: L.evolution,
+      draw: (x) => {
+        if (hasComparison) {
+          const half = colWidths[3] / 4;
+          const prevX = x - half;
+          const nextX = x + half;
+          doc.setTextColor(...COLOR_MUTED);
+          setFont(doc, lang, 'bold');
+          doc.setFontSize(11);
+          drawText(doc, lang, formatEvaluationPercentage(previousPercentage), prevX, valueY - 1, { align: 'center' });
+          doc.setTextColor(...barColor);
+          drawText(doc, lang, formatEvaluationPercentage(percentage), nextX, valueY - 1, { align: 'center' });
+          doc.setTextColor(...COLOR_MUTED);
+          setFont(doc, lang, 'normal');
+          doc.setFontSize(9);
+          // Flèche ASCII simple : les caractères flèche unicode (←→) ne font pas partie
+          // de l'encodage WinAnsi des polices standard et s'affichaient corrompus.
+          drawText(doc, lang, isRtl ? '<' : '>', x, valueY - 1, { align: 'center' });
+          doc.setFontSize(6.5);
+          drawText(doc, lang, previousPeriodLabel ?? '', prevX, valueY + 4, { align: 'center' });
+          drawText(doc, lang, evaluation.period || '', nextX, valueY + 4, { align: 'center' });
+        } else {
+          doc.setTextColor(...barColor);
+          setFont(doc, lang, 'bold');
+          doc.setFontSize(12);
+          drawText(doc, lang, percentage != null ? formatEvaluationPercentage(percentage) : '—', x, valueY - 1, { align: 'center' });
+          doc.setTextColor(...COLOR_MUTED);
+          setFont(doc, lang, 'normal');
+          doc.setFontSize(6.5);
+          drawText(doc, lang, evaluation.period || '', x, valueY + 4, { align: 'center' });
+        }
+      },
+    },
+    {
+      label: L.statut,
+      draw: (x) => {
+        doc.setTextColor(...COLOR_TEXT);
+        setFont(doc, lang, 'bold');
+        doc.setFontSize(11);
+        drawText(doc, lang, statusLabel, x, valueY, { align: 'center' });
+      },
+    },
+  ];
+
+  const orderedColumns = isRtl ? [...columns].reverse() : columns;
+  orderedColumns.forEach((column, index) => {
+    const centerX = colCenters[index];
+    doc.setTextColor(...COLOR_MUTED);
+    setFont(doc, lang, 'normal');
+    doc.setFontSize(8);
+    drawText(doc, lang, column.label, centerX, labelY, { align: 'center' });
+    column.draw(centerX);
   });
 
-  const scoreLabelWidth = 40;
-  const barWidth = pageWidth - marginX * 2 - scoreLabelWidth;
-  const barY = cursorY + 2;
-  const barX = isRtl ? marginX : marginX + scoreLabelWidth;
-  doc.setFillColor(...COLOR_GREY);
-  doc.roundedRect(barX, barY, barWidth, 6, 2, 2, 'F');
-  if (percentage != null) {
-    doc.setFillColor(...barColor);
-    const filledWidth = Math.max(barWidth * ratio, 4);
-    const filledX = isRtl ? barX + barWidth - filledWidth : barX;
-    doc.roundedRect(filledX, barY, filledWidth, 6, 2, 2, 'F');
-  }
-  cursorY += 18;
+  cursorY += summaryHeight + 8;
 
   // ── Diagramme par critère ────────────────────────────────────────────
   const responses = evaluation.responses ?? [];
@@ -443,41 +537,6 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
     cursorY += lines.length * 5 + 10;
   }
 
-  // ── Période précédente (en bas de page) ───────────────────────────────
-  if (previousPeriodLabel && previousPercentage != null) {
-    if (cursorY > 260) {
-      doc.addPage();
-      cursorY = 20;
-    }
-    const delta = percentage != null ? percentage - previousPercentage : null;
-    const deltaColor = delta == null ? COLOR_MUTED : delta > 0.05 ? COLOR_GREEN : delta < -0.05 ? COLOR_RED : COLOR_MUTED;
-    // Symboles ASCII simples : les caractères géométriques (▲▼＝) ne font pas
-    // partie de l'encodage WinAnsi des polices standard et s'affichaient
-    // corrompus dans le PDF.
-    const arrow = delta == null ? '' : delta > 0.05 ? '^' : delta < -0.05 ? 'v' : '=';
-    const deltaText = delta == null ? '' : `${arrow} ${delta > 0 ? '+' : ''}${delta.toFixed(1)} pts`;
-
-    setFont(doc, lang, 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...COLOR_TEXT);
-    drawText(doc, lang, L.previousPeriodSection, startX, cursorY, { align: startAlign });
-    cursorY += 7;
-
-    setFont(doc, lang, 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(...COLOR_MUTED);
-    drawText(
-      doc,
-      lang,
-      `${L.vsPrevious} (${previousPeriodLabel}) : ${formatEvaluationPercentage(previousPercentage)}`,
-      startX,
-      cursorY,
-      { align: startAlign }
-    );
-    setFont(doc, lang, 'bold');
-    doc.setTextColor(...deltaColor);
-    drawText(doc, lang, deltaText, endX, cursorY, { align: endAlign });
-  }
 }
 
 function addFooters(doc: jsPDF, lang: Lang): void {
