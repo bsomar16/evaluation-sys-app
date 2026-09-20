@@ -22,7 +22,12 @@ import {
 } from '@/lib/company-branding';
 import { cn } from '@/lib/utils';
 import { colorPalettes, applyPaletteToDOM, type PaletteKey, type ThemeMode } from '@/lib/palette-utils';
-import { loadDashboardTemplate, saveDashboardTemplate, type DashboardTemplate } from '@/lib/dashboard-template';
+import {
+  loadDashboardTemplate,
+  loadDashboardTemplateCached,
+  saveDashboardTemplate,
+  type DashboardTemplate,
+} from '@/lib/dashboard-template';
 type ColorKey = PaletteKey;
 type ThemeMode = 'light' | 'dark';
 type ColorVariable = 'background' | 'sidebar_background' | 'card' | 'accent' | 'muted' | 'foreground' | 'sidebar_foreground' | 'muted_foreground' | 'border' | 'input' | 'ring' | 'selection' | 'selection_foreground' | 'destructive' | 'success' | 'warning' | 'button_primary' | 'button_primary_text' | 'button_secondary' | 'button_secondary_text' | 'button_hover';
@@ -43,11 +48,21 @@ export default function UIStudio() {
     return (localStorage.getItem('appearanceMode') as any) || 'standard';
   });
   const [branding, setBranding] = useState<CompanyBrandingSettings>(() => loadCompanyBranding());
-  const [dashboardTemplate, setDashboardTemplate] = useState<DashboardTemplate>(() => loadDashboardTemplate());
+  const [dashboardTemplate, setDashboardTemplate] = useState<DashboardTemplate>(() => loadDashboardTemplateCached());
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadDashboardTemplate().then((resolved) => {
+      if (!cancelled) setDashboardTemplate(resolved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const chooseDashboardTemplate = (template: DashboardTemplate) => {
     setDashboardTemplate(template);
-    saveDashboardTemplate(template);
+    void saveDashboardTemplate(template);
   };
 
   // Watch for appearance mode changes from AppLayout

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
@@ -82,6 +82,15 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
     const num = typeof value === 'number' ? value : 50;
     const isExtended = scaleMax > 100;
     const hundredMarkPercent = (100 / scaleMax) * 100;
+    // Au-delà de 100 %, le remplissage de la barre passe en dégradé ambre/orangé à
+    // partir du point "100 %" — pour distinguer visuellement la portion réellement
+    // comptée dans le calcul (teinte primaire) de la portion informative en bonus.
+    const bonusRangeStyle: CSSProperties | undefined =
+      num > 100
+        ? {
+            background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(100 / num) * 100}%, #fbbf24 ${(100 / num) * 100}%, #f97316 100%)`,
+          }
+        : undefined;
 
     return (
       <div className="space-y-3">
@@ -117,6 +126,7 @@ export function EvaluationCriterionInputs({ criterion, value, onChange, rules, d
               max={scaleMax}
               step={1}
               disabled={disabled}
+              rangeStyle={bonusRangeStyle}
             />
             {isExtended && (
               <div
