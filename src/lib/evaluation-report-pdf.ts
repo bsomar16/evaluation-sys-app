@@ -423,14 +423,21 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
   doc.setFillColor(240, 253, 250);
   doc.roundedRect(marginX, summaryY, pageWidth - marginX * 2, summaryHeight, 2, 2, 'F');
 
-  // Poids relatifs des colonnes (Évolution a besoin de plus de place pour les deux
-  // périodes) — somme = 6 unités réparties sur la largeur disponible.
-  const unit = (pageWidth - marginX * 2) / 6;
-  const colWidths = [unit, unit, unit, unit * 2, unit];
+  // Poids relatifs des colonnes, dans l'ordre logique [scoreActuel, écart,
+  // évolution, statut] — évolution a besoin de plus de place pour les deux
+  // périodes. Somme = 5 unités réparties sur la largeur disponible.
+  // En RTL, les colonnes elles-mêmes sont réaffichées en ordre inverse (voir
+  // orderedColumns plus bas) : leurs largeurs doivent suivre le même ordre,
+  // sans quoi la colonne double-largeur "évolution" se retrouve positionnée
+  // dans un emplacement étroit prévu pour une autre colonne et déborde sur sa
+  // voisine.
+  const unit = (pageWidth - marginX * 2) / 5;
+  const colWidths = [unit, unit, unit * 2, unit];
+  const orderedColWidths = isRtl ? [...colWidths].reverse() : colWidths;
   const colCenters: number[] = [];
   {
     let x = marginX;
-    for (const w of colWidths) {
+    for (const w of orderedColWidths) {
       colCenters.push(x + w / 2);
       x += w;
     }
@@ -441,8 +448,8 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
   doc.setLineWidth(0.3);
   {
     let bx = marginX;
-    for (let i = 0; i < colWidths.length - 1; i += 1) {
-      bx += colWidths[i];
+    for (let i = 0; i < orderedColWidths.length - 1; i += 1) {
+      bx += orderedColWidths[i];
       doc.line(bx, summaryY + 3, bx, summaryY + summaryHeight - 3);
     }
   }
@@ -463,15 +470,6 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       },
     },
     {
-      label: L.objectif,
-      draw: (x) => {
-        doc.setTextColor(...COLOR_MUTED);
-        setFont(doc, lang, 'bold');
-        doc.setFontSize(13);
-        drawText(doc, lang, '—', x, valueY, { align: 'center' });
-      },
-    },
-    {
       label: L.ecart,
       draw: (x) => {
         doc.setTextColor(...deltaColor);
@@ -485,7 +483,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       label: L.evolution,
       draw: (x) => {
         if (hasComparison) {
-          const half = colWidths[3] / 4;
+          const half = colWidths[2] / 4;
           const prevX = x - half;
           const nextX = x + half;
           doc.setTextColor(...COLOR_MUTED);
