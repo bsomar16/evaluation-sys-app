@@ -11,7 +11,7 @@ import { type EvaluationRecord } from '@/lib/evaluation-types';
 import { resolveCriterionName } from '@/lib/evaluation-report-data';
 import { getApprovalComment, getApproverName } from '@/lib/evaluation-audit';
 import { formatDecimal } from '@/lib/utils';
-import { translations, type Lang } from '@/lib/i18n/translations';
+import { type Lang } from '@/lib/i18n/translations';
 
 /**
  * Génération du PDF bilingue FR/AR.
@@ -362,7 +362,6 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
   } = input;
   const isRtl = lang === 'ar';
   const L = PDF_LABELS[lang];
-  const statusLabel = translations[lang].evalStatus?.[evaluation.status] ?? evaluation.status;
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginX = 14;
   const startX = isRtl ? pageWidth - marginX : marginX;
@@ -436,15 +435,15 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
   doc.roundedRect(marginX, summaryY, pageWidth - marginX * 2, summaryHeight, 2, 2, 'F');
 
   // Poids relatifs des colonnes, dans l'ordre logique [scoreActuel, écart,
-  // évolution, statut] — évolution a besoin de plus de place pour les deux
-  // périodes. Somme = 5 unités réparties sur la largeur disponible.
+  // évolution] — évolution a besoin de plus de place pour les deux périodes.
+  // Somme = 4 unités réparties sur la largeur disponible.
   // En RTL, les colonnes elles-mêmes sont réaffichées en ordre inverse (voir
   // orderedColumns plus bas) : leurs largeurs doivent suivre le même ordre,
   // sans quoi la colonne double-largeur "évolution" se retrouve positionnée
   // dans un emplacement étroit prévu pour une autre colonne et déborde sur sa
   // voisine.
-  const unit = (pageWidth - marginX * 2) / 5;
-  const colWidths = [unit, unit, unit * 2, unit];
+  const unit = (pageWidth - marginX * 2) / 4;
+  const colWidths = [unit, unit, unit * 2];
   const orderedColWidths = isRtl ? [...colWidths].reverse() : colWidths;
   const colCenters: number[] = [];
   {
@@ -487,7 +486,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
         doc.setTextColor(...deltaColor);
         setFont(doc, lang, 'bold');
         doc.setFontSize(13);
-        const text = delta != null ? `${delta > 0 ? '+' : ''}${formatDecimal(delta)} pts` : '—';
+        const text = delta != null ? `${delta > 0 ? '+' : ''}${formatDecimal(delta)}` : '—';
         drawText(doc, lang, text, x, valueY, { align: 'center' });
       },
     },
@@ -523,15 +522,6 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
           doc.setFontSize(6.5);
           drawText(doc, lang, evaluation.period || '', x, valueY + 4, { align: 'center' });
         }
-      },
-    },
-    {
-      label: L.statut,
-      draw: (x) => {
-        doc.setTextColor(...COLOR_TEXT);
-        setFont(doc, lang, 'bold');
-        doc.setFontSize(11);
-        drawText(doc, lang, statusLabel, x, valueY, { align: 'center' });
       },
     },
   ];
