@@ -244,6 +244,12 @@ function drawText(
   });
 }
 
+// doc.getTextWidth() sur la police Amiri mesure des largeurs de glyphes isolés,
+// alors que le rendu réel (via isInputVisual / autoTable) applique le façonnage
+// contextuel arabe (lettres liées, ligatures) qui produit un texte plus large.
+// Coefficient empirique pour compenser cet écart de mesure vs rendu.
+const ARABIC_SHAPING_WIDTH_FACTOR = 2;
+
 /** Largeur totale d'un texte potentiellement bidi (segments arabe + latin), même logique que drawText(). */
 function measureBidiWidth(doc: jsPDF, lang: Lang, text: string, style: 'normal' | 'bold'): number {
   if (lang !== 'ar') {
@@ -254,7 +260,8 @@ function measureBidiWidth(doc: jsPDF, lang: Lang, text: string, style: 'normal' 
   let total = 0;
   runs.forEach((run, index) => {
     doc.setFont(run.arabic ? FONT_AR : 'helvetica', style);
-    total += doc.getTextWidth(run.text);
+    const width = doc.getTextWidth(run.text);
+    total += run.arabic ? width * ARABIC_SHAPING_WIDTH_FACTOR : width;
     if (index > 0) total += 0.6;
   });
   return total;
@@ -307,9 +314,14 @@ function requiredColumnWidth(
   style: 'normal' | 'bold' = 'normal',
   minWidth = 8
 ): number {
+  // Padding de cellule (2.5mm de chaque côté, comme styles.cellPadding) + marge de
+  // sécurité pour absorber les petits écarts d'arrondi entre cette mesure et le
+  // rendu réel d'autoTable — sans quoi un en-tête tout juste à la limite peut se
+  // replier sur deux lignes.
   const cellPadding = 5;
+  const safetyMargin = 1.5;
   const widest = values.reduce((max, v) => Math.max(max, measureBidiWidth(doc, lang, v, style)), 0);
-  return Math.max(minWidth, widest + cellPadding);
+  return Math.max(minWidth, widest + cellPadding + safetyMargin);
 }
 
 export interface EvaluationReportPdfInput {
