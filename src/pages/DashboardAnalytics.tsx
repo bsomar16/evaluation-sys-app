@@ -625,6 +625,7 @@ export default function DashboardAnalytics() {
           </CardHeader>
           <CardContent>
             {hasEvolutionData ? (
+              <div dir="ltr">
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={evolutionData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -637,6 +638,7 @@ export default function DashboardAnalytics() {
                   <Line type="monotone" dataKey="average" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
+              </div>
             ) : (
               <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">Aucune donnée</div>
             )}
@@ -678,6 +680,7 @@ export default function DashboardAnalytics() {
           <CardContent>
             {distribution.length > 0 ? (
               <div className="relative">
+                <div dir="ltr">
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie data={distribution} dataKey="count" innerRadius={55} outerRadius={85} paddingAngle={2}>
@@ -689,6 +692,7 @@ export default function DashboardAnalytics() {
                     />
                   </PieChart>
                 </ResponsiveContainer>
+                </div>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                   <span className="text-xl font-bold">{fmtPct(kpi.avg)}</span>
                   <span className="text-[10px] text-muted-foreground">Moyenne globale</span>
@@ -731,7 +735,7 @@ export default function DashboardAnalytics() {
                   key={i}
                   onClick={insight.onClick}
                   disabled={!insight.onClick}
-                  className={`w-full text-left flex items-start gap-2 p-2.5 rounded-lg ${toneClasses} ${insight.onClick ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                  className={`w-full text-start flex items-start gap-2 p-2.5 rounded-lg ${toneClasses} ${insight.onClick ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
                 >
                   <insight.icon size={16} className="shrink-0 mt-0.5" />
                   <div className="min-w-0">
@@ -813,7 +817,7 @@ export default function DashboardAnalytics() {
             {criterionEvolution.rows.length > 0 ? (
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-left text-muted-foreground border-b">
+                  <tr className="text-start text-muted-foreground border-b">
                     <th className="pb-2 font-medium">Critère</th>
                     {criterionEvolution.periods.map((p) => (
                       <th key={p} className="pb-2 font-medium text-center">{p.split(' ')[0]}</th>
@@ -872,6 +876,7 @@ export default function DashboardAnalytics() {
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
             <div className="relative w-28 h-28">
+              <div dir="ltr" className="w-full h-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -890,6 +895,7 @@ export default function DashboardAnalytics() {
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
+              </div>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-lg font-bold">{kpi.completedRate != null ? `${kpi.completedRate.toFixed(0)}%` : '—'}</span>
               </div>

@@ -293,6 +293,25 @@ function fitTextToWidth(
   return { size, text: output };
 }
 
+/**
+ * Largeur de colonne nécessaire (mm) pour que le plus long des `values` (en
+ * général l'en-tête + le contenu des lignes) tienne sur une seule ligne à la
+ * taille de police déjà active sur `doc`. Évite qu'un en-tête arabe plus long
+ * que son équivalent français (ex. "النتيجة المحصّلة" vs "Score obtenu") ne se
+ * retrouve replié sur deux lignes dans un tableau autoTable à largeurs "auto".
+ */
+function requiredColumnWidth(
+  doc: jsPDF,
+  lang: Lang,
+  values: string[],
+  style: 'normal' | 'bold' = 'normal',
+  minWidth = 8
+): number {
+  const cellPadding = 5;
+  const widest = values.reduce((max, v) => Math.max(max, measureBidiWidth(doc, lang, v, style)), 0);
+  return Math.max(minWidth, widest + cellPadding);
+}
+
 export interface EvaluationReportPdfInput {
   evaluation: EvaluationRecord;
   employeeName: string;
@@ -623,6 +642,23 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
     const head = [[L.colNum, L.colCriterion, L.colCoefficient, L.colValue, L.colObtained, L.colPoints]];
     const allRows = [...bodyRows, totalRow];
 
+    // Largeurs explicites pour les colonnes "étroites" — sans ça, autoTable
+    // répartit l'espace selon le contenu du corps du tableau (souvent court :
+    // "5 / 10", "Oui"…) et un en-tête plus long (surtout en arabe, ex.
+    // "النتيجة المحصّلة") se retrouve replié sur deux lignes faute de place.
+    // La colonne "Critère" reste 'auto' pour absorber l'espace restant.
+    doc.setFontSize(8.5);
+    const numW = requiredColumnWidth(doc, lang, [L.colNum, ...bodyRows.map((r) => r[0])], 'bold');
+    const coeffW = requiredColumnWidth(doc, lang, [L.colCoefficient, ...bodyRows.map((r) => r[2])], 'bold');
+    const valueW = requiredColumnWidth(doc, lang, [L.colValue, ...bodyRows.map((r) => r[3])], 'bold');
+    const obtainedW = requiredColumnWidth(doc, lang, [L.colObtained, ...allRows.map((r) => r[4])], 'bold');
+    const pointsW = requiredColumnWidth(doc, lang, [L.colPoints, ...allRows.map((r) => r[5])], 'bold');
+    const logicalColWidths: Array<number | undefined> = [numW, undefined, coeffW, valueW, obtainedW, pointsW];
+    const orderedColWidths = isRtl ? [...logicalColWidths].reverse() : logicalColWidths;
+    const columnStyles = Object.fromEntries(
+      orderedColWidths.map((w, i) => [i, w != null ? { cellWidth: w } : {}])
+    );
+
     autoTable(doc, {
       startY: cursorY,
       margin: { left: marginX, right: marginX },
@@ -631,6 +667,7 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       styles: { cellPadding: 2.5, font: isRtl ? FONT_AR : 'helvetica', halign: isRtl ? 'right' : 'left', fontSize: 8.5 },
       headStyles: { fillColor: COLOR_PRIMARY, textColor: 255, fontSize: 8.5, halign: isRtl ? 'right' : 'left' },
       bodyStyles: { fontSize: 8.5, textColor: COLOR_TEXT },
+      columnStyles,
       alternateRowStyles: { fillColor: [246, 248, 250] },
       // Dernière ligne (Total) mise en évidence.
       didParseCell: (data) => {
