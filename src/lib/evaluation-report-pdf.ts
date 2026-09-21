@@ -631,12 +631,10 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       totalEarned += weightedPoints;
       totalMax += weightedMax;
       const name = resolveCriterionName(response.criterion_id, response.criterion_name, criteria, lang);
-      const value =
-        typeof response.value === 'boolean' ? (response.value ? L.yes : L.no) : String(response.value);
       // « Score obtenu » = points bruts / max brut ; « Points » = pondérés (× coefficient).
       const obtained = `${formatDecimal(response.points)} / ${formatDecimal(rawMax)}`;
       const weighted = `${formatDecimal(weightedPoints)} / ${formatDecimal(weightedMax)}`;
-      return [String(index + 1), name, formatCoefficient(weight), value, obtained, weighted];
+      return [String(index + 1), name, formatCoefficient(weight), obtained, weighted];
     });
 
     const totalPct = totalMax > 0 ? (totalEarned / totalMax) * 100 : 0;
@@ -645,11 +643,10 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
       L.total,
       '—',
       '—',
-      '—',
       `${formatDecimal(totalEarned)} / ${formatDecimal(totalMax)} (${formatDecimal(totalPct)} %)`,
     ];
 
-    const head = [[L.colNum, L.colCriterion, L.colCoefficient, L.colValue, L.colObtained, L.colPoints]];
+    const head = [[L.colNum, L.colCriterion, L.colCoefficient, L.colObtained, L.colPoints]];
     const allRows = [...bodyRows, totalRow];
 
     // Largeurs explicites pour les colonnes "étroites" — sans ça, autoTable
@@ -660,10 +657,9 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
     doc.setFontSize(8.5);
     const numW = requiredColumnWidth(doc, lang, [L.colNum, ...bodyRows.map((r) => r[0])], 'bold');
     const coeffW = requiredColumnWidth(doc, lang, [L.colCoefficient, ...bodyRows.map((r) => r[2])], 'bold');
-    const valueW = requiredColumnWidth(doc, lang, [L.colValue, ...bodyRows.map((r) => r[3])], 'bold');
-    const obtainedW = requiredColumnWidth(doc, lang, [L.colObtained, ...allRows.map((r) => r[4])], 'bold');
-    const pointsW = requiredColumnWidth(doc, lang, [L.colPoints, ...allRows.map((r) => r[5])], 'bold');
-    const logicalColWidths: Array<number | undefined> = [numW, undefined, coeffW, valueW, obtainedW, pointsW];
+    const obtainedW = requiredColumnWidth(doc, lang, [L.colObtained, ...allRows.map((r) => r[3])], 'bold');
+    const pointsW = requiredColumnWidth(doc, lang, [L.colPoints, ...allRows.map((r) => r[4])], 'bold');
+    const logicalColWidths: Array<number | undefined> = [numW, undefined, coeffW, obtainedW, pointsW];
     const orderedColWidths = isRtl ? [...logicalColWidths].reverse() : logicalColWidths;
     const columnStyles = Object.fromEntries(
       orderedColWidths.map((w, i) => [i, w != null ? { cellWidth: w } : {}])
