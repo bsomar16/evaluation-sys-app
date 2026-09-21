@@ -679,23 +679,25 @@ export default function DashboardAnalytics() {
           </CardHeader>
           <CardContent>
             {distribution.length > 0 ? (
-              <div className="relative">
-                <div dir="ltr">
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={distribution} dataKey="count" innerRadius={55} outerRadius={85} paddingAngle={2}>
-                      {distribution.map((d) => <Cell key={d.key} fill={d.color} />)}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
-                      formatter={(value: number, _n, ctx) => [`${value} (${ctx.payload.pct.toFixed(0)}%)`, ctx.payload.label]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                </div>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-xl font-bold">{fmtPct(kpi.avg)}</span>
-                  <span className="text-[10px] text-muted-foreground">Moyenne globale</span>
+              <div>
+                <div className="relative h-[200px]">
+                  <div dir="ltr">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={distribution} dataKey="count" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                        {distribution.map((d) => <Cell key={d.key} fill={d.color} />)}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                        formatter={(value: number, _n, ctx) => [`${value} (${ctx.payload.pct.toFixed(0)}%)`, ctx.payload.label]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  </div>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-xl font-bold">{fmtPct(kpi.avg)}</span>
+                    <span className="text-[10px] text-muted-foreground">Moyenne globale</span>
+                  </div>
                 </div>
                 <div className="mt-2 space-y-1">
                   {distribution.map((d) => (
