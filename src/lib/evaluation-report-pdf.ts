@@ -244,6 +244,55 @@ function drawText(
   });
 }
 
+/** Largeur totale d'un texte potentiellement bidi (segments arabe + latin), même logique que drawText(). */
+function measureBidiWidth(doc: jsPDF, lang: Lang, text: string, style: 'normal' | 'bold'): number {
+  if (lang !== 'ar') {
+    doc.setFont('helvetica', style);
+    return doc.getTextWidth(text);
+  }
+  const runs = splitBidiRuns(text);
+  let total = 0;
+  runs.forEach((run, index) => {
+    doc.setFont(run.arabic ? FONT_AR : 'helvetica', style);
+    total += doc.getTextWidth(run.text);
+    if (index > 0) total += 0.6;
+  });
+  return total;
+}
+
+/**
+ * Réduit la taille de police jusqu'à ce que `text` tienne dans `maxWidth`, puis
+ * tronque avec une ellipse si la taille minimale ne suffit toujours pas. Évite
+ * le chevauchement entre cellules à largeur fixe (bandeau d'identité) quand un
+ * nom de filiale/service/poste est trop long pour sa colonne — un risque plus
+ * fréquent en arabe où les libellés de repère ("المصلحة", "الفرع"…) laissent
+ * peu de place à la valeur dans la même cellule étroite.
+ */
+function fitTextToWidth(
+  doc: jsPDF,
+  lang: Lang,
+  text: string,
+  style: 'normal' | 'bold',
+  maxWidth: number,
+  startSize: number,
+  minSize = 5.5
+): { size: number; text: string } {
+  let size = startSize;
+  while (size > minSize && measureBidiWidth(doc, lang, text, style) > maxWidth) {
+    size -= 0.5;
+    doc.setFontSize(size);
+  }
+  doc.setFontSize(size);
+  let output = text;
+  if (measureBidiWidth(doc, lang, output, style) > maxWidth) {
+    while (output.length > 1 && measureBidiWidth(doc, lang, `${output}…`, style) > maxWidth) {
+      output = output.slice(0, -1);
+    }
+    output = `${output}…`;
+  }
+  return { size, text: output };
+}
+
 export interface EvaluationReportPdfInput {
   evaluation: EvaluationRecord;
   employeeName: string;
@@ -329,13 +378,16 @@ function renderEvaluationReport(doc: jsPDF, input: EvaluationReportPdfInput, lan
     }
     const textX = isRtl ? cellX + infoCellW - 3 : cellX + 3;
     const align = isRtl ? 'right' : 'left';
+    const cellTextMaxWidth = infoCellW - 6;
     doc.setTextColor(255, 255, 255);
     setFont(doc, lang, 'bold');
-    doc.setFontSize(cell.isName ? 9.5 : 7.5);
-    drawText(doc, lang, cell.title, textX, cursorY + 6.5, { align });
+    const titleFit = fitTextToWidth(doc, lang, cell.title, 'bold', cellTextMaxWidth, cell.isName ? 9.5 : 7.5);
+    doc.setFontSize(titleFit.size);
+    drawText(doc, lang, titleFit.text, textX, cursorY + 6.5, { align });
     setFont(doc, lang, 'normal');
-    doc.setFontSize(cell.isName ? 7.5 : 8);
-    drawText(doc, lang, cell.sub, textX, cursorY + 11.5, { align });
+    const subFit = fitTextToWidth(doc, lang, cell.sub, 'normal', cellTextMaxWidth, cell.isName ? 7.5 : 8);
+    doc.setFontSize(subFit.size);
+    drawText(doc, lang, subFit.text, textX, cursorY + 11.5, { align });
   });
   cursorY += infoBandHeight + 8;
   doc.setTextColor(...COLOR_TEXT);

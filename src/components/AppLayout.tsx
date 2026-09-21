@@ -56,7 +56,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { isDeveloper, canRead, canWrite, canSubmitEvaluation, canReviewEvaluation, canReviewTraining } = useRolePermissions();
-  const { t } = useI18n();
+  const { t, dir } = useI18n();
+  const isRtl = dir === 'rtl';
   const canReadEvaluations = canRead('evaluations');
   const canWriteEvaluations = canWrite('evaluations');
   const canReadEvaluationsManagement = canRead('evaluations_management');
@@ -759,10 +760,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Sidebar */}
         <aside
           className={cn(
-            "flex flex-col bg-sidebar text-sidebar-foreground transition-all duration-300 border-r-2 border-sidebar-border relative",
-            "fixed inset-y-14 left-0 z-50 md:relative md:inset-auto",
+            "flex flex-col bg-sidebar text-sidebar-foreground transition-all duration-300 relative",
+            isRtl ? "border-l-2" : "border-r-2",
+            "border-sidebar-border",
+            "fixed inset-y-14 z-50 md:relative md:inset-auto",
+            isRtl ? "right-0" : "left-0",
             collapsed ? "w-[72px]" : "w-64",
-            mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+            mobileOpen
+              ? "translate-x-0"
+              : isRtl
+                ? "translate-x-full md:translate-x-0"
+                : "-translate-x-full md:translate-x-0"
           )}
         >
           {/* Nav */}
@@ -826,16 +834,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         {/* Toggle Button - Outside Sidebar */}
-        <button 
-          onClick={() => setCollapsed(!collapsed)} 
-          className="hidden md:flex absolute top-1/2 -translate-y-1/2 flex-col items-center justify-center w-4 h-14 bg-sidebar-accent hover:bg-sidebar-accent/80 rounded-r-lg transition-all duration-300 text-sidebar-accent-foreground shadow-lg border-2 border-sidebar-accent z-40"
-          style={{
-            left: collapsed ? '72px' : '256px'
-          }}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className={cn(
+            "hidden md:flex absolute top-1/2 -translate-y-1/2 flex-col items-center justify-center w-4 h-14 bg-sidebar-accent hover:bg-sidebar-accent/80 transition-all duration-300 text-sidebar-accent-foreground shadow-lg border-2 border-sidebar-accent z-40",
+            isRtl ? "rounded-l-lg" : "rounded-r-lg"
+          )}
+          style={
+            isRtl
+              ? { right: collapsed ? '72px' : '256px' }
+              : { left: collapsed ? '72px' : '256px' }
+          }
           title={collapsed ? "Étendre sidebar" : "Réduire sidebar"}
         >
           <div className="flex flex-col gap-0.5">
-            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {collapsed !== isRtl ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </div>
         </button>
 
