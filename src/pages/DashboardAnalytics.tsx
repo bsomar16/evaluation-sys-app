@@ -25,7 +25,6 @@ import {
   getCriterionDisplayName, getCriterionMaxPoints,
   type CalculationRuleRecord, type EvaluationCriterionRecord,
 } from '@/lib/evaluation-calculator';
-import { EVALUATION_STATUS_LABELS } from '@/lib/evaluation-types';
 import { useI18n } from '@/lib/i18n';
 
 /**
@@ -110,11 +109,11 @@ interface Insight {
 }
 
 const SCORE_BANDS = [
-  { key: 'excellent', min: 90, label: 'Excellent (90 – 100)', color: '#10b981' },
-  { key: 'bon', min: 80, label: 'Bon (80 – 89)', color: '#34d399' },
-  { key: 'moyen', min: 70, label: 'Moyen (70 – 79)', color: '#f59e0b' },
-  { key: 'ameliorer', min: 60, label: 'À améliorer (60 – 69)', color: '#f97316' },
-  { key: 'faible', min: 0, label: 'Faible (< 60)', color: '#ef4444' },
+  { key: 'excellent', min: 90, labelKey: 'dashboardAnalytics.bandExcellent', color: '#10b981' },
+  { key: 'bon', min: 80, labelKey: 'dashboardAnalytics.bandGood', color: '#34d399' },
+  { key: 'moyen', min: 70, labelKey: 'dashboardAnalytics.bandAverage', color: '#f59e0b' },
+  { key: 'ameliorer', min: 60, labelKey: 'dashboardAnalytics.bandToImprove', color: '#f97316' },
+  { key: 'faible', min: 0, labelKey: 'dashboardAnalytics.bandLow', color: '#ef4444' },
 ] as const;
 
 function scoreBand(pct: number) {
@@ -143,7 +142,7 @@ function DeltaTag({ delta }: { delta: number | null }) {
 
 export default function DashboardAnalytics() {
   const navigate = useNavigate();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -349,12 +348,12 @@ export default function DashboardAnalytics() {
     const total = pcts.length;
     return SCORE_BANDS.map((band) => ({
       key: band.key,
-      label: band.label,
+      label: t(band.labelKey),
       color: band.color,
       count: counts.get(band.key) ?? 0,
       pct: total > 0 ? ((counts.get(band.key) ?? 0) / total) * 100 : 0,
     })).filter((b) => b.count > 0);
-  }, [evaluations, selectedPeriod, scopedEmails, criteria, rules, users]);
+  }, [evaluations, selectedPeriod, scopedEmails, criteria, rules, users, t]);
 
   // ── Classement des employés (Top 5 / Flop 5) ─────────────────────────
   const employeeRanking = useMemo(() => {
@@ -407,7 +406,7 @@ export default function DashboardAnalytics() {
           lastTwo.length === 2 ? (lastTwo[1] > lastTwo[0] + 0.5 ? 'up' : lastTwo[1] < lastTwo[0] - 0.5 ? 'down' : 'flat') : null;
         return {
           id: criterion.id,
-          name: getCriterionDisplayName(criterion, 'fr'),
+          name: getCriterionDisplayName(criterion, lang),
           values: perPeriod,
           trend,
         };
@@ -417,7 +416,7 @@ export default function DashboardAnalytics() {
       .slice(0, 8);
 
     return { periods: recentPeriods, rows };
-  }, [periods, evaluations, scopedEmails, criteria, rules]);
+  }, [periods, evaluations, scopedEmails, criteria, rules, lang]);
 
   // ── Dernières évaluations ─────────────────────────────────────────────
   const latestEvaluations = useMemo(() => {
@@ -451,8 +450,8 @@ export default function DashboardAnalytics() {
       ).size;
       list.push({
         icon: AlertTriangle, tone: 'red',
-        title: `${kpi.late} évaluation${kpi.late > 1 ? 's' : ''} en retard`,
-        detail: branchesAffected > 0 ? `${branchesAffected} filiale${branchesAffected > 1 ? 's' : ''} concernée${branchesAffected > 1 ? 's' : ''}` : '',
+        title: t('dashboardAnalytics.lateInsightTitle', { count: kpi.late }),
+        detail: branchesAffected > 0 ? t('dashboardAnalytics.branchesAffectedDetail', { count: branchesAffected }) : '',
         onClick: () => navigate('/evaluation', { state: { filterByStatus: ['draft', 'rejected'] } }),
       });
     }
@@ -461,7 +460,7 @@ export default function DashboardAnalytics() {
     if (worstDelta && (worstDelta.delta ?? 0) < -1) {
       list.push({
         icon: TrendingDown, tone: 'amber',
-        title: 'Baisse de performance',
+        title: t('dashboardAnalytics.performanceDrop'),
         detail: `${worstDelta.name} (${Number(worstDelta.delta!.toFixed(1))}%)`,
       });
     }
@@ -470,7 +469,7 @@ export default function DashboardAnalytics() {
     if (bestDelta && (bestDelta.delta ?? 0) > 1) {
       list.push({
         icon: ThumbsUp, tone: 'green',
-        title: 'Progression notable',
+        title: t('dashboardAnalytics.notableProgress'),
         detail: `${bestDelta.name} (+${Number(bestDelta.delta!.toFixed(1))}%)`,
       });
     }
@@ -479,7 +478,7 @@ export default function DashboardAnalytics() {
       const best = departmentPerformance[0];
       list.push({
         icon: Trophy, tone: 'blue',
-        title: 'Meilleur département',
+        title: t('dashboardAnalytics.bestDepartment'),
         detail: `${best.name} (${fmtPct(best.avg)})`,
       });
     }
@@ -488,17 +487,17 @@ export default function DashboardAnalytics() {
     if (lowestBranch && (lowestBranch.avg ?? 100) < 70) {
       list.push({
         icon: Target, tone: 'amber',
-        title: 'Matière à attention',
+        title: t('dashboardAnalytics.attentionNeeded'),
         detail: `${lowestBranch.name} (${fmtPct(lowestBranch.avg)})`,
       });
     }
 
     return list;
-  }, [kpi, branchPerformance, departmentPerformance, evaluations, selectedPeriod, scopedEmails, users, navigate]);
+  }, [kpi, branchPerformance, departmentPerformance, evaluations, selectedPeriod, scopedEmails, users, navigate, t]);
 
   const scopeLabel = (() => {
     const branchName = branches.find((b) => b.id === selectedBranch)?.name;
-    return branchName ?? 'Toutes les filiales';
+    return branchName ?? t('dashboardAnalytics.allBranches');
   })();
 
   return (
@@ -513,7 +512,7 @@ export default function DashboardAnalytics() {
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Période" />
+              <SelectValue placeholder={t('dashboardAnalytics.filterPeriod')} />
             </SelectTrigger>
             <SelectContent>
               {periods.map((p) => (
@@ -527,10 +526,10 @@ export default function DashboardAnalytics() {
 
           <Select value={selectedBranch || 'all'} onValueChange={(v) => { setSelectedBranch(v === 'all' ? '' : v); setSelectedDepartment(''); }}>
             <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Filiale" />
+              <SelectValue placeholder={t('dashboardAnalytics.filterBranch')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Toutes les filiales</SelectItem>
+              <SelectItem value="all">{t('dashboardAnalytics.allBranches')}</SelectItem>
               {accessibleBranches.map((b) => (
                 <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
               ))}
@@ -539,10 +538,10 @@ export default function DashboardAnalytics() {
 
           <Select value={selectedDepartment || 'all'} onValueChange={(v) => setSelectedDepartment(v === 'all' ? '' : v)}>
             <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Département" />
+              <SelectValue placeholder={t('dashboardAnalytics.filterDepartment')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les départements</SelectItem>
+              <SelectItem value="all">{t('dashboardAnalytics.allDepartments')}</SelectItem>
               {accessibleDepartments.map((d) => (
                 <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
               ))}
@@ -551,10 +550,10 @@ export default function DashboardAnalytics() {
 
           <Select value={selectedRole || 'all'} onValueChange={(v) => setSelectedRole(v === 'all' ? '' : v)}>
             <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Poste" />
+              <SelectValue placeholder={t('dashboardAnalytics.filterRole')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les postes</SelectItem>
+              <SelectItem value="all">{t('dashboardAnalytics.allRoles')}</SelectItem>
               {roles.map((r) => (
                 <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
               ))}
@@ -568,7 +567,7 @@ export default function DashboardAnalytics() {
         <Card className="border-border shadow-sm">
           <CardContent className="p-5 flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Effectif total</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('dashboardAnalytics.kpiTotalStaff')}</p>
               <p className="text-2xl font-bold mt-1">{loading ? '-' : kpi.effectif}</p>
             </div>
             <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center">
@@ -580,7 +579,7 @@ export default function DashboardAnalytics() {
         <Card className="border-border shadow-sm">
           <CardContent className="p-5 flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Évaluations complétées</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('dashboardAnalytics.kpiCompletedEvals')}</p>
               <p className="text-2xl font-bold mt-1">{loading ? '-' : kpi.completed}</p>
               <p className="text-xs text-emerald-600 mt-1">{kpi.completedRate != null ? `${Number(kpi.completedRate.toFixed(1))}%` : '—'}</p>
             </div>
@@ -593,7 +592,7 @@ export default function DashboardAnalytics() {
         <Card className="border-border shadow-sm">
           <CardContent className="p-5 flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Évaluations en retard</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('dashboardAnalytics.kpiLateEvals')}</p>
               <p className="text-2xl font-bold mt-1">{loading ? '-' : kpi.late}</p>
               <p className="text-xs text-red-600 mt-1">{kpi.lateRate != null ? `${Number(kpi.lateRate.toFixed(1))}%` : '—'}</p>
             </div>
@@ -606,7 +605,7 @@ export default function DashboardAnalytics() {
         <Card className="border-border shadow-sm">
           <CardContent className="p-5 flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Note moyenne globale</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('dashboardAnalytics.kpiAvgScore')}</p>
               <p className="text-2xl font-bold mt-1">{loading ? '-' : fmtPct(kpi.avg)}</p>
               <div className="mt-1"><DeltaTag delta={kpi.delta} /></div>
             </div>
@@ -621,7 +620,7 @@ export default function DashboardAnalytics() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         <Card className="border-border shadow-sm xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Évolution de la performance globale</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboardAnalytics.globalEvolution')}</CardTitle>
           </CardHeader>
           <CardContent>
             {hasEvolutionData ? (
@@ -633,14 +632,14 @@ export default function DashboardAnalytics() {
                   <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
                   <Tooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
-                    formatter={(v: number) => [`${Number(v.toFixed(1))} %`, 'Moyenne']}
+                    formatter={(v: number) => [`${Number(v.toFixed(1))} %`, t('dashboardAnalytics.average')]}
                   />
                   <Line type="monotone" dataKey="average" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">Aucune donnée</div>
+              <div className="h-[260px] flex items-center justify-center text-sm text-muted-foreground">{t('dashboardAnalytics.noData')}</div>
             )}
           </CardContent>
         </Card>
@@ -648,11 +647,11 @@ export default function DashboardAnalytics() {
         <Card className="border-border shadow-sm xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading flex items-center gap-2">
-              <Building2 size={16} /> Performance par filiale
+              <Building2 size={16} /> {t('dashboardAnalytics.branchPerformance')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {branchPerformance.length === 0 && <p className="text-sm text-muted-foreground">Aucune donnée</p>}
+            {branchPerformance.length === 0 && <p className="text-sm text-muted-foreground">{t('dashboardAnalytics.noData')}</p>}
             {branchPerformance.map((b) => (
               <div key={b.id}>
                 <div className="flex items-center justify-between text-sm mb-1">
@@ -675,7 +674,7 @@ export default function DashboardAnalytics() {
 
         <Card className="border-border shadow-sm xl:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Répartition des résultats</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboardAnalytics.resultsDistribution')}</CardTitle>
           </CardHeader>
           <CardContent>
             {distribution.length > 0 ? (
@@ -696,7 +695,7 @@ export default function DashboardAnalytics() {
                   </div>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <span className="text-xl font-bold">{fmtPct(kpi.avg)}</span>
-                    <span className="text-[10px] text-muted-foreground">Moyenne globale</span>
+                    <span className="text-[10px] text-muted-foreground">{t('dashboardAnalytics.globalAverage')}</span>
                   </div>
                 </div>
                 <div className="mt-2 space-y-1">
@@ -712,7 +711,7 @@ export default function DashboardAnalytics() {
                 </div>
               </div>
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">Aucune donnée</div>
+              <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">{t('dashboardAnalytics.noData')}</div>
             )}
           </CardContent>
         </Card>
@@ -720,11 +719,11 @@ export default function DashboardAnalytics() {
         <Card className="border-border shadow-sm xl:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-heading flex items-center gap-2">
-              <Sparkles size={16} /> Alertes &amp; Insights
+              <Sparkles size={16} /> {t('dashboardAnalytics.alertsInsights')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {insights.length === 0 && <p className="text-sm text-muted-foreground">Rien à signaler</p>}
+            {insights.length === 0 && <p className="text-sm text-muted-foreground">{t('dashboardAnalytics.nothingToReport')}</p>}
             {insights.map((insight, i) => {
               const toneClasses = {
                 red: 'bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400',
@@ -755,10 +754,10 @@ export default function DashboardAnalytics() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <Card className="border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Performance par département (Top 5)</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboardAnalytics.departmentPerformanceTop5')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {departmentPerformance.length === 0 && <p className="text-sm text-muted-foreground">Aucune donnée</p>}
+            {departmentPerformance.length === 0 && <p className="text-sm text-muted-foreground">{t('dashboardAnalytics.noData')}</p>}
             {departmentPerformance.map((d) => (
               <div key={d.id}>
                 <div className="flex items-center justify-between text-sm mb-1">
@@ -777,11 +776,11 @@ export default function DashboardAnalytics() {
           <Card className="border-border shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-heading flex items-center gap-1.5">
-                <Trophy size={14} className="text-emerald-600" /> Top 5
+                <Trophy size={14} className="text-emerald-600" /> {t('dashboardAnalytics.top5')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              {top5.length === 0 && <p className="text-xs text-muted-foreground">Aucune donnée</p>}
+              {top5.length === 0 && <p className="text-xs text-muted-foreground">{t('dashboardAnalytics.noData')}</p>}
               {top5.map((e) => (
                 <div key={e.id} className="flex items-center justify-between text-xs">
                   <span className="truncate">{e.name}</span>
@@ -793,11 +792,11 @@ export default function DashboardAnalytics() {
           <Card className="border-border shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-heading flex items-center gap-1.5">
-                <TrendingDown size={14} className="text-red-600" /> Flop 5
+                <TrendingDown size={14} className="text-red-600" /> {t('dashboardAnalytics.flop5')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              {flop5.length === 0 && <p className="text-xs text-muted-foreground">Aucune donnée</p>}
+              {flop5.length === 0 && <p className="text-xs text-muted-foreground">{t('dashboardAnalytics.noData')}</p>}
               {flop5.map((e) => (
                 <div key={e.id} className="flex items-center justify-between text-xs">
                   <span className="truncate">{e.name}</span>
@@ -813,18 +812,18 @@ export default function DashboardAnalytics() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <Card className="border-border shadow-sm xl:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Évolution par critère d'évaluation</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboardAnalytics.criterionEvolution')}</CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             {criterionEvolution.rows.length > 0 ? (
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-start text-muted-foreground border-b">
-                    <th className="pb-2 font-medium">Critère</th>
+                    <th className="pb-2 font-medium">{t('dashboardAnalytics.colCriterion')}</th>
                     {criterionEvolution.periods.map((p) => (
                       <th key={p} className="pb-2 font-medium text-center">{p.split(' ')[0]}</th>
                     ))}
-                    <th className="pb-2 font-medium text-center">Tendance</th>
+                    <th className="pb-2 font-medium text-center">{t('dashboardAnalytics.colTrend')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -844,17 +843,17 @@ export default function DashboardAnalytics() {
                 </tbody>
               </table>
             ) : (
-              <p className="text-sm text-muted-foreground">Aucune donnée</p>
+              <p className="text-sm text-muted-foreground">{t('dashboardAnalytics.noData')}</p>
             )}
           </CardContent>
         </Card>
 
         <Card className="border-border shadow-sm xl:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Dernières évaluations</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboardAnalytics.latestEvaluations')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {latestEvaluations.length === 0 && <p className="text-sm text-muted-foreground">Aucune donnée</p>}
+            {latestEvaluations.length === 0 && <p className="text-sm text-muted-foreground">{t('dashboardAnalytics.noData')}</p>}
             {latestEvaluations.map((e) => (
               <div key={e.id} className="flex items-center justify-between gap-2 text-xs border-b last:border-0 pb-2 last:pb-0">
                 <div className="min-w-0">
@@ -864,7 +863,7 @@ export default function DashboardAnalytics() {
                 <div className="text-right shrink-0">
                   <p className="font-semibold">{fmtPct(e.pct)}</p>
                   <Badge variant="secondary" className="text-[10px]">
-                    {EVALUATION_STATUS_LABELS[e.status as keyof typeof EVALUATION_STATUS_LABELS] ?? e.status}
+                    {t(`evalStatus.${e.status}`)}
                   </Badge>
                 </div>
               </div>
@@ -874,7 +873,7 @@ export default function DashboardAnalytics() {
 
         <Card className="border-border shadow-sm xl:col-span-1">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-heading">Taux de réalisation des évaluations</CardTitle>
+            <CardTitle className="text-base font-heading">{t('dashboardAnalytics.completionRate')}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
             <div className="relative w-28 h-28">
@@ -902,10 +901,10 @@ export default function DashboardAnalytics() {
                 <span className="text-lg font-bold">{kpi.completedRate != null ? `${kpi.completedRate.toFixed(0)}%` : '—'}</span>
               </div>
             </div>
-            <p className="text-sm font-semibold">{kpi.completed} / {kpi.effectif} évaluations complétées</p>
+            <p className="text-sm font-semibold">{t('dashboardAnalytics.completedOf', { completed: kpi.completed, total: kpi.effectif })}</p>
             {kpi.late > 0 && (
               <div className="w-full flex items-center justify-between text-xs rounded-md bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 p-2">
-                <span>{kpi.late} en retard</span>
+                <span>{t('dashboardAnalytics.lateShort', { count: kpi.late })}</span>
                 <span>{kpi.lateRate?.toFixed(0)}%</span>
               </div>
             )}
@@ -915,7 +914,7 @@ export default function DashboardAnalytics() {
               className="w-full gap-1.5"
               onClick={() => navigate('/evaluation', { state: { filterByStatus: ['draft', 'rejected'] } })}
             >
-              Voir le détail
+              {t('dashboardAnalytics.viewDetail')}
             </Button>
           </CardContent>
         </Card>
