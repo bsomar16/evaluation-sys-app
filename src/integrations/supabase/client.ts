@@ -8,10 +8,58 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Session token of the self-hosted API.
+ *
+ * When the app runs against a self-hosted PostgreSQL (the API in
+ * public/rest/v1/api.php), Row Level Security is enforced by the database
+ * and is based on the signed session token returned by the `app_login` RPC.
+ * The token is attached to every request by the fetch wrapper below.
+ *
+ * Against a hosted Supabase project no token is stored and the wrapper
+ * leaves the request untouched.
+ */
+const API_TOKEN_KEY = 'cph_eval_api_token';
+
+export function getApiToken(): string | null {
+  try {
+    return window.localStorage.getItem(API_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setApiToken(token: string | null): void {
+  try {
+    if (token) {
+      window.localStorage.setItem(API_TOKEN_KEY, token);
+    } else {
+      window.localStorage.removeItem(API_TOKEN_KEY);
+    }
+  } catch {
+    /* storage unavailable (private mode) - the session simply is not kept */
+  }
+}
+
+const fetchWithSession: typeof fetch = async (input, init) => {
+  const token = getApiToken();
+  if (!token) {
+    return fetch(input, init);
+  }
+  const headers = new Headers(
+    init?.headers ?? (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined)
+  );
+  headers.set('Authorization', `Bearer ${token}`);
+  return fetch(input, { ...init, headers });
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  global: {
+    fetch: fetchWithSession,
+  },
 });

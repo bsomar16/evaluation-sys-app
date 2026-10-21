@@ -20,7 +20,43 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      app_login: {
+        Args: {
+          p_email: string
+          p_password: string
+        }
+        Returns: {
+          success: boolean
+          token: string
+          user: Json
+          error?: string
+        }
+      }
+      hash_password: {
+        Args: { password: string }
+        Returns: string
+      }
+      verify_password: {
+        Args: { password: string; hash: string }
+        Returns: boolean
+      }
+      create_user_with_password: {
+        Args: {
+          p_email: string
+          p_name: string
+          p_password: string
+          p_position?: string | null
+          p_branch_id?: string | null
+          p_department_id?: string | null
+          p_role_id?: string | null
+          p_role?: string | null
+        }
+        Returns: { success: boolean; data?: Json; error?: string }
+      }
+      update_user_password: {
+        Args: { p_user_id: string; p_new_password: string }
+        Returns: { success: boolean; data?: Json; error?: string }
+      }
     }
     Enums: {
       [_ in never]: never

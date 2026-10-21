@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { setApiToken, supabase } from "@/integrations/supabase/client";
 import { passwordService } from "@/services/passwordService";
 import { getHomePathForRole, roleSlugFromRoleCode } from "@/lib/auth-roles";
 import { isUserArchived } from "@/lib/user-archive";
@@ -94,6 +94,45 @@ export default function Login() {
     try {
       const loginUsername = username.trim().toLowerCase();
 
+      // Self-hosted stack: the API authenticates the user and returns a
+      // signed session token. Row Level Security is based on that token, so
+      // the login has to go through the server - the password hash must
+      // never travel to the browser.
+      const { data: loginData, error: loginError } = await supabase.rpc("app_login", {
+        p_email: loginUsername,
+        p_password: password,
+      });
+
+      if (!loginError && loginData) {
+        const result = loginData as {
+          success?: boolean;
+          token?: string;
+          user?: any;
+          error?: string;
+        };
+
+        if (!result.success || !result.token || !result.user) {
+          throw new Error(result.error || "Identifiants invalides");
+        }
+
+        setApiToken(result.token);
+
+        const sessionUser = await buildSessionFromDbUser(result.user, username);
+
+        localStorage.setItem("user", JSON.stringify(sessionUser));
+        localStorage.setItem("userRole", sessionUser.role);
+
+        toast({
+          title: "Succès",
+          description: "Connexion réussie!",
+        });
+
+        navigate(getHomePathForRole(sessionUser.role));
+        return;
+      }
+
+      // Hosted Supabase fallback (no app_login function): the user row is
+      // read from the database and the password is verified in the browser.
       // Cherche l'utilisateur dans la base par username
       const { data: userData, error: userError } = await supabase
         .from("users")

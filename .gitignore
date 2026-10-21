@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Local API configuration - holds the database credentials
+public/rest/v1/config.php

@@ -1,20 +1,22 @@
 # CPH Evaluation System - Single Page App (React Router / BrowserRouter)
 #
-# Ce dossier est servi sous la racine WordPress : on force les regles de ce
-# dossier a s'appliquer AVANT celles du .htaccess parent (WordPress), sinon
-# la regle "RewriteRule . /index.php" du parent intercepterait les routes
-# cote client.
+# Base-agnostic: works both at the root of a subdomain (eval.cph-agro.com/)
+# and inside a sub-directory (www.cph-agro.com/eval/). All rules are relative
+# to the directory holding this file, so no absolute path is hardcoded.
+#
+# On the shared host the SPA lives under the WordPress root, so the rules of
+# this folder must apply BEFORE the parent .htaccess (WordPress), otherwise
+# the parent "RewriteRule . /index.php" would swallow the client-side routes.
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteOptions InheritDownBefore
-  RewriteBase /eval/
 
-  # Uniquement les requetes de ce dossier sont concernees
-  RewriteCond %{REQUEST_URI} !^/eval/ [NC]
-  RewriteRule ^ - [L]
+  # --- API: PostgREST-compatible endpoint (must win over the SPA fallback) ---
+  RewriteRule ^rest/v1/(.*)$ rest/v1/api.php [QSA,L]
+  RewriteRule ^rest/v1$        rest/v1/api.php [QSA,L]
 
   # Un asset manquant doit renvoyer 404 (et non index.html)
-  RewriteCond %{REQUEST_URI} ^/eval/assets/ [NC]
+  RewriteCond %{REQUEST_URI} /assets/ [NC]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteRule ^ - [R404,L]
 
@@ -24,8 +26,19 @@
   RewriteRule ^ - [L]
 
   # Tout le reste -> index.html (routage cote client)
-  RewriteRule . /eval/index.html [L]
+  RewriteRule . index.html [L]
 </IfModule>
+
+# The API configuration file holds the database credentials: never serve it.
+<Files "config.php">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</Files>
 
 # Cache long sur les assets versionnes (le nom du fichier contient son hash)
 <IfModule mod_expires.c>
@@ -42,6 +55,10 @@
   </FilesMatch>
   <FilesMatch "\.(js|css|woff2?|ttf|eot|png|jpe?g|gif|svg|webp|ico)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # The API always reflects the live database
+  <FilesMatch "api\.php$">
+    Header set Cache-Control "no-store"
   </FilesMatch>
 </IfModule>
 
