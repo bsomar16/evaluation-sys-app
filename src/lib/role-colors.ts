@@ -1,9 +1,3 @@
-/** Badge du créateur du site (compte développeur codé en dur) */
-export const SITE_DEVELOPER_BADGE = {
-  label: 'Développeur',
-  color: '#7c3aed',
-} as const;
-
 /** Styles de badge rôle — identiques au header (AppLayout) */
 
 export const roleColors: Record<string, { bg: string; text: string; label: string }> = {

@@ -20,8 +20,6 @@ import {
 import {
   type SessionUser,
   getSessionUser,
-  repairSiteDeveloperSession,
-  isSiteDeveloper,
   getSessionRoleBadge,
   getSessionHeaderSubtitle,
 } from '@/lib/session-user';
@@ -137,18 +135,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const userRole = localStorage.getItem("userRole");
       if (!userData) return;
 
-      let session = repairSiteDeveloperSession() ?? (JSON.parse(userData) as SessionUser);
+      let session = JSON.parse(userData) as SessionUser;
 
-      if (!isSiteDeveloper(session)) {
-        session = { ...session, role: userRole ?? session.role };
-      }
+      session = { ...session, role: userRole ?? session.role };
 
       const refreshed = await refreshSessionPermissionsOnce();
       if (refreshed) session = refreshed;
 
-      if (!isSiteDeveloper(session)) {
-        ensureRolePermissionsWatcher(session.role_id);
-      }
+      ensureRolePermissionsWatcher(session.role_id);
 
       setUser(session);
       await rebuildNav(session);

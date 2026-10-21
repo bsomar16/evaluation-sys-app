@@ -2,7 +2,7 @@ import { collectDescendantBranchIds, type BranchRecord } from '@/lib/branch-tree
 import { collectDescendantDepartmentIds, type DepartmentRecord } from '@/lib/department-tree';
 import { collectDescendantRoleIds, type RoleRecord } from '@/lib/role-tree';
 import type { SessionUser } from '@/lib/session-user';
-import { isSiteDeveloper } from '@/lib/session-user';
+import { isPlatformAdmin } from '@/lib/session-user';
 
 export interface UserCreationScope {
   unrestricted: boolean;
@@ -18,7 +18,7 @@ export function getUserCreationScope(
   allBranches: BranchRecord[],
   allDepartments: DepartmentRecord[]
 ): UserCreationScope {
-  if (isSiteDeveloper(session)) {
+  if (isPlatformAdmin(session)) {
     return {
       unrestricted: true,
       roleIds: allRoles.map((r) => r.id),

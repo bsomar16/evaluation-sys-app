@@ -20,6 +20,8 @@ const projectRoot = path.resolve(__dirname);
 
 export default defineConfig(({ mode }) => ({
   root: projectRoot,
+  // Chemin de base servi par Apache (ex. '/eval/'). Defaut : racine du domaine.
+  base: process.env.APP_BASE ?? '/',
   server: {
     host: "::",
     port: 9000,

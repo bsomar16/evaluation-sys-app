@@ -165,22 +165,15 @@ export default function AdminSchemaPage() {
       let successCount = 0;
       const errors: string[] = [];
 
-      for (const statement of statements) {
-        try {
-          const { error } = await supabase.rpc('execute_sql', { sql: statement });
-          if (error) {
-            if (error.message.includes('execute_sql')) {
-              errors.push('RPC execute_sql non disponible');
-              break;
-            }
-            errors.push(error.message);
-          } else {
-            successCount++;
-          }
-        } catch (err: unknown) {
-          errors.push(err instanceof Error ? err.message : String(err));
-        }
-      }
+      // Le DDL ne s'execute plus depuis le navigateur.
+      // La RPC `execute_sql` (SECURITY DEFINER, EXECUTE accorde a `anon`) a ete
+      // supprimee : elle permettait a n'importe quel visiteur d'executer du SQL
+      // arbitraire sur la base de production. Les migrations s'appliquent cote
+      // serveur, depuis supabase/migrations/*.sql.
+      void statements;
+      errors.push(
+        'Execution de SQL depuis le navigateur desactivee. Appliquez les migrations cote serveur (supabase/migrations/*.sql).'
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 800));
       await checkSchema();
@@ -191,7 +184,7 @@ export default function AdminSchemaPage() {
         setMigrationStatus('✅ Schéma déjà à jour.');
       } else if (errors.length > 0) {
         setMigrationStatus(
-          '⚠️ Migration automatique impossible.\n\nCopiez le SQL ci-dessous et exécutez-le dans Supabase SQL Editor.'
+          '⚠️ Migration automatique impossible.\n\nCopiez le SQL ci-dessous et appliquez-le cote serveur (cPanel / SQL Editor).'
         );
       }
     } catch (error: unknown) {

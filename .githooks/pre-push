@@ -1,0 +1,19 @@
+#!/bin/sh
+# Refuse to push Supabase service-role credentials.
+set -e
+
+remote="$1"
+url="$2"
+range=""
+
+if [ -n "$remote" ]; then
+  if git rev-parse --verify --quiet "$remote/main" >/dev/null 2>&1; then
+    range="$remote/main..HEAD"
+  fi
+fi
+
+if [ -z "$range" ]; then
+  range="HEAD"
+fi
+
+node scripts/guard-secrets.mjs "$range"

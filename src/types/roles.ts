@@ -79,23 +79,19 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
 };
 
 /**
- * Créateur du site — compte codé en dur (hors BDD), rôle Développeur + couleur dédiée
+ * Role plateforme (administrateur technique).
+ * Source de verite : la BASE (table roles) - jamais code en dur.
+ *
+ * L'ancien compte hors BDD (compte code en dur) a ete supprime : il
+ * ouvrait une session SUPER_ADMIN sans aucune verification en base,
+ * et ses identifiants etaient affiches sur la page de connexion.
  */
-export const SITE_DEVELOPER = {
-  id: 'admin-default',
-  username: 'admin',
-  password: 'Admin@2026',
-  name: 'Développeur',
-  role: 'developer',
-  roleName: 'Développeur',
-  /** Violet distinct des rôles métier */
-  roleColor: '#7c3aed',
-  /** Pas de filiale / service — compte panneau de contrôle uniquement */
-  controlPanelLabel: 'Panneau de contrôle',
-} as const;
-
-/** @deprecated Alias — utiliser SITE_DEVELOPER */
-export const DEFAULT_ADMIN = SITE_DEVELOPER;
+export const PLATFORM_ADMIN_ROLE_NAMES = [
+  'admin',
+  'super_admin',
+  'administrateur',
+  'super administrateur',
+] as const;
 
 /** Compte démo employé — doit correspondre au seed `seedDemoUser` */
 export const DEFAULT_DEMO = {

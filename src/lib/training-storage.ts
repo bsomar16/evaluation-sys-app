@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
+import { getSessionUser, isPlatformAdmin } from '@/lib/session-user';
 import type {
   TrainingPlanningDetails,
   TrainingRequestDetails,
@@ -107,7 +107,7 @@ export async function fetchTrainingRequests(options?: {
   scope?: 'all' | 'mine';
 }): Promise<TrainingRequestRecord[]> {
   const session = getSessionUser();
-  const isDev = isSiteDeveloper(session);
+  const isDev = isPlatformAdmin(session);
   const scopeAll = options?.scope === 'all' || isDev;
 
   let query = supabase.from('training_requests').select(SELECT_FULL).order('created_at', { ascending: false });

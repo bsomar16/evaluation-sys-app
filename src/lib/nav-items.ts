@@ -14,7 +14,7 @@ import {
   Ban,
   BarChart3,
 } from 'lucide-react';
-import { isSiteDeveloper } from '@/lib/session-user';
+import { isPlatformAdmin } from '@/lib/session-user';
 import { collectDescendantRoleIds, type RoleRecord } from '@/lib/role-tree';
 import type { SessionUser } from '@/lib/session-user';
 import {
@@ -43,7 +43,7 @@ export function buildNavItems(
   session: SessionUser | null,
   allRoles: RoleRecord[]
 ): AppNavItem[] {
-  const isDeveloper = isSiteDeveloper(session);
+  const isDeveloper = isPlatformAdmin(session);
   const parsed = isDeveloper
     ? parseRolePermissions({ all: true })
     : parseRolePermissions(session?.permissions);

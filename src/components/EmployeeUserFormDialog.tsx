@@ -22,7 +22,7 @@ import {
   formatPrenom,
   type EmployeeUserFormValues,
 } from '@/lib/user-form-utils';
-import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
+import { getSessionUser, isPlatformAdmin } from '@/lib/session-user';
 import type { BranchRecord } from '@/lib/branch-tree';
 import type { DepartmentRecord } from '@/lib/department-tree';
 import type { RoleRecord } from '@/lib/role-tree';
@@ -64,7 +64,7 @@ export function EmployeeUserFormDialog({
 }: EmployeeUserFormDialogProps) {
   const { toast } = useToast();
   const session = getSessionUser();
-  const isDeveloper = isSiteDeveloper(session);
+  const isDeveloper = isPlatformAdmin(session);
   const isCreate = mode === 'create';
 
   const [formData, setFormData] = useState<EmployeeUserFormValues>(() =>

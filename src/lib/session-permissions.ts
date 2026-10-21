@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { getSessionUser, isSiteDeveloper, type SessionUser } from '@/lib/session-user';
+import { getSessionUser, isPlatformAdmin, type SessionUser } from '@/lib/session-user';
 
 export const SESSION_PERMISSIONS_UPDATED_EVENT = 'session-permissions-updated';
 
@@ -10,7 +10,7 @@ let watcherCleanup: (() => void) | null = null;
 /** Recharge les permissions du rôle courant depuis la BDD et met à jour la session locale. */
 export async function refreshSessionPermissionsFromRole(): Promise<SessionUser | null> {
   const user = getSessionUser();
-  if (!user || isSiteDeveloper(user) || !user.role_id) {
+  if (!user || !user.role_id) {
     return user;
   }
 

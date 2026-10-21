@@ -15,7 +15,7 @@ import {
 import { Search, Plus, Edit2, Trash2, Archive } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
+import { getSessionUser, isPlatformAdmin } from '@/lib/session-user';
 import { collectDescendantRoleIds, type RoleRecord } from '@/lib/role-tree';
 import { collectBranchScopeIds, type BranchRecord } from '@/lib/branch-tree';
 import { collectDepartmentScopeIds, type DepartmentRecord } from '@/lib/department-tree';
@@ -173,7 +173,7 @@ export default function TeamPage() {
     }
   };
 
-  if (isSiteDeveloper(session) || !canRead('employees')) {
+  if (!isPlatformAdmin(session) && !canRead('employees')) {
     return <ModuleAccessDenied />;
   }
 

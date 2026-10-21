@@ -1,7 +1,12 @@
 import axios from 'axios';
 
-const supabaseUrl = 'https://vcotcfuodhcvmbgkivqx.supabase.co';
-const supabaseServiceKey = '***REDACTED-SUPABASE-KEY***';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!supabaseServiceKey) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY manquant (variable d\'environnement requise).');
+  process.exit(1);
+}
+
 
 async function createTables() {
   console.log('🔄 Creating evaluation_periods table via SQL...\n');

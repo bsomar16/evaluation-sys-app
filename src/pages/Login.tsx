@@ -6,8 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { SITE_DEVELOPER, DEFAULT_DEMO } from "@/types/roles";
-import { saveSiteDeveloperSession } from "@/lib/session-user";
 import { passwordService } from "@/services/passwordService";
 import { getHomePathForRole, roleSlugFromRoleCode } from "@/lib/auth-roles";
 import { isUserArchived } from "@/lib/user-archive";
@@ -95,40 +93,6 @@ export default function Login() {
 
     try {
       const loginUsername = username.trim().toLowerCase();
-
-      // Créateur du site — username « admin » réservé au développeur (pas un user BDD)
-      if (loginUsername === SITE_DEVELOPER.username) {
-        if (password !== SITE_DEVELOPER.password) {
-          throw new Error("Identifiants invalides");
-        }
-
-        let hierarchyRoleId: string | null = null;
-        const { data: superRole } = await supabase
-          .from("roles")
-          .select("id")
-          .eq("code", "SUPER_ADMIN")
-          .maybeSingle();
-        if (superRole?.id) {
-          hierarchyRoleId = superRole.id;
-        } else {
-          const { data: adminRole } = await supabase
-            .from("roles")
-            .select("id")
-            .eq("code", "ADMIN")
-            .maybeSingle();
-          hierarchyRoleId = adminRole?.id ?? null;
-        }
-
-        saveSiteDeveloperSession(hierarchyRoleId);
-
-        toast({
-          title: "Succès",
-          description: "Connexion réussie!",
-        });
-
-        navigate(getHomePathForRole(SITE_DEVELOPER.role));
-        return;
-      }
 
       // Cherche l'utilisateur dans la base par username
       const { data: userData, error: userError } = await supabase
@@ -241,32 +205,7 @@ export default function Login() {
             </form>
 
             {/* Information de démo */}
-            <div className="mt-6 p-4 bg-accent rounded-lg border border-border space-y-3">
-              <p className="font-medium text-accent-foreground text-sm font-heading">Comptes de test</p>
-              
-              {/* Admin Account */}
-              <div className="space-y-1 text-sm border-b border-border pb-3">
-                <p className="text-accent-foreground font-semibold">🛠️ Développeur (créateur du site)</p>
-                <p className="text-accent-foreground">
-                  Username: <span className="font-semibold text-primary">{SITE_DEVELOPER.username}</span>
-                </p>
-                <p className="text-accent-foreground">
-                  Mot de passe: <span className="font-semibold text-primary">{SITE_DEVELOPER.password}</span>
-                </p>
-              </div>
-
-              {/* Demo Account */}
-              <div className="space-y-1 text-sm">
-                <p className="text-accent-foreground font-semibold">👤 Démo Employee</p>
-                <p className="text-accent-foreground">
-                  Username: <span className="font-semibold text-primary">{DEFAULT_DEMO.username}</span>
-                </p>
-                <p className="text-accent-foreground">
-                  Mot de passe: <span className="font-semibold text-primary">{DEFAULT_DEMO.password}</span>
-                </p>
-              </div>
-            </div>
-          </CardContent>
+                      </CardContent>
         </Card>
 
         {/* Footer */}

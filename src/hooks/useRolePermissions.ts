@@ -7,7 +7,7 @@ import {
   canDeleteModule,
 } from '@/lib/role-permissions';
 import { SESSION_PERMISSIONS_UPDATED_EVENT } from '@/lib/session-permissions';
-import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
+import { getSessionUser, isPlatformAdmin } from '@/lib/session-user';
 
 export function useRolePermissions() {
   const [permissionVersion, setPermissionVersion] = useState(0);
@@ -19,7 +19,7 @@ export function useRolePermissions() {
   }, []);
 
   const session = useMemo(() => getSessionUser(), [permissionVersion]);
-  const isDeveloper = isSiteDeveloper(session);
+  const isDeveloper = isPlatformAdmin(session);
 
   const parsed = useMemo(() => {
     if (isDeveloper) return parseRolePermissions({ all: true });

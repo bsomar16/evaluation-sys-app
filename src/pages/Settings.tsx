@@ -8,8 +8,7 @@ import { passwordService } from '@/services/passwordService';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Eye, EyeOff } from 'lucide-react';
-import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
-import { SITE_DEVELOPER } from '@/types/roles';
+import { getSessionUser } from '@/lib/session-user';
 import { roleBadgeClassName, getRoleBadgeStyleFromColor } from '@/lib/role-colors';
 import { hideLoadingOverlay } from '@/lib/loading-overlay';
 import { useI18n } from '@/lib/i18n';
@@ -53,7 +52,7 @@ export default function Settings() {
         setUser({
           name: session.name || 'User',
           email: session.email || session.username || '',
-          role: isSiteDeveloper(session) ? SITE_DEVELOPER.role : (session.role || 'employee'),
+          role: session.role || 'employee',
         });
       }
     } catch (error) {
@@ -130,19 +129,16 @@ export default function Settings() {
   };
 
   const getRoleLabel = (role: string) => {
-    if (role === SITE_DEVELOPER.role) return SITE_DEVELOPER.roleName;
     const roleMap: Record<string, string> = {
       admin: 'Administrateur',
       hr: 'RH',
       manager: 'Manager',
       employee: 'Employé',
-      developer: SITE_DEVELOPER.roleName,
     };
     return roleMap[role] || role;
   };
 
   const session = getSessionUser();
-  const isDeveloper = isSiteDeveloper(session);
 
   return (
     <div className="space-y-6">
@@ -182,25 +178,9 @@ export default function Settings() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">{t('settings.role')}</label>
-              {isDeveloper ? (
-                <div className="flex h-10 items-center">
-                  <span
-                    className={roleBadgeClassName}
-                    style={getRoleBadgeStyleFromColor(SITE_DEVELOPER.roleColor)}
-                  >
-                    {SITE_DEVELOPER.roleName}
-                  </span>
-                </div>
-              ) : (
-                <Input value={getRoleLabel(user?.role || '')} disabled className="bg-muted" />
-              )}
+              <Input value={getRoleLabel(user?.role || '')} disabled className="bg-muted" />
             </div>
-            {isDeveloper ? (
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium">{t('settings.accountType')}</label>
-                <Input value={SITE_DEVELOPER.controlPanelLabel} disabled className="bg-muted" />
-              </div>
-            ) : null}
+            
           </div>
         </CardContent>
       </Card>

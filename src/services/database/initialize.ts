@@ -114,36 +114,17 @@ async function createTable(schema: any) {
 }
 
 /**
- * Alternative: Utiliser une RPC Supabase pour exécuter du SQL
- * Cette fonction doit être créée dans Supabase:
+ * Le DDL ne s'execute plus depuis le navigateur.
  *
- * CREATE OR REPLACE FUNCTION public.execute_sql(sql_query text)
- * RETURNS json
- * LANGUAGE plpgsql
- * SECURITY DEFINER
- * AS $$
- * BEGIN
- *   EXECUTE sql_query;
- *   RETURN json_build_object('success', true);
- * EXCEPTION WHEN OTHERS THEN
- *   RETURN json_build_object('success', false, 'error', SQLERRM);
- * END;
- * $$;
+ * La RPC `execute_sql` (SECURITY DEFINER, EXECUTE accorde a `anon`) a ete
+ * supprimee : elle permettait a n'importe quel visiteur de creer des
+ * fonctions SQL arbitraires sur la base de production.
+ *
+ * Les migrations s'appliquent cote serveur, depuis supabase/migrations/*.sql.
  */
-export async function executeSQL(sqlQuery: string) {
-  try {
-    const { data, error } = await supabase.rpc("execute_sql", {
-      sql_query: sqlQuery,
-    });
-
-    if (error) {
-      console.error("Erreur SQL:", error);
-      return false;
-    }
-
-    return data?.success;
-  } catch (error) {
-    console.warn("RPC non disponible, les tables doivent être créées manuellement");
-    return false;
-  }
+export async function executeSQL(_sqlQuery: string): Promise<boolean> {
+  console.error(
+    'Execution de SQL depuis le navigateur desactivee. Appliquez les migrations cote serveur.'
+  );
+  return false;
 }

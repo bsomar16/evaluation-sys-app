@@ -23,7 +23,7 @@ import { Plus, Archive, ArchiveRestore, Edit2, Search, Trash2 } from 'lucide-rea
 import { UsersService } from '@/services/admin/users';
 import { roleBadgeClassName, getRoleBadgeStyleFromColor } from '@/lib/role-colors';
 import { splitFullName } from '@/lib/user-name';
-import { getSessionUser, isSiteDeveloper } from '@/lib/session-user';
+import { getSessionUser, isPlatformAdmin } from '@/lib/session-user';
 import type { BranchRecord } from '@/lib/branch-tree';
 import type { DepartmentRecord } from '@/lib/department-tree';
 import type { RoleRecord } from '@/lib/role-tree';
@@ -35,7 +35,7 @@ type UserDialogState = { mode: 'create' | 'edit'; user?: any } | null;
 export function UsersPage() {
   const { toast } = useToast();
   const session = getSessionUser();
-  const isDeveloper = isSiteDeveloper(session);
+  const isDeveloper = isPlatformAdmin(session);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

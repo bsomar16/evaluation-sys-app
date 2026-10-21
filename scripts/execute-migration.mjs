@@ -1,7 +1,12 @@
 import fs from 'fs';
 
-const SUPABASE_URL = 'https://vcotcfuodhcvmbgkivqx.supabase.co';
-const SERVICE_KEY = '***REDACTED-SUPABASE-KEY***';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SERVICE_KEY) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY manquant (variable d\'environnement requise).');
+  process.exit(1);
+}
+
 
 async function executeMigration() {
   console.log('🔄 Creating evaluation_periods table...\n');

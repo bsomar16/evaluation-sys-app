@@ -16,7 +16,7 @@ import {
 import { collectBranchScopeIds, type BranchRecord } from '@/lib/branch-tree';
 import { collectDepartmentScopeIds, type DepartmentRecord } from '@/lib/department-tree';
 import { collectDescendantRoleIds, type RoleRecord } from '@/lib/role-tree';
-import { getSessionUser, isSiteDeveloper, type SessionUser } from '@/lib/session-user';
+import { getSessionUser, isPlatformAdmin, type SessionUser } from '@/lib/session-user';
 import type {
   EmployeeForEvaluation,
   EvaluationRecord,
@@ -348,7 +348,7 @@ export async function countEvaluatorPendingWork(
 
   let scopedUserIds: string[];
 
-  if (isSiteDeveloper(session)) {
+  if (isPlatformAdmin(session)) {
     scopedUserIds = users.filter((u) => u.id !== session?.id).map((u) => u.id);
   } else if (!session?.role_id || roles.length === 0) {
     return empty;
@@ -402,7 +402,7 @@ export function filterEmployeesInEvaluatorScope(
   branches: BranchRecord[],
   departments: DepartmentRecord[]
 ): EmployeeForEvaluation[] {
-  if (isSiteDeveloper(session)) {
+  if (isPlatformAdmin(session)) {
     return employees.filter((e) => e.id !== session?.id);
   }
   if (!session?.role_id || roles.length === 0) return [];

@@ -1,13 +1,7 @@
-import { SITE_DEVELOPER } from '@/types/roles';
 import { getRoleBadgeStyleFromColor } from '@/lib/role-colors';
-import {
-  createFullEvaluationActionsPermissions,
-  createFullSidebarPermissions,
-  createFullTrainingActionsPermissions,
-  serializeRolePermissions,
-} from '@/lib/role-permissions';
+import { PLATFORM_ADMIN_ROLE_NAMES } from '@/types/roles';
 
-/** Données utilisateur en session (localStorage) */
+/** Donnees utilisateur en session (localStorage) */
 
 export interface SessionUser {
   id: string;
@@ -25,6 +19,23 @@ export interface SessionUser {
   permissions?: Record<string, unknown>;
 }
 
+/**
+ * Administrateur plateforme - derive de la BASE (table roles), jamais code en dur.
+ *
+ * Remplace l'ancien compte code en dur (compte code en dur) qui ouvrait une
+ * session SUPER_ADMIN sans aucune verification en base, et dont les identifiants
+ * etaient affiches sur la page de connexion.
+ *
+ * Source de verite : le slug de session (users.role) ou le nom du role lu en base.
+ */
+export function isPlatformAdmin(user?: SessionUser | null): boolean {
+  if (!user) return false;
+  const slug = (user.role || '').trim().toLowerCase();
+  if (slug === 'admin') return true;
+  const name = (user.roleName || '').trim().toLowerCase();
+  return (PLATFORM_ADMIN_ROLE_NAMES as readonly string[]).includes(name);
+}
+
 export function getSessionUser(): SessionUser | null {
   try {
     const raw = localStorage.getItem('user');
@@ -39,52 +50,12 @@ export function getSessionRole(): string | null {
   return localStorage.getItem('userRole');
 }
 
-/** Compte créateur codé en dur (admin / Admin@2026) — jamais l'admin métier BDD */
-export function isSiteDeveloper(user?: SessionUser | null): boolean {
-  if (!user) return false;
-  return user.id === SITE_DEVELOPER.id || user.role === SITE_DEVELOPER.role;
-}
-
-/** Corrige une ancienne session qui affichait encore « admin » / Administrateur */
-export function repairSiteDeveloperSession(): SessionUser | null {
-  const user = getSessionUser();
-  if (!user) return null;
-
-  const isDevAccount =
-    user.id === SITE_DEVELOPER.id ||
-    user.username?.toLowerCase() === SITE_DEVELOPER.username ||
-    user.email?.toLowerCase() === SITE_DEVELOPER.username;
-
-  if (!isDevAccount) return user;
-
-  const fixed: SessionUser = {
-    ...user,
-    id: SITE_DEVELOPER.id,
-    username: SITE_DEVELOPER.username,
-    name: SITE_DEVELOPER.name,
-    role: SITE_DEVELOPER.role,
-    roleName: SITE_DEVELOPER.roleName,
-    roleColor: SITE_DEVELOPER.roleColor,
-    branch_id: null,
-    branchName: undefined,
-    department_id: null,
-    departmentName: undefined,
-  };
-
-  localStorage.setItem('user', JSON.stringify(fixed));
-  localStorage.setItem('userRole', SITE_DEVELOPER.role);
-  return fixed;
-}
-
-/** Sous-titre header : filiale pour les utilisateurs BDD, panneau de contrôle pour le développeur */
+/** Sous-titre header : la filiale de l'utilisateur */
 export function getSessionHeaderSubtitle(user: SessionUser | null): string {
-  if (isSiteDeveloper(user)) {
-    return SITE_DEVELOPER.controlPanelLabel;
-  }
-  return user?.branchName?.trim() || '—';
+  return user?.branchName?.trim() || '\u2014';
 }
 
-/** Libellé poste header / listes : rôle + service (ex. « Gérant RH ») */
+/** Libelle poste header / listes : role + service (ex. « Gerant RH ») */
 export function formatRoleServiceLabel(
   roleName?: string | null,
   departmentName?: string | null
@@ -98,38 +69,10 @@ export function getSessionRoleBadge(user: SessionUser | null): {
   label: string;
   style: ReturnType<typeof getRoleBadgeStyleFromColor>;
 } {
-  if (isSiteDeveloper(user)) {
-    return {
-      label: SITE_DEVELOPER.roleName,
-      style: getRoleBadgeStyleFromColor(SITE_DEVELOPER.roleColor),
-    };
-  }
   const roleName = user?.roleName || user?.role || 'User';
+  const label = formatRoleServiceLabel(roleName, user?.departmentName) || 'User';
   return {
-    label: formatRoleServiceLabel(roleName, user?.departmentName) || 'User',
+    label,
     style: getRoleBadgeStyleFromColor(user?.roleColor),
   };
-}
-
-export function saveSiteDeveloperSession(hierarchyRoleId: string | null): SessionUser {
-  const session: SessionUser = {
-    id: SITE_DEVELOPER.id,
-    username: SITE_DEVELOPER.username,
-    name: SITE_DEVELOPER.name,
-    email: SITE_DEVELOPER.username,
-    role: SITE_DEVELOPER.role,
-    role_id: hierarchyRoleId,
-    roleName: SITE_DEVELOPER.roleName,
-    roleColor: SITE_DEVELOPER.roleColor,
-    branch_id: null,
-    department_id: null,
-    permissions: serializeRolePermissions(
-      createFullSidebarPermissions(),
-      createFullEvaluationActionsPermissions(),
-      createFullTrainingActionsPermissions()
-    ),
-  };
-  localStorage.setItem('user', JSON.stringify(session));
-  localStorage.setItem('userRole', SITE_DEVELOPER.role);
-  return session;
 }

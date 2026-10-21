@@ -3,8 +3,13 @@ const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
-const supabaseUrl = 'https://vcotcfuodhcvmbgkivqx.supabase.co';
-const supabaseServiceKey = '***REDACTED-SUPABASE-KEY***';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!supabaseServiceKey) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY manquant (variable d\'environnement requise).');
+  process.exit(1);
+}
+
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
