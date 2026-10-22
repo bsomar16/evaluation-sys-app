@@ -124,6 +124,128 @@ function table_columns(string $table): array
     return $cols;
 }
 
+/** Column name => underlying type name (jsonb, _text, bool, numeric, ...). */
+function column_types(string $table): array
+{
+    static $cache = [];
+    if (isset($cache[$table])) {
+        return $cache[$table];
+    }
+    $st = db()->prepare(
+        "SELECT column_name, udt_name FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = :t"
+    );
+    $st->execute([':t' => $table]);
+    $map = [];
+    foreach ($st->fetchAll() as $r) {
+        $map[$r['column_name']] = $r['udt_name'];
+    }
+    $cache[$table] = $map;
+    return $map;
+}
+
+/** Parses a PostgreSQL array literal ({a,b} / {"a b",c} / {}) into a PHP array. */
+function pg_array_parse(string $literal): array
+{
+    $s = trim($literal);
+    if ($s === '' || $s === '{}') {
+        return [];
+    }
+    if ($s[0] !== '{') {
+        return [];
+    }
+    $out = [];
+    $cur = '';
+    $quoted = false;
+    $inQuotes = false;
+    $len = strlen($s);
+    for ($i = 1; $i < $len; $i++) {
+        $ch = $s[$i];
+        if ($inQuotes) {
+            if ($ch === '\\' && $i + 1 < $len) {
+                $cur .= $s[++$i];
+            } elseif ($ch === '"') {
+                $inQuotes = false;
+            } else {
+                $cur .= $ch;
+            }
+            continue;
+        }
+        if ($ch === '"') {
+            $inQuotes = true;
+            $quoted = true;
+            continue;
+        }
+        if ($ch === ',' || $ch === '}') {
+            $out[] = (!$quoted && strtoupper($cur) === 'NULL') ? null : $cur;
+            $cur = '';
+            $quoted = false;
+            if ($ch === '}') {
+                break;
+            }
+            continue;
+        }
+        $cur .= $ch;
+    }
+    return $out;
+}
+
+/**
+ * PostgREST returns jsonb, arrays, booleans and numbers as JSON values. PDO
+ * hands all of them over as strings, which breaks the client: an empty jsonb
+ * array would arrive as the string "[]" and .forEach would not exist.
+ */
+function cast_value($v, string $udt)
+{
+    if ($v === null || !is_string($v)) {
+        return $v;
+    }
+    switch ($udt) {
+        case 'json':
+        case 'jsonb':
+            $decoded = json_decode($v, true);
+            if ($decoded === null && strtolower(trim($v)) !== 'null') {
+                return $v;
+            }
+            return $decoded;
+        case 'bool':
+            return $v === 't' || $v === 'true' || $v === '1';
+        case 'int2':
+        case 'int4':
+        case 'int8':
+            return (int) $v;
+        case 'float4':
+        case 'float8':
+        case 'numeric':
+            return (float) $v;
+    }
+    if (str_starts_with($udt, '_')) {
+        return pg_array_parse($v);
+    }
+    return $v;
+}
+
+function cast_row(array $row, string $table): array
+{
+    $types = column_types($table);
+    foreach ($row as $k => $v) {
+        if (isset($types[$k])) {
+            $row[$k] = cast_value($v, $types[$k]);
+        }
+    }
+    return $row;
+}
+
+function cast_rows(array $rows, string $table): array
+{
+    foreach ($rows as $i => $r) {
+        if (is_array($r)) {
+            $rows[$i] = cast_row($r, $table);
+        }
+    }
+    return $rows;
+}
+
 /** Foreign keys of the public schema: [table][column] => [foreign_table, foreign_column] */
 function foreign_keys(): array
 {
@@ -508,7 +630,7 @@ function apply_embeds(array $rows, array $embeds): array
             $st->execute($params);
             $lookup = [];
             foreach ($st->fetchAll() as $fr) {
-                $lookup[(string) $fr[$embed['remote']]] = $fr;
+                $lookup[(string) $fr[$embed['remote']]] = cast_row($fr, $embed['table']);
             }
             $key = $embed['alias'] ?? $embed['table'];
             foreach ($rows as &$r) {
@@ -545,7 +667,7 @@ function apply_embeds(array $rows, array $embeds): array
             $st->execute($params);
             $group = [];
             foreach ($st->fetchAll() as $cr) {
-                $group[(string) $cr[$embed['local']]][] = $cr;
+                $group[(string) $cr[$embed['local']]][] = cast_row($cr, $embed['table']);
             }
             foreach ($rows as &$r) {
                 $v = $r[$embed['remote']] ?? null;
@@ -635,6 +757,7 @@ function handle_select(string $table, array $query): void
     $st->execute($params);
     $rows = $st->fetchAll();
     $rows = apply_embeds($rows, $embeds);
+    $rows = cast_rows($rows, $table);
 
     $total = null;
     if (prefers('count=exact')) {
@@ -724,7 +847,7 @@ function handle_insert(string $table, array $query, array $body): void
     }
 
     if ($returning) {
-        respond($st->fetchAll());
+        respond(cast_rows($st->fetchAll(), $table));
     } else {
         respond([]);
     }
@@ -761,7 +884,7 @@ function handle_update(string $table, array $query, array $body): void
     } catch (PDOException $e) {
         fail(409, '23505', 'Update failed: ' . $e->getMessage());
     }
-    respond(prefers('return=representation') ? $st->fetchAll() : []);
+    respond(prefers('return=representation') ? cast_rows($st->fetchAll(), $table) : []);
 }
 
 function handle_delete(string $table, array $query): void
@@ -777,7 +900,7 @@ function handle_delete(string $table, array $query): void
     }
     $st = db()->prepare($sql);
     $st->execute($params);
-    respond(prefers('return=representation') ? $st->fetchAll() : []);
+    respond(prefers('return=representation') ? cast_rows($st->fetchAll(), $table) : []);
 }
 
 // ------------------------------------------------------------------- RPC ---
@@ -875,7 +998,8 @@ function rpc(string $name, array $args): void
                 echo json_encode(['success' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
                 return;
             }
-            echo json_encode(['success' => true, 'data' => $st->fetch()], JSON_UNESCAPED_UNICODE);
+            $row = $st->fetch();
+            echo json_encode(['success' => true, 'data' => $row ? cast_row($row, 'users') : null], JSON_UNESCAPED_UNICODE);
             return;
 
         case 'update_user_password':
@@ -892,6 +1016,7 @@ function rpc(string $name, array $args): void
                 return;
             }
             $row = $st->fetch();
+            $row = $row ? cast_row($row, 'users') : null;
             echo json_encode($row ? ['success' => true, 'data' => $row] : ['success' => false, 'error' => 'User not found'], JSON_UNESCAPED_UNICODE);
             return;
 
@@ -939,6 +1064,7 @@ function rpc(string $name, array $args): void
                 'exp'  => time() + 60 * 60 * 12,
             ], (string) $cfg['secret']);
             unset($user['password']);
+            $user = cast_row($user, 'users');
             echo json_encode(['success' => true, 'token' => $token, 'user' => $user], JSON_UNESCAPED_UNICODE);
             return;
 

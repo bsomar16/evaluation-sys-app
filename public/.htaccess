@@ -25,6 +25,10 @@
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
+  # The self-hosted API has no realtime endpoint: answer the
+  # WebSocket handshake with a 404 instead of serving index.html.
+  RewriteRule ^realtime/ - [R=404,L]
+
   # Tout le reste -> index.html (routage cote client)
   RewriteRule . index.html [L]
 </IfModule>

@@ -74,19 +74,26 @@ export async function seedDefaultRoles() {
   try {
     console.log("🌱 Seeding des rôles par défaut...");
 
-    // Vérifier si les rôles existent déjà
-    const { data: existingRoles } = await supabase
-      .from("roles")
-      .select("code")
-      .in("code", DEFAULT_ROLES.map((r) => r.code));
+    // Vérifier si les rôles existent déjà. La comparaison est insensible à la
+    // casse : la base livrée contient `admin` / `hr` / `manager` / `employee`
+    // alors que ce seeder décrit les codes en majuscules. SUPER_ADMIN est un
+    // alias de ADMIN partout ailleurs dans l'application (lib/auth-roles.ts).
+    const { data: existingRoles } = await supabase.from("roles").select("code");
+    const known = new Set(
+      (existingRoles ?? []).map((r: { code?: string | null }) => String(r.code ?? "").toLowerCase())
+    );
+    const missing = DEFAULT_ROLES.filter((r) => {
+      const code = r.code.toLowerCase();
+      return !known.has(code) && !(code === "super_admin" && known.has("admin"));
+    });
 
-    if (existingRoles && existingRoles.length > 0) {
+    if (missing.length === 0) {
       console.log("✓ Rôles par défaut déjà existants");
       return true;
     }
 
-    // Insérer les rôles
-    for (const role of DEFAULT_ROLES) {
+    // Insérer uniquement les rôles absents
+    for (const role of missing) {
       // Pour les rôles enfants, trouver le parent
       let parentRoleId = null;
 
@@ -144,8 +151,17 @@ export async function seedDefaultBranches() {
 
 /**
  * Compte démo employé (username demo / mot de passe demo123) — aligné avec Login.tsx
+ *
+ * Desactive : la creation d'un compte est desormais reservee aux
+ * administrateurs authentifies. Row Level Security refuse legitimement cet
+ * insert au demarrage, puisqu'aucune session n'existe encore. Laisser
+ * l'appel produisait une erreur dans la console a chaque chargement.
  */
 export async function seedDemoUser() {
+  return true;
+}
+
+async function seedDemoUserLegacy() {
   try {
     const { data: existing } = await supabase
       .from("users")
@@ -161,7 +177,7 @@ export async function seedDemoUser() {
     const { data: employeeRole } = await supabase
       .from("roles")
       .select("id")
-      .eq("code", "EMPLOYEE")
+      .ilike("code", "employee")
       .maybeSingle();
 
     if (!employeeRole?.id) {

@@ -69,6 +69,7 @@ ALTER TABLE public.evaluation_criteria ADD COLUMN IF NOT EXISTS name_ar varchar(
 -- were added by the browser through the `execute_sql` RPC. The audit against
 -- src/lib/expected-db-schema.ts is the reference.
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS archived_at timestamp;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS department_id uuid REFERENCES public.departments(id) ON DELETE SET NULL;
 
 ALTER TABLE public.evaluations ADD COLUMN IF NOT EXISTS responses jsonb DEFAULT '[]'::jsonb;
 ALTER TABLE public.evaluations ADD COLUMN IF NOT EXISTS activity_log jsonb DEFAULT '[]'::jsonb;
