@@ -9,8 +9,15 @@
 --   app.branch_id  uuid    the branch of that user
 --   app.is_admin   boolean true when the role level is 0
 --
--- Role levels (roles table): 0 = Administrateur, 1 = RH, 2 = Manager,
--- 3 = Employe. A lower level means more privileges.
+-- Role levels (roles table): 0 = Directeur General / Admin, 1 = Directeur
+-- Executif, 2 = Directeur / Gerant / Assistant, 3 = Responsable, 4 = Agent.
+-- A lower level means more privileges.
+--
+-- The model mirrors what the application expects: any authenticated session
+-- can read the reference data (the interface filters what it shows from
+-- roles.permissions), while writes are reserved to level <= 3, with the
+-- self-service exceptions listed below. Anonymous requests see nothing but
+-- the single row needed to verify a login.
 --
 -- The policies are granted TO PUBLIC because the database user of the shared
 -- hosting has no CREATEROLE and cannot create a dedicated role. The outer
@@ -62,35 +69,42 @@ BEGIN
         IF to_regclass('public.' || t) IS NULL THEN
             CONTINUE;
         END IF;
+        -- SELECT is a policy of its own, and the write policies are split per
+        -- command on purpose: a FOR ALL policy also covers SELECT, and
+        -- app_is_privileged() reads public.roles. A FOR ALL policy on roles
+        -- would therefore make the policy evaluate itself, forever.
         EXECUTE format(
-            'CREATE POLICY %I ON public.%I FOR SELECT TO PUBLIC USING (true)', t || '_select', t);
+            'CREATE POLICY %I ON public.%I FOR SELECT TO PUBLIC USING (public.app_user_id() IS NOT NULL)',
+            t || '_select', t);
         EXECUTE format(
-            'CREATE POLICY %I ON public.%I FOR ALL TO PUBLIC USING (public.app_is_hr()) WITH CHECK (public.app_is_hr())',
-            t || '_write', t);
+            'CREATE POLICY %I ON public.%I FOR INSERT TO PUBLIC WITH CHECK (public.app_is_privileged())',
+            t || '_insert', t);
+        EXECUTE format(
+            'CREATE POLICY %I ON public.%I FOR UPDATE TO PUBLIC USING (public.app_is_privileged()) WITH CHECK (public.app_is_privileged())',
+            t || '_update', t);
+        EXECUTE format(
+            'CREATE POLICY %I ON public.%I FOR DELETE TO PUBLIC USING (public.app_is_hr())',
+            t || '_delete', t);
     END LOOP;
 END
 $$;
 
 -- ---------------------------------------------------------------- users ---
 
+-- Readable by any authenticated session; the password column never leaves the
+-- server because the API strips it from every response.
 CREATE POLICY users_select ON public.users FOR SELECT TO PUBLIC USING (
-    public.app_is_hr()
-    OR id = public.app_user_id()
-    OR (public.app_is_privileged() AND public.app_same_branch(branch_id))
+    public.app_user_id() IS NOT NULL
 );
 
 CREATE POLICY users_insert ON public.users FOR INSERT TO PUBLIC WITH CHECK (
     public.app_is_privileged()
-    AND (public.app_is_hr() OR public.app_same_branch(branch_id) OR branch_id IS NULL)
 );
 
 CREATE POLICY users_update ON public.users FOR UPDATE TO PUBLIC USING (
-    public.app_is_hr()
-    OR id = public.app_user_id()
-    OR (public.app_is_privileged() AND public.app_same_branch(branch_id))
+    public.app_is_privileged() OR id = public.app_user_id()
 ) WITH CHECK (
-    public.app_is_privileged()
-    AND (public.app_is_hr() OR public.app_same_branch(branch_id) OR id = public.app_user_id())
+    public.app_is_privileged() OR id = public.app_user_id()
 );
 
 CREATE POLICY users_delete ON public.users FOR DELETE TO PUBLIC
@@ -104,25 +118,47 @@ CREATE POLICY users_login ON public.users FOR SELECT TO PUBLIC USING (
     lower(email) = lower(current_setting('app.login_email', true))
 );
 
--- An employee may edit their own row (display mode, profile) but must never
--- change their own privileges. A trigger enforces this, because a row level
--- policy cannot tell which column changed.
+-- A session may edit its own row (display mode, profile) but must never grant
+-- itself more than it already has. A trigger enforces this, because a row
+-- level policy cannot tell which column changed.
 CREATE OR REPLACE FUNCTION public.guard_user_privileges() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    IF public.app_role_level() <= 2 THEN
+    -- HR and above may change anything.
+    IF public.app_is_hr() THEN
         RETURN NEW;
     END IF;
-    IF NEW.role_id IS DISTINCT FROM OLD.role_id
-        OR NEW.role IS DISTINCT FROM OLD.role
-        OR NEW.branch_id IS DISTINCT FROM OLD.branch_id
+
+    -- Nobody may promote themselves, or reopen their own account.
+    IF NEW.id = public.app_user_id() AND (
+           NEW.role_id       IS DISTINCT FROM OLD.role_id
+        OR NEW.role          IS DISTINCT FROM OLD.role
+        OR NEW.branch_id     IS DISTINCT FROM OLD.branch_id
         OR NEW.department_id IS DISTINCT FROM OLD.department_id
-        OR NEW.is_active IS DISTINCT FROM OLD.is_active
-        OR NEW.email IS DISTINCT FROM OLD.email
-        OR NEW.archived_at IS DISTINCT FROM OLD.archived_at
-        OR NEW.code IS DISTINCT FROM OLD.code
-        OR NEW.position IS DISTINCT FROM OLD.position
+        OR NEW.is_active     IS DISTINCT FROM OLD.is_active
+        OR NEW.archived_at   IS DISTINCT FROM OLD.archived_at
+        OR NEW.code          IS DISTINCT FROM OLD.code
+    ) THEN
+        RAISE EXCEPTION 'insufficient privileges to modify your own privileges'
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- Responsable and above may edit other profiles.
+    IF public.app_is_privileged() THEN
+        RETURN NEW;
+    END IF;
+
+    -- Everybody else may only touch their cosmetic fields.
+    IF NEW.role_id       IS DISTINCT FROM OLD.role_id
+        OR NEW.role          IS DISTINCT FROM OLD.role
+        OR NEW.branch_id     IS DISTINCT FROM OLD.branch_id
+        OR NEW.department_id IS DISTINCT FROM OLD.department_id
+        OR NEW.is_active     IS DISTINCT FROM OLD.is_active
+        OR NEW.email         IS DISTINCT FROM OLD.email
+        OR NEW.archived_at   IS DISTINCT FROM OLD.archived_at
+        OR NEW.code          IS DISTINCT FROM OLD.code
+        OR NEW.position      IS DISTINCT FROM OLD.position
     THEN
         RAISE EXCEPTION 'insufficient privileges to modify user privileges'
             USING ERRCODE = '42501';
@@ -138,105 +174,47 @@ CREATE TRIGGER guard_user_privileges_trg
 
 -- ----------------------------------------------------------- evaluations ---
 
-CREATE POLICY evaluations_select ON public.evaluations FOR SELECT TO PUBLIC USING (
-    public.app_is_hr()
-    OR employee_id = public.app_user_id()
-    OR manager_id = public.app_user_id()
-    OR (
-        public.app_is_privileged()
-        AND EXISTS (
-            SELECT 1 FROM public.users u
-        )
-    )
-);
+CREATE POLICY evaluations_select ON public.evaluations FOR SELECT TO PUBLIC
+    USING (public.app_user_id() IS NOT NULL);
 
-CREATE POLICY evaluations_insert ON public.evaluations FOR INSERT TO PUBLIC WITH CHECK (
-    public.app_is_privileged()
-    AND (
-        public.app_is_hr()
-        OR EXISTS (
-            SELECT 1 FROM public.users u
-        )
-    )
-);
+CREATE POLICY evaluations_insert ON public.evaluations FOR INSERT TO PUBLIC
+    WITH CHECK (public.app_is_privileged());
 
-CREATE POLICY evaluations_update ON public.evaluations FOR UPDATE TO PUBLIC USING (
-    public.app_is_hr()
-    OR employee_id = public.app_user_id()
-    OR manager_id = public.app_user_id()
-    OR (
-        public.app_is_privileged()
-        AND EXISTS (
-            SELECT 1 FROM public.users u
-        )
-    )
-) WITH CHECK (
-    public.app_is_hr()
-    OR employee_id = public.app_user_id()
-    OR manager_id = public.app_user_id()
-    OR public.app_is_privileged()
-);
+CREATE POLICY evaluations_update ON public.evaluations FOR UPDATE TO PUBLIC
+    USING (public.app_is_privileged()) WITH CHECK (public.app_is_privileged());
 
 CREATE POLICY evaluations_delete ON public.evaluations FOR DELETE TO PUBLIC
     USING (public.app_is_admin());
 
 -- ----------------------------------------------------- training_requests ---
 
-CREATE POLICY training_requests_select ON public.training_requests FOR SELECT TO PUBLIC USING (
-    public.app_is_hr()
-    OR employee_id = public.app_user_id()
-    OR manager_id = public.app_user_id()
-    OR (
-        public.app_is_privileged()
-        AND EXISTS (
-            SELECT 1 FROM public.users u
-        )
-    )
-);
+CREATE POLICY training_requests_select ON public.training_requests FOR SELECT TO PUBLIC
+    USING (public.app_user_id() IS NOT NULL);
 
-CREATE POLICY training_requests_insert ON public.training_requests FOR INSERT TO PUBLIC WITH CHECK (
-    employee_id = public.app_user_id()
-    OR (
-        public.app_is_privileged()
-        AND EXISTS (
-            SELECT 1 FROM public.users u
-        )
-    )
-);
+CREATE POLICY training_requests_insert ON public.training_requests FOR INSERT TO PUBLIC
+    WITH CHECK (public.app_is_privileged() OR employee_id = public.app_user_id());
 
-CREATE POLICY training_requests_update ON public.training_requests FOR UPDATE TO PUBLIC USING (
-    public.app_is_hr()
-    OR employee_id = public.app_user_id()
-    OR manager_id = public.app_user_id()
-    OR public.app_is_privileged()
-) WITH CHECK (
-    public.app_is_hr()
-    OR employee_id = public.app_user_id()
-    OR manager_id = public.app_user_id()
-    OR public.app_is_privileged()
-);
+CREATE POLICY training_requests_update ON public.training_requests FOR UPDATE TO PUBLIC
+    USING (public.app_is_privileged() OR employee_id = public.app_user_id())
+    WITH CHECK (public.app_is_privileged() OR employee_id = public.app_user_id());
 
 CREATE POLICY training_requests_delete ON public.training_requests FOR DELETE TO PUBLIC
     USING (public.app_is_hr());
 
 -- --------------------------------------------------------------- reports ---
 
-CREATE POLICY reports_select ON public.reports FOR SELECT TO PUBLIC USING (
-    public.app_is_hr() OR user_id = public.app_user_id()
-);
+CREATE POLICY reports_select ON public.reports FOR SELECT TO PUBLIC
+    USING (public.app_user_id() IS NOT NULL);
 
-CREATE POLICY reports_insert ON public.reports FOR INSERT TO PUBLIC WITH CHECK (
-    public.app_is_hr() OR user_id = public.app_user_id()
-);
+CREATE POLICY reports_insert ON public.reports FOR INSERT TO PUBLIC
+    WITH CHECK (public.app_is_privileged() OR user_id = public.app_user_id());
 
-CREATE POLICY reports_update ON public.reports FOR UPDATE TO PUBLIC USING (
-    public.app_is_hr() OR user_id = public.app_user_id()
-) WITH CHECK (
-    public.app_is_hr() OR user_id = public.app_user_id()
-);
+CREATE POLICY reports_update ON public.reports FOR UPDATE TO PUBLIC
+    USING (public.app_is_privileged() OR user_id = public.app_user_id())
+    WITH CHECK (public.app_is_privileged() OR user_id = public.app_user_id());
 
 CREATE POLICY reports_delete ON public.reports FOR DELETE TO PUBLIC
-    USING (public.app_is_hr() OR user_id = public.app_user_id());
+    USING (public.app_is_privileged() OR user_id = public.app_user_id());
 
 -- ------------------------------------------------------------- cleanup ----
 
@@ -244,4 +222,3 @@ CREATE POLICY reports_delete ON public.reports FOR DELETE TO PUBLIC
 -- the owner of the database, and the policies above decide what it may do.
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.app_login_user(text) TO PUBLIC;

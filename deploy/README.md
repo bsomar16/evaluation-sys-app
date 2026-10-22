@@ -131,3 +131,55 @@ transaction-scoped `app.*` GUCs, which the RLS policies read.
   `FORCE ROW LEVEL SECURITY` keeps the owner subject to the policies.
 - Browser-side DDL is disabled; schema changes go through `deploy/sql/`.
 - The `users.password` column is stripped from every API response.
+
+## The production data
+
+The database holds the data of the hosted Supabase project, imported row by
+row on 22 October 2026 (the demo content was replaced, not merged):
+
+| table | rows | table | rows |
+| --- | --- | --- | --- |
+| users | 57 | evaluation_criteria | 20 |
+| roles | 8 | calculation_rules | 29 |
+| branches | 8 | evaluation_periods | 7 |
+| departments | 27 | evaluation_period_intervals | 7 |
+| evaluations | 12 | rejection_reasons | 1 |
+| training_requests | 0 | reports / app_settings | 0 |
+
+The import preserved the identifiers, the timestamps and the password
+hashes, so every account keeps its password. Two formats are in use and both
+are verified by the API: `bcrypt` (`$2y$`, created by the app) and
+`$pbkdf2-sha256$100000$` (Supabase). A user whose hash is empty cannot log
+in - those are the accounts flagged `is_agent_without_account`.
+
+Two schema details came out of the production data and are worth keeping in
+mind:
+
+- `users.role` holds `'employee'` for every account, the real role being
+  `users.role_id`. The application reads the role from `roles.name` and
+  `roles.permissions`, which is why the session is built that way.
+- The role hierarchy uses the levels 0 (Directeur General / Admin), 1
+  (Directeur Executif), 2 (Directeur / Gerant / Assistant), 3 (Responsable)
+  and 4 (Agent). `app_is_privileged()` therefore means level <= 3 and
+  `app_is_hr()` level <= 1.
+- `evaluations.score`, `evaluation_criteria.weight` and
+  `calculation_rules.max_points` are `numeric(5,2)`: a score of 100 does not
+  fit in `numeric(3,1)`.
+
+### Re-importing from Supabase
+
+The hosted project still answers the PostgREST API with the `anon` key for
+the tables that had no RLS upstream, which is enough to export the data.
+The `service_role` key has been rotated and is no longer usable.
+
+```
+GET https://<project>.supabase.co/rest/v1/<table>?select=*&limit=1000&offset=N
+```
+
+The rows are then inserted in foreign key order (branches, departments,
+roles, users, calculation_rules, evaluation_criteria, evaluation_periods,
+evaluation_period_intervals, evaluations, ...) with row level security
+lifted for the transaction. Keep the column intersection with
+`src/lib/expected-db-schema.ts`: the hosted table `evaluation_criteria` still
+carries three legacy columns (`role_id`, `branch_id`, `department_id`) that
+the current schema does not have.

@@ -9,8 +9,13 @@
 --   app.branch_id  uuid    the branch of that user
 --   app.is_admin   boolean true when the role level is 0
 --
--- Role levels (roles table): 0 = Administrateur, 1 = RH, 2 = Manager,
--- 3 = Employe. A lower level means more privileges.
+-- Role levels (roles table), as used by the production hierarchy:
+--   0  Directeur General / Admin
+--   1  Directeur Executif
+--   2  Directeur / Gerant / Assistant
+--   3  Responsable
+--   4  Agent
+-- A lower level means more privileges.
 
 CREATE OR REPLACE FUNCTION public.app_user_id() RETURNS uuid
     LANGUAGE sql STABLE
@@ -35,7 +40,7 @@ CREATE OR REPLACE FUNCTION public.app_role_level() RETURNS integer
 
 CREATE OR REPLACE FUNCTION public.app_is_privileged() RETURNS boolean
     LANGUAGE sql STABLE
-    AS $$ SELECT public.app_role_level() <= 2 $$;
+    AS $$ SELECT public.app_role_level() <= 3 $$;
 
 CREATE OR REPLACE FUNCTION public.app_is_hr() RETURNS boolean
     LANGUAGE sql STABLE

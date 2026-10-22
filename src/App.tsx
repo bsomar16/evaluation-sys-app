@@ -36,7 +36,7 @@ import UIStudio from "@/pages/admin/UIStudio";
 import Settings from "@/pages/Settings";
 import { useEffect } from "react";
 import { initializeDatabase } from "@/lib/db-init";
-import { isAdminRole } from "@/lib/auth-roles";
+import { getSessionUser, isPlatformAdmin } from "@/lib/session-user";
 import { LanguageProvider } from "@/lib/i18n";
 
 const queryClient = new QueryClient();
@@ -58,14 +58,16 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
 };
 
 const AdminRoute = ({ children }: AdminRouteProps) => {
-  const userStr = localStorage.getItem("user");
-  const userStr2 = localStorage.getItem("userRole");
-
-  if (!userStr) {
+  if (!localStorage.getItem("user")) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!isAdminRole(userStr2)) {
+  // The sidebar only shows these three pages (Utilisateurs, Schema BD,
+  // Configuration) to a platform administrator, so the route must use the
+  // same predicate. It used to read the users.role slug instead, which
+  // diverges from the sidebar as soon as the role is named rather than
+  // coded - the link was visible but the page bounced back to the dashboard.
+  if (!isPlatformAdmin(getSessionUser())) {
     return <Navigate to="/" replace />;
   }
 
