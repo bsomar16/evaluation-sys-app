@@ -97,8 +97,8 @@ function split_top(string $s): array
         if ($ch === ')') { $depth--; $buf .= $ch; continue; }
         if ($ch === ',' && $depth === 0) { $parts[] = trim($buf); $buf = ''; continue; }
         $buf .= $ch;
-        $parts[] = trim($buf);
     }
+    $parts[] = trim($buf);
     return $parts;
 }
 
@@ -258,7 +258,7 @@ function build_where(array $query, array $columns): array
         }
 
         $i++;
-        $ph = "f$i";
+        $ph = ":f$i";
         $ident = quote_ident($col);
 
         switch ($op) {
@@ -268,27 +268,27 @@ function build_where(array $query, array $columns): array
                     break;
                 }
                 $where[] = ($negate ? "$ident <> $ph" : "$ident = $ph");
-                $params[$ph] = $value;
+                $params[ltrim($ph, ':')] = $value;
                 break;
 
             case 'neq':
                 $where[] = ($negate ? "$ident = $ph" : "$ident <> $ph");
-                $params[$ph] = $value;
+                $params[ltrim($ph, ':')] = $value;
                 break;
 
-            case 'gt':  $where[] = ($negate ? "$ident <= $ph" : "$ident > $ph");  $params[$ph] = $value; break;
-            case 'gte': $where[] = ($negate ? "$ident < $ph"  : "$ident >= $ph"); $params[$ph] = $value; break;
-            case 'lt':  $where[] = ($negate ? "$ident >= $ph" : "$ident < $ph");  $params[$ph] = $value; break;
-            case 'lte': $where[] = ($negate ? "$ident > $ph"  : "$ident <= $ph"); $params[$ph] = $value; break;
+            case 'gt':  $where[] = ($negate ? "$ident <= $ph" : "$ident > $ph");  $params[ltrim($ph, ':')] = $value; break;
+            case 'gte': $where[] = ($negate ? "$ident < $ph"  : "$ident >= $ph"); $params[ltrim($ph, ':')] = $value; break;
+            case 'lt':  $where[] = ($negate ? "$ident >= $ph" : "$ident < $ph");  $params[ltrim($ph, ':')] = $value; break;
+            case 'lte': $where[] = ($negate ? "$ident > $ph"  : "$ident <= $ph"); $params[ltrim($ph, ':')] = $value; break;
 
             case 'like':
                 $where[] = ($negate ? "$ident NOT LIKE $ph" : "$ident LIKE $ph");
-                $params[$ph] = str_replace('*', '%', $value);
+                $params[ltrim($ph, ':')] = str_replace('*', '%', $value);
                 break;
 
             case 'ilike':
                 $where[] = ($negate ? "$ident NOT ILIKE $ph" : "$ident ILIKE $ph");
-                $params[$ph] = str_replace('*', '%', $value);
+                $params[ltrim($ph, ':')] = str_replace('*', '%', $value);
                 break;
 
             case 'is':
@@ -313,14 +313,14 @@ function build_where(array $query, array $columns): array
                 foreach ($items as $n => $item) {
                     $p = "{$ph}_$n";
                     $phs[] = $p;
-                    $params[$p] = $item;
+                    $params[ltrim($p, ':')] = $item;
                 }
                 $where[] = ($negate ? "$ident NOT IN (" : "$ident IN (") . implode(', ', $phs) . ')';
                 break;
 
             case 'match':
                 $where[] = ($negate ? "NOT (" : '(') . "$ident @@ websearch_to_tsquery('simple', $ph))";
-                $params[$ph] = $value;
+                $params[ltrim($ph, ':')] = $value;
                 break;
         }
     }
@@ -352,6 +352,19 @@ function parse_select(string $select, string $table, array $columns): array
             continue;
         }
 
+        // Aggregate: COUNT(*) as count, AVG(score) as avg_score
+        if (preg_match('/^(count|sum|avg|min|max)\s*\(\s*(\*|[A-Za-z0-9_]+)\s*\)(?:\s+as\s+([A-Za-z0-9_]+))?$/i', $item, $m)) {
+            $fn = strtolower($m[1]);
+            $arg = $m[2] === '*' ? '*' : (in_array($m[2], $columns, true) ? quote_ident($m[2]) : null);
+            if ($arg === null) {
+                fail(400, 'PGRST100', "Unknown column in aggregate: {$m[2]}");
+            }
+            $hasAggregate = true;
+            $alias = $m[3] ?? ($fn . '_' . ($m[2] === '*' ? 'all' : $m[2]));
+            $sqlParts[] = "$fn($arg) AS " . quote_ident($alias);
+            continue;
+        }
+
         // Embedded resource:  branches(name)  or  parent:parent_role_id(name, code)
         if (preg_match('/^([A-Za-z0-9_]+(?::[A-Za-z0-9_]+)?)\s*\((.*)\)$/s', $item, $m)) {
             $rel = $m[1];
@@ -380,7 +393,22 @@ function parse_select(string $select, string $table, array $columns): array
                 $target = $fkCol;
                 $mode = 'one_to_many';
             } else {
-                fail(400, 'PGRST200', "Could not find a relationship between '$table' and '$fkCol'.");
+                // The embed may name the table the foreign key points to:
+                // branches(name) on the users table is the branch of that user.
+                $found = false;
+                foreach (($fks[$table] ?? []) as $col => $ft) {
+                    if ($ft[0] === $fkCol) {
+                        $localCol = $col;
+                        $target = $fkCol;
+                        $remoteCol = $ft[1];
+                        $mode = 'many_to_one';
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    fail(400, 'PGRST200', "Could not find a relationship between '$table' and '$fkCol'.");
+                }
             }
 
             $embeds[] = [
@@ -391,19 +419,6 @@ function parse_select(string $select, string $table, array $columns): array
                 'local'   => $localCol,
                 'remote'  => $remoteCol,
             ];
-            continue;
-        }
-
-        // Aggregate: COUNT(*) as count, AVG(score) as avg_score
-        if (preg_match('/^(count|sum|avg|min|max)\s*\(\s*(\*|[A-Za-z0-9_]+)\s*\)(?:\s+as\s+([A-Za-z0-9_]+))?$/i', $item, $m)) {
-            $fn = strtolower($m[1]);
-            $arg = $m[2] === '*' ? '*' : (in_array($m[2], $columns, true) ? quote_ident($m[2]) : null);
-            if ($arg === null) {
-                fail(400, 'PGRST100', "Unknown column in aggregate: {$m[2]}");
-            }
-            $hasAggregate = true;
-            $alias = $m[3] ?? ($fn . '_' . ($m[2] === '*' ? 'all' : $m[2]));
-            $sqlParts[] = "$fn($arg) AS " . quote_ident($alias);
             continue;
         }
 
@@ -485,7 +500,7 @@ function apply_embeds(array $rows, array $embeds): array
             $params = [];
             foreach (array_values($values) as $n => $v) {
                 $phs[] = ':e' . $n;
-                $params[':e' . $n] = $v;
+                $params['e' . $n] = $v;
             }
             $sql = 'SELECT ' . $selSql . ' FROM public.' . quote_ident($embed['table'])
                  . ' WHERE ' . quote_ident($embed['remote']) . ' IN (' . implode(', ', $phs) . ')';
@@ -522,7 +537,7 @@ function apply_embeds(array $rows, array $embeds): array
             $params = [];
             foreach (array_values($parentIds) as $n => $v) {
                 $phs[] = ':c' . $n;
-                $params[':c' . $n] = $v;
+                $params['c' . $n] = $v;
             }
             $sql = 'SELECT ' . $selSql . ' FROM public.' . quote_ident($embed['table'])
                  . ' WHERE ' . quote_ident($embed['local']) . ' IN (' . implode(', ', $phs) . ')';
@@ -571,6 +586,13 @@ function wants_single(): bool
 
 function respond(array $rows, ?int $total = null): void
 {
+    // The password hash never leaves the server, whatever the query is.
+    foreach ($rows as &$row) {
+        if (is_array($row) && array_key_exists('password', $row)) {
+            unset($row['password']);
+        }
+    }
+    unset($row);
     if (wants_single()) {
         if (count($rows) === 0) {
             fail(406, 'PGRST116', 'JSON object requested, multiple (or no) rows returned.');
@@ -671,7 +693,7 @@ function handle_insert(string $table, array $query, array $body): void
         $rowPhs = [];
         foreach ($allCols as $c) {
             $ph = 'v' . $i . '_' . preg_replace('/[^A-Za-z0-9_]/', '_', $c);
-            $rowPhs[] = $ph;
+            $rowPhs[] = ':' . $ph;
             $params[$ph] = $row[$c] ?? null;
         }
         $phs[] = '(' . implode(', ', $rowPhs) . ')';
@@ -721,7 +743,7 @@ function handle_update(string $table, array $query, array $body): void
             fail(400, 'PGRST204', "Unknown column for table $table: $c");
         }
         $ph = 's_' . preg_replace('/[^A-Za-z0-9_]/', '_', (string) $c);
-        $sets[] = quote_ident((string) $c) . " = $ph";
+        $sets[] = quote_ident((string) $c) . ' = :' . $ph;
         $params[$ph] = $v;
     }
     [$where, $wparams] = build_where($query, $columns);
@@ -841,7 +863,7 @@ function rpc(string $name, array $args): void
             $params = [];
             foreach ($cols as $i => $c) {
                 $ph = 'c' . $i;
-                $phs[] = $ph;
+                $phs[] = ':' . $ph;
                 $params[$ph] = $payload[$c];
             }
             $sql = 'INSERT INTO public.users (' . implode(', ', array_map('quote_ident', $cols)) . ')'
@@ -864,7 +886,7 @@ function rpc(string $name, array $args): void
             }
             $st = db()->prepare('UPDATE public.users SET password = :h, updated_at = now() WHERE id = :id RETURNING *');
             try {
-                $st->execute([':h' => password_hash($pass, PASSWORD_BCRYPT, ['cost' => 12]), ':id' => $uid]);
+                $st->execute(['h' => password_hash($pass, PASSWORD_BCRYPT, ['cost' => 12]), 'id' => $uid]);
             } catch (PDOException $e) {
                 echo json_encode(['success' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
                 return;
@@ -877,6 +899,11 @@ function rpc(string $name, array $args): void
             // Issues the signed session token used by the RLS policies.
             $email = trim((string) ($args['p_email'] ?? ''));
             $pass = (string) ($args['p_password'] ?? '');
+            // The lookup happens before any session exists. The users_login
+            // policy accepts the single row whose address matches
+            // app.login_email, a transaction scoped value that only this
+            // request sets, and only while it sets it.
+            db()->exec('SET LOCAL app.login_email = ' . db()->quote($email));
             $st = db()->prepare('SELECT * FROM public.users WHERE lower(email) = lower(:e) LIMIT 1');
             $st->execute([':e' => $email]);
             $user = $st->fetch();
@@ -884,13 +911,25 @@ function rpc(string $name, array $args): void
                 echo json_encode(['success' => false, 'error' => 'Identifiants invalides'], JSON_UNESCAPED_UNICODE);
                 return;
             }
+            // From here on the request is identified as that user.
+            db()->exec('SET LOCAL app.login_email = ' . db()->quote(''));
             $isAdmin = false;
+            $roleLevel = 99;
             if (!empty($user['role_id'])) {
                 $rs = db()->prepare('SELECT level FROM public.roles WHERE id = :r');
                 $rs->execute([':r' => $user['role_id']]);
                 $role = $rs->fetch();
-                $isAdmin = $role && (int) $role['level'] === 0;
+                if ($role) {
+                    $roleLevel = (int) $role['level'];
+                    $isAdmin = $roleLevel === 0;
+                }
             }
+            // The rest of the request runs with the identity of the user.
+            db()->exec('SET LOCAL app.user_id = ' . db()->quote((string) $user['id']));
+            db()->exec('SET LOCAL app.role_id = ' . db()->quote((string) ($user['role_id'] ?? '')));
+            db()->exec('SET LOCAL app.branch_id = ' . db()->quote((string) ($user['branch_id'] ?? '')));
+            db()->exec('SET LOCAL app.is_admin = ' . ($isAdmin ? "'1'" : "'0'"));
+            db()->exec('SET LOCAL app.email = ' . db()->quote((string) $user['email']));
             $token = sign_token([
                 'uid'  => (string) $user['id'],
                 'rid'  => (string) ($user['role_id'] ?? ''),

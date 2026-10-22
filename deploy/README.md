@@ -1,124 +1,133 @@
 # Deploying on cPanel (`cph-agro.com`)
 
-Target: Apache + PHP 8.3 + PostgreSQL 13.23, all on the same shared hosting
-account. Nothing in this stack needs Node, Docker or an external service at
-runtime - GitHub and Supabase are only used to build the frontend.
+Production instance: **https://eval.cph-agro.com**
 
-```
-https://eval.cph-agro.com/            -> the SPA (static files in dist/)
-https://eval.cph-agro.com/rest/v1/    -> the API (public/rest/v1/api.php)
-https://eval.cph-agro.com/rest/v1/health
-```
-
-## What is already in place
+## What is in place
 
 | | |
 |---|---|
-| `/home/cphagro/eval.cph-agro.com/` | document root, the built SPA and the API are deployed |
-| `/home/cphagro/.eval-api/config.php` | API configuration (database credentials, HMAC secret) - outside the document root, mode 600 |
-| `deploy/sql/install.sh` | installs the schema and the Row Level Security policies |
-| `deploy/install-api.sh` | rebuilds and redeploys the SPA + API |
+| Hosting | cPanel account `cphagro`, origin `65.181.113.41`, behind Cloudflare |
+| Document root | `/home/cphagro/eval.cph-agro.com` |
+| API | `public/rest/v1/api.php` (PHP 8.3, `pdo_pgsql`) |
+| Database | PostgreSQL 13.23, `cphagro_evalsys`, role `cphagro_evalcph` |
+| API credentials | `/home/cphagro/.eval-api/config.php` (mode 600, outside the docroot) |
+| Certificate | Let's Encrypt (acme.sh), installed through `uapi SSL install_ssl` |
+| Old `/eval/` deployment | retired, backed up under `/home/cphagro/backups/` |
 
-## Step 1 - create the subdomain (cPanel, 2 minutes)
+## Files of this directory
 
-1. cPanel -> **Domains** -> **Subdomains** -> **Create a New Subdomain**
-2. Domain: `cph-agro.com`, Subdomain: `eval`
-3. Document Root: `/home/cphagro/eval.cph-agro.com` (the folder already exists)
-4. **Create**
+| File | Role |
+|---|---|
+| `sql/00_bootstrap.sql` | `auth` schema stand-in, `auth.role()` for the upstream migrations |
+| `sql/01_disable_rls.sql` | lifts the policies so the installer can be re-run |
+| `sql/05_missing_tables.sql` | the three tables and the columns that no upstream migration creates |
+| `sql/07_convergence.sql` | reconciles the two conflicting `evaluation_periods` migrations |
+| `sql/12_session_helpers.sql` | `app_*()` helpers used by the policies |
+| `sql/10_rls_policies.sql` | authoritative Row Level Security |
+| `sql/install.sh` | applies everything, in order, idempotently |
 
-1. Cloudflare -> **DNS** -> **Records** -> **Add record**
-2. Type `A`, Name `eval`, IPv4 address `65.181.113.41`
-3. Proxy status **Proxied** (orange cloud) - Cloudflare's Universal SSL then
-   covers `eval.cph-agro.com` (`*.cph-agro.com`) and the site is served over
-   HTTPS without having to run AutoSSL.
-4. **Save**
+## Rebuilding the stack
 
-1. cPanel -> **PostgreSQL Databases** -> **Create New Database**
-2. Name: `evalsys` -> the database is called `cphagro_evalsys`
-3. **Add User to Database**: user `evalsys`, a strong generated password,
-   **ALL PRIVILEGES** -> **Add**
-4. Keep the password: it goes into `/home/cphagro/.eval-api/config.php`.
+### 1. Database
 
-## Step 4 - install the schema and the policies
+cPanel > PostgreSQL Databases: create `evalsys` (which becomes `cphagro_evalsys`),
+add a user with ALL PRIVILEGES.
 
-From the repository, with the database password in the environment:
+### 2. API configuration
 
-```bash
-PGHOST=127.0.0.1 PGPORT=5432 PGUSER=evalsys PGDATABASE=cphagro_evalsys \
-PGPASSWORD='<the password from step 3>' ./deploy/sql/install.sh
+```php
+<?php
+return [
+    'dsn'      => 'pgsql:host=127.0.0.1;port=5432;dbname=cphagro_evalsys',
+    'user'     => 'cphagro_evalcph',
+    'password' => '...',
+    'app_role' => '',
+    'secret'   => '<64 hex chars>',
+];
 ```
 
-The script applies the upstream migrations (skipping
-`20260525_create_execute_sql_rpc.sql`, which grants DDL to `anon`) and then
-`deploy/sql/10_rls_policies.sql`, which replaces every policy with the
-session based ones:
+Store it at `/home/cphagro/.eval-api/config.php`, `chmod 600`.
 
-- `admin` (role level 0) and `RH` (level 1) see everything,
-- a `Manager` (level 2) sees their own branch only,
-- an employee sees only their own evaluations and requests,
-- nobody can grant themselves a role (a trigger rejects it).
+### 3. Schema and policies
 
-## Step 5 - point the frontend at the API
-
-`.env.local` (never committed):
-
-```
-VITE_SUPABASE_URL=https://eval.cph-agro.com
-VITE_SUPABASE_PUBLISHABLE_KEY=local-publishable-key
+```sh
+PGHOST=127.0.0.1 PGUSER=cphagro_evalcph PGDATABASE=cphagro_evalsys PGPASSWORD=... \
+  ./deploy/sql/install.sh
 ```
 
-The `publishable key` is not a credential: the API ignores it. The real
-credential is the session token that `app_login` returns and that the
-database uses to apply the RLS policies.
+The installer is idempotent. It applies, in order: `00_bootstrap`, `01_disable_rls`,
+`supabase/init-schema.sql` (with the pgcrypto helpers cut out), `05_missing_tables`,
+the migrations, `07_convergence`, `12_session_helpers`, `10_rls_policies`.
 
-Rebuild and redeploy:
+Four upstream files are deliberately never applied:
 
-```bash
-APP_BASE=/ npm run build
-EVAL_DOCROOT=/home/cphagro/eval.cph-agro.com \
-DB_NAME=cphagro_evalsys DB_USER=evalsys DB_PASSWORD='...' \
-./deploy/install-api.sh
+- `20260525_create_execute_sql_rpc.sql` - grants DDL to `anon`
+- `20260526_add_password_hashing.sql` - needs `pgcrypto`, absent on this server
+- `20260611_seed_evaluations_with_scores.sql` - invalid SQL, demo data only
+- `20260921_enable_rls_all_tables.sql` - needs `pgcrypto` and `CREATE ROLE`
+
+### 4. Frontend
+
+```sh
+VITE_SUPABASE_URL=https://eval.cph-agro.com APP_BASE=/ npm run build
 ```
 
-`APP_BASE=/` for the subdomain. Use `APP_BASE=/eval/` for a sub-directory
-installation under the WordPress root - the `.htaccess` is base agnostic.
+Upload `dist/` except `dist/.htaccess` and `dist/rest/v1/api.php`: the copy on the
+server already carries the cPanel PHP block and the routing rules.
+
+### 5. TLS
+
+The certificate is a Let's Encrypt one obtained with acme.sh over HTTP-01
+(the `/.well-known/acme-challenge/` path is exempt from Cloudflare's HTTPS
+redirect, so validation succeeds through the proxy):
+
+```sh
+./acme.sh --issue --server letsencrypt --webroot /home/cphagro/eval.cph-agro.com -d eval.cph-agro.com
+./acme.sh --install-cert -d eval.cph-agro.com \
+  --key-file /home/cphagro/ssl/keys/eval.cph-agro.com.key \
+  --fullchain-file /home/cphagro/ssl/certs/eval.cph-agro.com.crt \
+  --ca-file /home/cphagro/ssl/certs/eval.cph-agro.com.ca-bundle \
+  --reloadcmd /home/cphagro/reinstall-cert.sh
+```
+
+`reinstall-cert.sh` calls `uapi SSL install_ssl` with `@file` arguments (a value
+starting with `@` is read from disk by uapi; passing the PEM inline truncates it).
+A cron entry runs `acme.sh --cron` every day at 03:17 and renews automatically.
 
 ## Verifying
 
-```bash
-curl https://eval.cph-agro.com/rest/v1/health
+```sh
+curl -s https://eval.cph-agro.com/rest/v1/health
 # {"status":"ok","service":"cph-eval-api","version":"1.0.0"}
+
+curl -s -X POST https://eval.cph-agro.com/rest/v1/rpc/app_login \
+  -H 'Content-Type: application/json' \
+  -d '{"p_email":"admin@company.com","p_password":"..."}'
+# {"success":true,"token":"...","user":{...}}
 ```
 
-Without a session, the tables are empty and the API returns an empty array -
-that is Row Level Security working, not a bug:
-
-```bash
-curl -i 'https://eval.cph-agro.com/rest/v1/users?select=id,email'
-```
+The functional suite lives at `deploy/test/api_suite.sh` (run it on the host,
+it exercises filters, embeds, aggregates, writes, RLS and the SPA routes).
 
 ## How the Supabase client talks to PostgreSQL
 
-`@supabase/supabase-js` is kept as-is; only `VITE_SUPABASE_URL` changes. The
-API implements the part of the PostgREST contract the application uses:
+`@supabase/supabase-js` writes PostgREST queries. `public/rest/v1/api.php`
+implements that surface on top of `pdo_pgsql`: filters (`eq`, `neq`, `gt`,
+`gte`, `lt`, `lte`, `like`, `ilike`, `in`, `is`, `match`), `order`, `limit`,
+`offset`, `select` with aliases, embedded resources, aggregates, `single` /
+`maybeSingle`, upserts, and the RPCs (`hash_password`, `verify_password`,
+`create_user_with_password`, `update_user_password`, `app_login`).
 
-| Used by the app | Implemented |
-|---|---|
-| `supabase.from(table)` - 97 calls over 13 tables | `GET/POST/PATCH/DELETE /rest/v1/<table>` |
-| `.eq()` `.is()` `.in()` `.match()` `.ilike()` | `eq neq gt gte lt lte like ilike is in match not`, `eq.null` -> `IS NULL` |
-| `.order()` `.limit()` | `order=col.asc`, `limit` |
-| `.single()` `.maybeSingle()` | `Accept: application/vnd.pgrst.object+json`, 406 `PGRST116` when not exactly one row |
-| `.upsert()` | `Prefer: resolution=merge-duplicates` -> `ON CONFLICT ... DO UPDATE` |
-| `supabase.rpc('hash_password' \| 'verify_password' \| 'create_user_with_password' \| 'update_user_password')` | same names, implemented in PHP with `password_hash()` (bcrypt) |
-| embedded resources `branches(name)`, `roles(name, code)`, `parent:parent_role_id(name, code)` | resolved from the foreign keys of the schema |
-| `supabase.rpc('app_login')` | new: authenticates and returns the signed session token |
+Authentication is handled by `app_login`: the password never leaves the
+server, and the RPC returns an HMAC-signed session token that the browser
+sends as `Authorization: Bearer`. The API turns that token into
+transaction-scoped `app.*` GUCs, which the RLS policies read.
 
-Not needed and not implemented:
+## Constraints worth remembering
 
-- **GoTrue / `supabase.auth`** - `src/hooks/useSupabase.ts` is dead code, the
-  application authenticates against the database itself.
-- **Storage** - not used anywhere in the app.
-- **Edge Functions** - not used anywhere in the app.
-- **Realtime** - five `postgres_changes` channels are used for the sidebar
-  badges, but every one of them already polls every 30 seconds, so removing
-  realtime costs nothing.
+- `pgcrypto` is not installed: the password functions are implemented in PHP.
+- The database role has no `CREATEROLE`: policies are `TO PUBLIC`, and the
+  outer boundary is `pg_hba.conf` (only the API user can connect).
+  `FORCE ROW LEVEL SECURITY` keeps the owner subject to the policies.
+- Browser-side DDL is disabled; schema changes go through `deploy/sql/`.
+- The `users.password` column is stripped from every API response.
